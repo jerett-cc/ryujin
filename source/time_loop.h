@@ -19,6 +19,7 @@
 
 #include <deal.II/base/parameter_acceptor.h>
 #include <deal.II/base/timer.h>
+#include <deal.II/base/tensor.h>
 
 #include <fstream>
 #include <future>
@@ -88,6 +89,12 @@ namespace ryujin
      * Run the high-level time loop.
      */
     void run();
+
+    /**
+     * Compute drag and lift of cylindrical case only
+     * returns a NUMBER of the drag.
+     */
+    dealii::Tensor<1,dim> calculate_drag_and_lift(const vector_type &U);
 
   protected:
     /**
