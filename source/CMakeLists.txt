@@ -88,9 +88,25 @@ endforeach()
 add_executable(ryujin main.cc)
 deal_ii_setup_target(ryujin)
 target_link_libraries(ryujin obj_common ${OBJECT_TARGETS} ${EXTERNAL_TARGETS})
-
 set_target_properties(ryujin PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/run"
   )
 
 install(TARGETS ryujin DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+#
+#Add Xbraid library and also set up my executable
+#
+
+
+
+add_executable(high-order-euler high-order-euler.cc)
+deal_ii_setup_target(high-order-euler)
+target_link_libraries(high-order-euler obj_common ${OBJECT_TARGETS} ${EXTERNAL_TARGETS})
+set_target_properties(high-order-euler PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/run"
+  )
+
+install(TARGETS high-order-euler DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+

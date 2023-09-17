@@ -1103,4 +1103,109 @@ namespace ryujin
     }
   }
 
+  template<typename Description, int dim, typename Number>
+  Tensor<1,dim> TimeLoop<Description, dim, Number>::calculate_drag_and_lift(const vector_type &U)
+  {
+//
+//    //some general variables
+//    Point<dim> disk_center;//center at 0,0 for every case, how to not hardcode this?FIXME: how do we calculate disk center from the information in mesh generation?
+//    double disk_radius =  offline_data->getDiscretization()->getDiskDiameter()* 0.5;
+//    //first, set up the finite element, the data, and the facevalues
+//    auto fe = offline_data->getDiscretization()->finite_element;//the finite element
+//    const int degree = fe.degree;
+//    QGauss<dim-1> face_quadrature_formula(degree + 2);
+//    const int n_q_points = face_quadrature_formula.size();
+//
+//    std::vector<double>      pressure_values(n_q_points);
+//
+//    Tensor<1,dim> normal_vector;
+//    SymmetricTensor<2,dim> fluid_stress;
+//    SymmetricTensor<2,dim> fluid_pressure;
+//    Tensor<1,dim> forces;
+//
+//    FEFaceValues<dim> fe_face_values(fe, face_quadrature_formula,
+//        update_values | update_quadrature_points | update_gradients |
+//        update_JxW_values | update_normal_vectors); //the face values
+//
+//    double drag = 0.;
+//    double lift = 0.;
+//
+//    // Create vectors that store the locally owned parts on every process
+//    vector_type U_local;
+//    for(unsigned int i = 0; i<ProblemDescription<dim>::n_solution_variables; ++i)
+//      U_local[i] = U[i];
+//
+//    const double gamma = ProblemDescription<dim>::gamma;
+//
+//    //convert E to pressure
+//    for (unsigned int k=0; k<offline_data->n_locally_owned; k++)
+//    {
+//      //calculate momentum norm squared
+//      const double &E = U_local[dim+1].local_element(k);
+//      const double &rho = U_local[0].local_element(k);
+//      double m_square = 0;
+//      for(int d=0; d<dim; d++)
+//        m_square += std::pow(U_local[1+d].local_element(k),2);
+//
+//      //pressure = (gamma-1)*internal_energy
+//      U_local[dim+1].local_element(k) =  (gamma - 1.0) * (E - 0.5*m_square/rho);
+//    }
+//
+//    // Finally do a ghost exchange where every process gets the elements it needs from other processes:
+//    for(unsigned int i = 0; i<ProblemDescription<dim>::n_solution_variables; ++i)
+//      U_local[i].update_ghost_values();
+//
+//    for(const auto& cell : offline_data->dof_handler.active_cell_iterators())
+//    {
+//      if(cell->is_locally_owned())
+//      {
+//        for(unsigned int face = 0; face < GeometryInfo<dim>::faces_per_cell; ++face)
+//        {
+//          if(cell->face(face)->at_boundary()
+//              && cell->face(face)->boundary_id() == Boundaries::free_slip)
+//          {
+//            //if on circle, we do the calculation
+//            //first, find if the face center is on the circle
+//            const Point<dim> face_center = cell->face(face)->center(true);//center of the face on the manifold
+//            const double distance = face_center.distance(disk_center);
+//
+//            //check if we are on circle
+//            if(distance < disk_radius + 1e-6 && distance > disk_radius - 1e-6)
+//            {
+//              fe_face_values.reinit(cell, face);
+//
+//              //pressure values
+//              fe_face_values.get_function_values(U_local[dim+1], pressure_values);
+//
+//              //now, loop over quadrature points calculating their contribution to the forces acting on the face
+//              for(int q = 0; q < n_q_points; ++q)
+//              {
+//                normal_vector = -fe_face_values.normal_vector(q);
+//
+//                //form the contributions from pressure
+//                for(unsigned int d = 0; d < dim; ++d)
+//                  fluid_pressure[d][d] = pressure_values[q];
+//
+//                fluid_stress = - fluid_pressure;//for the euler equations, the only contribution to stresses comes from pressure
+//                forces = fluid_stress*normal_vector*fe_face_values.JxW(q);
+//                //the drag is in the x direction, the lift is in the y direction but FIXME: does this hold true in higher dimension? look below for this
+//                drag += forces[0];
+//                lift += forces[1];
+//              }//loop over q points
+//            }//if face on the object (circle in the domain)
+//          }//if cell face is at boundary
+//        }//face loop
+//      }//locally_owned cells
+//    }//cell loop
+//
+//    //now, sum the values across all processes.
+//    lift = Utilities::MPI::sum(lift, mpi_communicator);
+//    drag = Utilities::MPI::sum(drag, mpi_communicator);
+//
+//    forces[0] = drag;
+//    forces[1] = lift;
+//
+//    return forces;
+  }
+
 } // namespace ryujin
