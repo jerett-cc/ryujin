@@ -17,6 +17,13 @@
 #include <deal.II/numerics/vector_tools.h>
 #include <deal.II/numerics/vector_tools.templates.h>
 
+#include <deal.II/base/point.h>
+#include <deal.II/base/quadrature_lib.h>
+#include <deal.II/fe/fe_q.h>
+#include <deal.II/fe/fe_values.h>
+#include <deal.II/base/symmetric_tensor.h>
+#include <vector>
+
 #include <fstream>
 #include <iomanip>
 
@@ -283,6 +290,8 @@ namespace ryujin
     print_info("entering main loop");
     computing_timer_["time loop"].start();
 
+    std::vector<Number> drag, lift, time;
+
     for (;; ++cycle) {
 
 #ifdef DEBUG_OUTPUT
@@ -358,7 +367,10 @@ namespace ryujin
         break;
 
       /* Do a time step: */
-
+      dealii::Tensor<1,dim> forces = calculate_drag_and_lift(U);
+      drag.push_back(forces[0]);
+      lift.push_back(forces[1]);
+      time.push_back(t);
       const auto tau = time_integrator_.step(U, t);
       t += tau;
 
@@ -393,6 +405,12 @@ namespace ryujin
     if (enable_compute_error_) {
       /* Output final error: */
       compute_error(U, t);
+    }
+
+    for(unsigned int i=0; i< drag.size(); i++)
+    {
+      std::cout << "drag: " << drag.at(i)
+          << " lift: " << lift.at(i) << " t: " << time.at(i) << std::endl;
     }
 
 #ifdef WITH_VALGRIND
@@ -1106,39 +1124,58 @@ namespace ryujin
   template<typename Description, int dim, typename Number>
   Tensor<1,dim> TimeLoop<Description, dim, Number>::calculate_drag_and_lift(const vector_type &U)
   {
+
+    //some general variables
+    Point<dim> disk_center;//center at 0,0 for every case, how to not hardcode this?FIXME: how do we calculate disk center from the information in mesh generation?
+    double disk_radius = 0.5;
+    disk_radius +=0;
+    //first, set up the finite element, the data, and the facevalues
+    FE_Q<dim> fe(ORDER_FINITE_ELEMENT);//the finite element
+    const int degree = fe.degree;
+    QGauss<dim-1> face_quadrature_formula(degree + 2);
+    const int n_q_points = face_quadrature_formula.size();
+
+    std::vector<double>      pressure_values(n_q_points);
+
+    scalar_type density;
+    std::vector<scalar_type> velocities(dim);
+
+    //initialize partitions
+    density.reinit(offline_data_.scalar_partitioner(), mpi_communicator_);
+    for(unsigned int c=0; c < dim; )//TODO
+
+    Tensor<1,dim> normal_vector;
+    SymmetricTensor<2,dim> fluid_stress;
+    SymmetricTensor<2,dim> fluid_pressure;
+    Tensor<1,dim> forces;
+
+    FEFaceValues<dim> fe_face_values(fe, face_quadrature_formula,
+        update_values | update_quadrature_points | update_gradients |
+        update_JxW_values | update_normal_vectors); //the face values
+
+    double drag = 0.;
+    double lift = 0.;
+
+    drag+=1;
+    lift+=1;
+
+    // Create vectors that store the locally owned parts on every process
+    U.extract_component(density, 0);//extract density
+    //extract momentum, and convert to velocity
+//    for(int c=0; c<dim; c++)
+//    {
+//      U.extract_component(velocities.at(c), c+1);
+//      for(unsigned int dof=0; dof<offline_data_.n_locally_owned(); dof++)
+//        velocities.at(c).local_element(dof) = velocities.at(c).local_element(dof)/density.local_element(dof);
+//    }
+
+//    for(unsigned int i = 0; i<quantities_.problem_dimension; ++i)
+//      U_local[i] = U[i];//fill values locally
 //
-//    //some general variables
-//    Point<dim> disk_center;//center at 0,0 for every case, how to not hardcode this?FIXME: how do we calculate disk center from the information in mesh generation?
-//    double disk_radius =  offline_data->getDiscretization()->getDiskDiameter()* 0.5;
-//    //first, set up the finite element, the data, and the facevalues
-//    auto fe = offline_data->getDiscretization()->finite_element;//the finite element
-//    const int degree = fe.degree;
-//    QGauss<dim-1> face_quadrature_formula(degree + 2);
-//    const int n_q_points = face_quadrature_formula.size();
-//
-//    std::vector<double>      pressure_values(n_q_points);
-//
-//    Tensor<1,dim> normal_vector;
-//    SymmetricTensor<2,dim> fluid_stress;
-//    SymmetricTensor<2,dim> fluid_pressure;
-//    Tensor<1,dim> forces;
-//
-//    FEFaceValues<dim> fe_face_values(fe, face_quadrature_formula,
-//        update_values | update_quadrature_points | update_gradients |
-//        update_JxW_values | update_normal_vectors); //the face values
-//
-//    double drag = 0.;
-//    double lift = 0.;
-//
-//    // Create vectors that store the locally owned parts on every process
-//    vector_type U_local;
-//    for(unsigned int i = 0; i<ProblemDescription<dim>::n_solution_variables; ++i)
-//      U_local[i] = U[i];
-//
-//    const double gamma = ProblemDescription<dim>::gamma;
+//    const double gamma = Description::gamma;
 //
 //    //convert E to pressure
-//    for (unsigned int k=0; k<offline_data->n_locally_owned; k++)
+//    for (unsigned int k=0; k<offline_data_.n_locally_owned(); k++)
 //    {
 //      //calculate momentum norm squared
 //      const double &E = U_local[dim+1].local_element(k);
@@ -1152,9 +1189,9 @@ namespace ryujin
 //    }
 //
 //    // Finally do a ghost exchange where every process gets the elements it needs from other processes:
-//    for(unsigned int i = 0; i<ProblemDescription<dim>::n_solution_variables; ++i)
+//    for(unsigned int i = 0; i<offline_data_.dof_handler().n_dofs(); ++i)
 //      U_local[i].update_ghost_values();
-//
+
 //    for(const auto& cell : offline_data->dof_handler.active_cell_iterators())
 //    {
 //      if(cell->is_locally_owned())
@@ -1202,10 +1239,10 @@ namespace ryujin
 //    lift = Utilities::MPI::sum(lift, mpi_communicator);
 //    drag = Utilities::MPI::sum(drag, mpi_communicator);
 //
-//    forces[0] = drag;
-//    forces[1] = lift;
-//
-//    return forces;
+    forces[0] = 1;
+    forces[1] = -1;
+
+    return forces;
   }
 
 } // namespace ryujin
