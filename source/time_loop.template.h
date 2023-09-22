@@ -10,6 +10,7 @@
 #include "scope.h"
 #include "solution_transfer.h"
 #include "time_loop.h"
+#include "euler/hyperbolic_system.h"
 
 #include <deal.II/base/logstream.h>
 #include <deal.II/base/revision.h>
@@ -1125,10 +1126,18 @@ namespace ryujin
   Tensor<1,dim> TimeLoop<Description, dim, Number>::calculate_drag_and_lift(const vector_type &U)
   {
 
+    const auto view = hyperbolic_system_.template view<2, double>();
+    const auto names = view.component_names;
+
+    const Number gamma = 1.4;
+    std::cout << "names " << names[0] << std::endl;
+    std::cout << "gama " << gamma << std::endl;
+
     //some general variables
     Point<dim> disk_center;//center at 0,0 for every case, how to not hardcode this?FIXME: how do we calculate disk center from the information in mesh generation?
     double disk_radius = 0.5;
-    disk_radius +=0;
+    disk_radius +=0;//todo remove
+
     //first, set up the finite element, the data, and the facevalues
     FE_Q<dim> fe(ORDER_FINITE_ELEMENT);//the finite element
     const int degree = fe.degree;
@@ -1137,12 +1146,15 @@ namespace ryujin
 
     std::vector<double>      pressure_values(n_q_points);
 
-    scalar_type density;
-    std::vector<scalar_type> velocities(dim);
+    scalar_type density, pressure;
+    std::vector<scalar_type> momentum(dim);
 
+    std::cout << "inside calc before density partition" << std::endl;
     //initialize partitions
     density.reinit(offline_data_.scalar_partitioner(), mpi_communicator_);
-    for(unsigned int c=0; c < dim; )//TODO
+    pressure.reinit(offline_data_.scalar_partitioner(), mpi_communicator_);
+    for(unsigned int c=0; c < dim; c++)
+      momentum.at(c).reinit(offline_data_.scalar_partitioner(), mpi_communicator_);
 
     Tensor<1,dim> normal_vector;
     SymmetricTensor<2,dim> fluid_stress;
@@ -1156,41 +1168,50 @@ namespace ryujin
     double drag = 0.;
     double lift = 0.;
 
-    drag+=1;
-    lift+=1;
 
     // Create vectors that store the locally owned parts on every process
     U.extract_component(density, 0);//extract density
-    //extract momentum, and convert to velocity
-//    for(int c=0; c<dim; c++)
-//    {
-//      U.extract_component(velocities.at(c), c+1);
-//      for(unsigned int dof=0; dof<offline_data_.n_locally_owned(); dof++)
-//        velocities.at(c).local_element(dof) = velocities.at(c).local_element(dof)/density.local_element(dof);
-//    }
+    U.extract_component(pressure, dim+1);//extract density
 
-//    for(unsigned int i = 0; i<quantities_.problem_dimension; ++i)
-//      U_local[i] = U[i];//fill values locally
-//
-//    const double gamma = Description::gamma;
-//
-//    //convert E to pressure
-//    for (unsigned int k=0; k<offline_data_.n_locally_owned(); k++)
-//    {
-//      //calculate momentum norm squared
-//      const double &E = U_local[dim+1].local_element(k);
-//      const double &rho = U_local[0].local_element(k);
-//      double m_square = 0;
-//      for(int d=0; d<dim; d++)
-//        m_square += std::pow(U_local[1+d].local_element(k),2);
-//
-//      //pressure = (gamma-1)*internal_energy
-//      U_local[dim+1].local_element(k) =  (gamma - 1.0) * (E - 0.5*m_square/rho);
-//    }
-//
+    //extract momentum, and convert to velocity
+    for(int c=0; c<dim; c++)
+    {
+      int comp = c+1;//momentum is stored in positions [1,...,dim], so add one to c
+      U.extract_component(momentum.at(c), comp);
+    }
+
+    //extract energy
+    U.extract_component(pressure, dim+1);
+
+    //convert E to pressure
+    for (unsigned int k=0; k<offline_data_.n_locally_owned(); k++)
+    {
+      //calculate momentum norm squared
+      const double &E = pressure.local_element(k);
+      const double &rho = density.local_element(k);
+      double m_square = 0;
+      for(int d=0; d<dim; d++)
+        m_square += std::pow(momentum.at(d).local_element(k),2);//todo: segfault here?
+
+      //pressure = (gamma-1)*internal_energy
+      pressure.local_element(k) =  (gamma - 1.0) * (E - 0.5*m_square/rho);
+    }
+
+//    std::cout << "inside calculate drag, after calculated pressure" << std::endl;
+//    for(const auto pi: pressure)
+//      std::cout << "rank " << mpi_rank_ << " pressure "  << pi << " local size " << offline_data_.n_locally_owned() << std::endl;
+//    exit(1);
+
+
 //    // Finally do a ghost exchange where every process gets the elements it needs from other processes:
 //    for(unsigned int i = 0; i<offline_data_.dof_handler().n_dofs(); ++i)
 //      U_local[i].update_ghost_values();
+    if(pressure.has_ghost_elements() != true)
+    {
+      std::cout << "ghost elements not allowed " << std::endl;
+      exit(1);
+    }
+    pressure.update_ghost_values();
 
 //    for(const auto& cell : offline_data->dof_handler.active_cell_iterators())
 //    {
@@ -1239,8 +1260,8 @@ namespace ryujin
 //    lift = Utilities::MPI::sum(lift, mpi_communicator);
 //    drag = Utilities::MPI::sum(drag, mpi_communicator);
 //
-    forces[0] = 1;
-    forces[1] = -1;
+    forces[0] = drag;
+    forces[1] = lift;
 
     return forces;
   }

@@ -27,7 +27,6 @@
 #include "time_loop.h"
 #include "euler/description.h"
 #include "convenience_macros.h"
-#include <description.h>
 
 //deal.II includes
 #include <deal.II/base/parameter_acceptor.h>
@@ -670,29 +669,20 @@ int main(int argc, char *argv[])
   //create objects
 
   std::cout << "File Exists: " << std::filesystem::exists("cylinder-parameters.prm") << std::endl;
-  my_Vector vect;
-  ryujin::Discretization<2> discretization(comm,"C - Discretization");
+//  ryujin::Discretization<2> discretization(comm,"C - Discretization");
   //HyperbolicSystem<dim> hyperbolic_system();
 
   std::cout << "parameter file name "  << argv[1] << std::endl;
   //set the parameters
-  dealii::ParameterAcceptor::prm.parse_input("cylinder-parameters.prm",
-                                             "",
-                                             /*skip undefined*/true,
-                                             /*assert entries present*/false);
+//  dealii::ParameterAcceptor::prm.parse_input("cylinder-parameters.prm",
+//                                             "",
+//                                             /*skip undefined*/true,
+//                                             /*assert entries present*/false);
 
-  dealii::ParameterAcceptor::initialize(argv[1]);
+  ryujin::TimeLoop<ryujin::Euler::Description, 2, NUMBER> timeloop(comm);
+  dealii::ParameterAcceptor::initialize("cylinder-parameters.prm");//initialize the file specified by the user
 
-  std::cout << discretization.order_finite_element << std::endl;
-
-
-  //prepare objects after parameters have been set.
-  //discretization.prepare();
+  timeloop.run();
 
 
-
-
-
-
-  std::cout << "compiling with found header" << std::endl;
 }
