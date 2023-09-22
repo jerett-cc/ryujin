@@ -1,2 +1,6 @@
 build*
 .cache
+/doc
+.cproject
+.project
+.settings/
