@@ -1209,16 +1209,17 @@ namespace ryujin
     if(pressure.has_ghost_elements() != true)
     {
       std::cout << "ghost elements not allowed " << std::endl;
-      exit(1);
+      exit(1);//TODO: remove
     }
     pressure.update_ghost_values();
 
-//    for(const auto& cell : offline_data->dof_handler.active_cell_iterators())
-//    {
-//      if(cell->is_locally_owned())
-//      {
-//        for(unsigned int face = 0; face < GeometryInfo<dim>::faces_per_cell; ++face)
-//        {
+    for(const auto& cell : offline_data_.dof_handler().active_cell_iterators())
+    {
+      if(cell->is_locally_owned())
+      {
+        for(unsigned int face = 0; face < cell->n_faces(); ++face)
+        {
+          std::cout << "inside loops, cell, locally owned, face " << face << std::endl;
 //          if(cell->face(face)->at_boundary()
 //              && cell->face(face)->boundary_id() == Boundaries::free_slip)
 //          {
@@ -1252,9 +1253,9 @@ namespace ryujin
 //              }//loop over q points
 //            }//if face on the object (circle in the domain)
 //          }//if cell face is at boundary
-//        }//face loop
-//      }//locally_owned cells
-//    }//cell loop
+        }//face loop
+      }//locally_owned cells
+    }//cell loop
 //
 //    //now, sum the values across all processes.
 //    lift = Utilities::MPI::sum(lift, mpi_communicator);
