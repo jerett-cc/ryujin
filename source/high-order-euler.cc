@@ -684,5 +684,7 @@ int main(int argc, char *argv[])
 
   timeloop.run();
 
+  MPI_Finalize();
+
 
 }

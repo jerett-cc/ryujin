@@ -23,6 +23,7 @@
 #include <deal.II/fe/fe_q.h>
 #include <deal.II/fe/fe_values.h>
 #include <deal.II/base/symmetric_tensor.h>
+#include <deal.II/grid/tria_accessor.h>
 #include <vector>
 
 #include <fstream>
@@ -408,10 +409,13 @@ namespace ryujin
       compute_error(U, t);
     }
 
-    for(unsigned int i=0; i< drag.size(); i++)
+    if(mpi_rank_ == 0)
     {
-      std::cout << "drag: " << drag.at(i)
-          << " lift: " << lift.at(i) << " t: " << time.at(i) << std::endl;
+      for(unsigned int i=0; i< drag.size(); i++)
+      {
+        std::cout << "drag: " << drag.at(i)
+              << " lift: " << lift.at(i) << " t: " << time.at(i) << std::endl;
+      }
     }
 
 #ifdef WITH_VALGRIND
@@ -1135,7 +1139,7 @@ namespace ryujin
 
     //some general variables
     Point<dim> disk_center;//center at 0,0 for every case, how to not hardcode this?FIXME: how do we calculate disk center from the information in mesh generation?
-    double disk_radius = 0.5;
+    double disk_radius = 0.25;
     disk_radius +=0;//todo remove
 
     //first, set up the finite element, the data, and the facevalues
@@ -1191,27 +1195,30 @@ namespace ryujin
       const double &rho = density.local_element(k);
       double m_square = 0;
       for(int d=0; d<dim; d++)
-        m_square += std::pow(momentum.at(d).local_element(k),2);//todo: segfault here?
+        m_square += std::pow(momentum.at(d).local_element(k),2);
 
       //pressure = (gamma-1)*internal_energy
       pressure.local_element(k) =  (gamma - 1.0) * (E - 0.5*m_square/rho);
     }
 
-//    std::cout << "inside calculate drag, after calculated pressure" << std::endl;
-//    for(const auto pi: pressure)
-//      std::cout << "rank " << mpi_rank_ << " pressure "  << pi << " local size " << offline_data_.n_locally_owned() << std::endl;
-//    exit(1);
 
-
-//    // Finally do a ghost exchange where every process gets the elements it needs from other processes:
-//    for(unsigned int i = 0; i<offline_data_.dof_handler().n_dofs(); ++i)
-//      U_local[i].update_ghost_values();
-    if(pressure.has_ghost_elements() != true)
+    if((pressure.has_ghost_elements() != true) || (density.has_ghost_elements() != true)
+        ||(momentum.at(0).has_ghost_elements() != true) || (momentum.at(1).has_ghost_elements() != true))
     {
+      //TODO: make this some type of exception
       std::cout << "ghost elements not allowed " << std::endl;
-      exit(1);//TODO: remove
+      std::cout << "pressure " << (pressure.has_ghost_elements() != true) << std::endl;
+      std::cout << "momx " << (momentum.at(0).has_ghost_elements() != true) << std::endl;
+      std::cout << "momy " << (momentum.at(1).has_ghost_elements() != true) << std::endl;
+      std::cout << "density " << (density.has_ghost_elements() != true) << std::endl;
+
+      exit(1);//TODO: remove, for now, I want this to just quit the program
     }
+    density.update_ghost_values();
     pressure.update_ghost_values();
+    for(auto mom: momentum)
+      mom.update_ghost_values();
+
 
     for(const auto& cell : offline_data_.dof_handler().active_cell_iterators())
     {
@@ -1219,48 +1226,51 @@ namespace ryujin
       {
         for(unsigned int face = 0; face < cell->n_faces(); ++face)
         {
-          std::cout << "inside loops, cell, locally owned, face " << face << std::endl;
-//          if(cell->face(face)->at_boundary()
-//              && cell->face(face)->boundary_id() == Boundaries::free_slip)
-//          {
-//            //if on circle, we do the calculation
-//            //first, find if the face center is on the circle
-//            const Point<dim> face_center = cell->face(face)->center(true);//center of the face on the manifold
-//            const double distance = face_center.distance(disk_center);
-//
-//            //check if we are on circle
-//            if(distance < disk_radius + 1e-6 && distance > disk_radius - 1e-6)
-//            {
-//              fe_face_values.reinit(cell, face);
-//
-//              //pressure values
-//              fe_face_values.get_function_values(U_local[dim+1], pressure_values);
-//
-//              //now, loop over quadrature points calculating their contribution to the forces acting on the face
-//              for(int q = 0; q < n_q_points; ++q)
-//              {
-//                normal_vector = -fe_face_values.normal_vector(q);
-//
-//                //form the contributions from pressure
-//                for(unsigned int d = 0; d < dim; ++d)
-//                  fluid_pressure[d][d] = pressure_values[q];
-//
-//                fluid_stress = - fluid_pressure;//for the euler equations, the only contribution to stresses comes from pressure
-//                forces = fluid_stress*normal_vector*fe_face_values.JxW(q);
-//                //the drag is in the x direction, the lift is in the y direction but FIXME: does this hold true in higher dimension? look below for this
-//                drag += forces[0];
-//                lift += forces[1];
-//              }//loop over q points
-//            }//if face on the object (circle in the domain)
-//          }//if cell face is at boundary
+          if(cell->face(face)->at_boundary()
+              && cell->face(face)->boundary_id() == ryujin::Boundary::slip)
+          {
+            //if on circle, we do the calculation
+            //first, find if the face center is on the circle
+            const auto tria_iterator = cell->face(face);//->center(true);//center of the face on the manifold
+            const Point<dim> face_center = tria_iterator->center();
+            const double distance = face_center.distance(disk_center);
+
+//            std::cout << "face center " << face_center << std::endl;
+//            std::cout << "distance " << distance << std::endl;
+            //check if we are on circle
+            if(distance < disk_radius + 1e-6)//TODO: ask W for a better way to decide if a face is on circle
+            {
+              std::cout << "face center on circle: " << face_center << std::endl;
+              fe_face_values.reinit(cell, face);
+
+              //pressure values
+              fe_face_values.get_function_values(pressure, pressure_values);
+
+              //now, loop over quadrature points calculating their contribution to the forces acting on the face
+              for(int q = 0; q < n_q_points; ++q)
+              {
+                normal_vector = -fe_face_values.normal_vector(q);
+
+                //form the contributions from pressure
+                for(unsigned int d = 0; d < dim; ++d)
+                  fluid_pressure[d][d] = pressure_values[q];
+
+                fluid_stress = - fluid_pressure;//for the euler equations, the only contribution to stresses comes from pressure
+                forces = fluid_stress*normal_vector*fe_face_values.JxW(q);
+                //the drag is in the x direction, the lift is in the y direction but FIXME: does this hold true in higher dimension? look below for this
+                drag += forces[0];
+                lift += forces[1];
+              }//loop over q points
+            }//if face on the object (circle in the domain)
+          }//if cell face is at boundary
         }//face loop
       }//locally_owned cells
     }//cell loop
-//
-//    //now, sum the values across all processes.
-//    lift = Utilities::MPI::sum(lift, mpi_communicator);
-//    drag = Utilities::MPI::sum(drag, mpi_communicator);
-//
+
+    //now, sum the values across all processes.
+    lift = dealii::Utilities::MPI::sum(lift, mpi_communicator_);
+    drag = dealii::Utilities::MPI::sum(drag, mpi_communicator_);
+
     forces[0] = drag;
     forces[1] = lift;
 
