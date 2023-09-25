@@ -1128,8 +1128,8 @@ namespace ryujin
     const auto names = view.component_names;
 
     const Number gamma = 1.4;
-    std::cout << "names " << names[0] << std::endl;
-    std::cout << "gama " << gamma << std::endl;
+//    std::cout << "names " << names[0] << std::endl;
+//    std::cout << "gama " << gamma << std::endl;
 
     //some general variables
     Point<dim> disk_center;//center at 0,0 for every case, how to not hardcode this?FIXME: how do we calculate disk center from the information in mesh generation?
@@ -1147,7 +1147,7 @@ namespace ryujin
     scalar_type density, pressure;
     std::vector<scalar_type> momentum(dim);
 
-    std::cout << "inside calc before density partition" << std::endl;
+//    std::cout << "inside calc before density partition" << std::endl;
     //initialize partitions
     density.reinit(offline_data_.scalar_partitioner(), mpi_communicator_);
     pressure.reinit(offline_data_.scalar_partitioner(), mpi_communicator_);
@@ -1234,7 +1234,7 @@ namespace ryujin
             //check if we are on circle
             if(distance < disk_radius + 1e-6)//TODO: ask W for a better way to decide if a face is on circle
             {
-              std::cout << "face center on circle: " << face_center << std::endl;
+//              std::cout << "face center on circle: " << face_center << std::endl;
               fe_face_values.reinit(cell, face);
 
               //pressure values
