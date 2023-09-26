@@ -668,16 +668,7 @@ int main(int argc, char *argv[])
   MPI_Init(&argc, &argv);
   //create objects
 
-  std::cout << "File Exists: " << std::filesystem::exists("cylinder-parameters.prm") << std::endl;
-//  ryujin::Discretization<2> discretization(comm,"C - Discretization");
-  //HyperbolicSystem<dim> hyperbolic_system();
-
-  std::cout << "parameter file name "  << argv[1] << std::endl;
-  //set the parameters
-//  dealii::ParameterAcceptor::prm.parse_input("cylinder-parameters.prm",
-//                                             "",
-//                                             /*skip undefined*/true,
-//                                             /*assert entries present*/false);
+  //todo: change this to a call to something similar to the main ryujin executable. problem_dispach??
 
   ryujin::TimeLoop<ryujin::Euler::Description, 2, NUMBER> timeloop(comm);
   dealii::ParameterAcceptor::initialize("cylinder-parameters.prm");//initialize the file specified by the user
