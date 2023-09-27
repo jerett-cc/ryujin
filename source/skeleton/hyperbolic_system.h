@@ -17,6 +17,8 @@
 #include <array>
 #include <functional>
 
+#include <offline_data.h>
+
 namespace ryujin
 {
   namespace Skeleton
@@ -404,6 +406,16 @@ namespace ryujin
                                            const Lambda & /*lambda*/) const
         {
           return state;
+        }
+
+        /**
+         * equation dependent postprocessing step
+         *
+         * must define, or leave as empty. do nothing.
+         */
+        void post_process(const vector_type &U, Number t, MPI_Comm, const OfflineData<dim, Number>&) const
+        {
+          //put your own postprocessing step here
         }
 
       }; /* HyperbolicSystem::View */

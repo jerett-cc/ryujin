@@ -18,6 +18,9 @@
 #include <deal.II/base/parameter_acceptor.h>
 #include <deal.II/base/tensor.h>
 
+#include <mpi.h>
+#include <offline_data.h>
+
 #include <array>
 
 namespace ryujin
@@ -528,6 +531,13 @@ namespace ryujin
           return state;
         }
 
+        /**
+         * system dependent postprocessing step @p U is our solution state
+         * and we will define work to do on this which is Hyperbolic System Dependent
+         *
+         * Here, we do nothing
+         */
+        void post_process(const vector_type &U, Number t, MPI_Comm, const ryujin::OfflineData<dim, Number>&) const;
       }; /* HyperbolicSystem::View */
 
       template <int dim, typename Number>
@@ -889,6 +899,17 @@ namespace ryujin
     {
       return -add(flux_i, flux_j);
     }
+
+    template<int dim, typename Number>
+    void HyperbolicSystem::View<dim, Number>::post_process(const vector_type &U,
+                                                           Number t,
+                                                           MPI_Comm mpi_communicator,
+                                                           const ryujin::OfflineData<dim, Number>& offline_data_)
+    const
+    {
+      //do nothing
+    }
+
 
   } // namespace ScalarConservation
 } // namespace ryujin

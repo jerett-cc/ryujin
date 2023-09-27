@@ -142,6 +142,16 @@ namespace ryujin
     void compute(const vector_type &U) const;
 
     /**
+     * Given a current state @p U and a return type @p r_type
+     * compute a hyperbolic system dependent postprocessing step.
+     *
+     * This does nothing for EulerAEOS, Navier_stokes, scalar_conservation, shallow water, and skeleton
+     *
+     * For Euler, it does a drag and lift calculation, and prints this info out.
+     */
+    void post_process_data(const vector_type &U, Number t);
+
+    /**
      * Returns a reference to the quantities_ vector that has been filled
      * by the compute() function.
      */

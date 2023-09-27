@@ -18,6 +18,9 @@
 #include <deal.II/base/parameter_acceptor.h>
 #include <deal.II/base/tensor.h>
 
+#include <mpi.h>
+#include <offline_data.h>
+
 #include <array>
 #include <functional>
 
@@ -709,6 +712,15 @@ namespace ryujin
         state_type apply_galilei_transform(const state_type &state,
                                            const Lambda &lambda) const;
         //@}
+
+        /**
+         * system dependent postprocessing step @p U is our solution state
+         * and we will define work to do on this which is Hyperbolic System Dependent
+         *
+         * Here, we do nothing.
+         */
+        void post_process(const vector_type &U, Number t, MPI_Comm, const ryujin::OfflineData<dim, Number>&) const;
+
       }; /* HyperbolicSystem::View */
 
       template <int dim, typename Number>
@@ -1454,5 +1466,16 @@ namespace ryujin
         result[1 + d] = M[d];
       return result;
     }
+
+
+    template<int dim, typename Number>
+    void HyperbolicSystem::View<dim, Number>::post_process(const vector_type &U,
+                                                           Number t,
+                                                           MPI_Comm mpi_communicator,
+                                                           const ryujin::OfflineData<dim, Number>& offline_data_) const
+    {
+      //does nothing
+    }
+
   } // namespace EulerAEOS
 } // namespace ryujin
