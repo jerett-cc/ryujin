@@ -90,12 +90,6 @@ namespace ryujin
      */
     void run();
 
-    /**
-     * Compute drag and lift of cylindrical case only
-     * returns a NUMBER of the drag.
-     */
-    dealii::Tensor<1,dim> calculate_drag_and_lift(const vector_type &U);
-
   protected:
     /**
      * @name Private methods for run()
@@ -148,6 +142,7 @@ namespace ryujin
     bool enable_output_levelsets_;
     bool enable_compute_error_;
     bool enable_compute_quantities_;
+    bool post_process_;
 
     unsigned int output_checkpoint_multiplier_;
     unsigned int output_full_multiplier_;

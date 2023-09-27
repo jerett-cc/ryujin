@@ -192,6 +192,11 @@ namespace ryujin
                   "number of threads (per rank). If set to false then a plain "
                   "average per thread \"CPU\" throughput value is computed by "
                   "using the umodified total accumulated CPU time.");
+
+    post_process_ = false;
+    add_parameter("enable custom postproc step",
+                  post_process_,
+                  "do a user defined postprocessing step");
   }
 
 
@@ -376,12 +381,10 @@ namespace ryujin
       if (t >= t_final_)
         break;
 
-      /* Do a time step: */
-      dealii::Tensor<1,dim> forces = calculate_drag_and_lift(U);
-      drag.push_back(forces[0]);
-      lift.push_back(forces[1]);
-      time.push_back(t);
+
       const auto tau = time_integrator_.step(U, t);
+      if(post_process_)
+        postprocessor_.post_process_data(U,t);
       t += tau;
 
       /* Print and record cycle statistics: */
@@ -417,14 +420,6 @@ namespace ryujin
       compute_error(U, t);
     }
 
-    if(mpi_rank_ == 0)
-    {
-      for(unsigned int i=0; i< drag.size(); i++)
-      {
-        std::cout << "drag: " << drag.at(i)
-              << " lift: " << lift.at(i) << " t: " << time.at(i) << std::endl;
-      }
-    }
 
 #ifdef WITH_VALGRIND
     CALLGRIND_DUMP_STATS;
@@ -1118,157 +1113,6 @@ namespace ryujin
         logfile_ << "\n" << output.str() << std::flush;
       }
     }
-  }
-
-  template<typename Description, int dim, typename Number>
-  Tensor<1,dim> TimeLoop<Description, dim, Number>::calculate_drag_and_lift(const vector_type &U)
-  {
-
-    const auto view = hyperbolic_system_.template view<2, double>();
-    const auto names = view.component_names;
-
-    const Number gamma = 1.4;
-//    std::cout << "names " << names[0] << std::endl;
-//    std::cout << "gama " << gamma << std::endl;
-
-    //some general variables
-    Point<dim> disk_center;//center at 0,0 for every case, how to not hardcode this?FIXME: how do we calculate disk center from the information in mesh generation?
-    double disk_radius = 0.25;
-    disk_radius +=0;//todo remove
-
-    //first, set up the finite element, the data, and the facevalues
-    FE_Q<dim> fe(ORDER_FINITE_ELEMENT);//the finite element
-    const int degree = fe.degree;
-    QGauss<dim-1> face_quadrature_formula(degree + 2);
-    const int n_q_points = face_quadrature_formula.size();
-
-    std::vector<double>      pressure_values(n_q_points);
-
-    scalar_type density, pressure;
-    std::vector<scalar_type> momentum(dim);
-
-//    std::cout << "inside calc before density partition" << std::endl;
-    //initialize partitions
-    density.reinit(offline_data_.scalar_partitioner(), mpi_communicator_);
-    pressure.reinit(offline_data_.scalar_partitioner(), mpi_communicator_);
-    for(unsigned int c=0; c < dim; c++)
-      momentum.at(c).reinit(offline_data_.scalar_partitioner(), mpi_communicator_);
-
-    Tensor<1,dim> normal_vector;
-    SymmetricTensor<2,dim> fluid_stress;
-    SymmetricTensor<2,dim> fluid_pressure;
-    Tensor<1,dim> forces;
-
-    FEFaceValues<dim> fe_face_values(fe, face_quadrature_formula,
-        update_values | update_quadrature_points | update_gradients |
-        update_JxW_values | update_normal_vectors); //the face values
-
-    double drag = 0.;
-    double lift = 0.;
-
-
-    // Create vectors that store the locally owned parts on every process
-    U.extract_component(density, 0);//extract density
-    U.extract_component(pressure, dim+1);//extract density
-
-    //extract momentum, and convert to velocity
-    for(int c=0; c<dim; c++)
-    {
-      int comp = c+1;//momentum is stored in positions [1,...,dim], so add one to c
-      U.extract_component(momentum.at(c), comp);
-    }
-
-    //extract energy
-    U.extract_component(pressure, dim+1);
-
-    //convert E to pressure
-    for (unsigned int k=0; k<offline_data_.n_locally_owned(); k++)
-    {
-      //calculate momentum norm squared
-      const double &E = pressure.local_element(k);
-      const double &rho = density.local_element(k);
-      double m_square = 0;
-      for(int d=0; d<dim; d++)
-        m_square += std::pow(momentum.at(d).local_element(k),2);
-
-      //pressure = (gamma-1)*internal_energy
-      pressure.local_element(k) =  (gamma - 1.0) * (E - 0.5*m_square/rho);
-    }
-
-
-    if((pressure.has_ghost_elements() != true) || (density.has_ghost_elements() != true)
-        ||(momentum.at(0).has_ghost_elements() != true) || (momentum.at(1).has_ghost_elements() != true))
-    {
-      //TODO: make this some type of exception
-      std::cout << "ghost elements not allowed " << std::endl;
-      std::cout << "pressure " << (pressure.has_ghost_elements() != true) << std::endl;
-      std::cout << "momx " << (momentum.at(0).has_ghost_elements() != true) << std::endl;
-      std::cout << "momy " << (momentum.at(1).has_ghost_elements() != true) << std::endl;
-      std::cout << "density " << (density.has_ghost_elements() != true) << std::endl;
-
-      exit(1);//TODO: remove, for now, I want this to just quit the program
-    }
-    density.update_ghost_values();
-    pressure.update_ghost_values();
-    for(auto mom: momentum)
-      mom.update_ghost_values();
-
-
-    for(const auto& cell : offline_data_.dof_handler().active_cell_iterators())
-    {
-      if(cell->is_locally_owned())
-      {
-        for(unsigned int face = 0; face < cell->n_faces(); ++face)
-        {
-          if(cell->face(face)->at_boundary()
-              && cell->face(face)->boundary_id() == ryujin::Boundary::slip)
-          {
-            //if on circle, we do the calculation
-            //first, find if the face center is on the circle
-            const auto tria_iterator = cell->face(face);//->center(true);//center of the face on the manifold
-            const Point<dim> face_center = tria_iterator->center();
-            const double distance = face_center.distance(disk_center);
-
-//            std::cout << "face center " << face_center << std::endl;
-//            std::cout << "distance " << distance << std::endl;
-            //check if we are on circle
-            if(distance < disk_radius + 1e-6)//TODO: ask W for a better way to decide if a face is on circle
-            {
-//              std::cout << "face center on circle: " << face_center << std::endl;
-              fe_face_values.reinit(cell, face);
-
-              //pressure values
-              fe_face_values.get_function_values(pressure, pressure_values);
-
-              //now, loop over quadrature points calculating their contribution to the forces acting on the face
-              for(int q = 0; q < n_q_points; ++q)
-              {
-                normal_vector = -fe_face_values.normal_vector(q);
-
-                //form the contributions from pressure
-                for(unsigned int d = 0; d < dim; ++d)
-                  fluid_pressure[d][d] = pressure_values[q];
-
-                fluid_stress = - fluid_pressure;//for the euler equations, the only contribution to stresses comes from pressure
-                forces = fluid_stress*normal_vector*fe_face_values.JxW(q);
-                //the drag is in the x direction, the lift is in the y direction but FIXME: does this hold true in higher dimension? look below for this
-                drag += forces[0];
-                lift += forces[1];
-              }//loop over q points
-            }//if face on the object (circle in the domain)
-          }//if cell face is at boundary
-        }//face loop
-      }//locally_owned cells
-    }//cell loop
-
-    //now, sum the values across all processes.
-    lift = dealii::Utilities::MPI::sum(lift, mpi_communicator_);
-    drag = dealii::Utilities::MPI::sum(drag, mpi_communicator_);
-
-    forces[0] = drag;
-    forces[1] = lift;
-
-    return forces;
   }
 
 } // namespace ryujin

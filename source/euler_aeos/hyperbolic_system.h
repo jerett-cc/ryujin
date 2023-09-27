@@ -18,6 +18,9 @@
 #include <deal.II/base/parameter_acceptor.h>
 #include <deal.II/base/tensor.h>
 
+#include <mpi.h>
+#include <offline_data.h>
+
 #include <array>
 
 namespace ryujin
@@ -1464,5 +1467,16 @@ namespace ryujin
         result[1 + d] = M[d];
       return result;
     }
+
+
+    template<int dim, typename Number>
+    void HyperbolicSystem::View<dim, Number>::post_process(const vector_type &U,
+                                                           Number t,
+                                                           MPI_Comm mpi_communicator,
+                                                           const ryujin::OfflineData<dim, Number>& offline_data_) const
+    {
+      //does nothing
+    }
+
   } // namespace EulerAEOS
 } // namespace ryujin

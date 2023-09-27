@@ -17,6 +17,8 @@
 #include <array>
 #include <functional>
 
+#include <offline_data.h>
+
 namespace ryujin
 {
   namespace Skeleton
