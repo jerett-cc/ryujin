@@ -297,7 +297,6 @@ namespace ryujin
     print_info("entering main loop");
     computing_timer_["time loop"].start();
 
-    std::vector<Number> drag, lift, time;
 
     for (;; ++cycle) {
 
