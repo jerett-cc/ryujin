@@ -1256,7 +1256,7 @@ namespace ryujin
       if (id == Boundary::dirichlet) {
         result = get_dirichlet_data();
 
-      } else if (id == Boundary::slip) {
+      } else if (id == Boundary::slip || id == Boundary::object) {
         auto m = momentum(U);
         m -= 1. * (m * normal) * normal;
         for (unsigned int k = 0; k < dim; ++k)
