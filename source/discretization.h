@@ -103,6 +103,13 @@ namespace ryujin
      * is inflow. Otherwise we do nothing.
      */
     dynamic = 5,
+
+    /**
+     * On degrees of freedom marked as object, we enforce the same condition as
+     * the slip, but now we will be able to explicitly specify when we are on
+     * the surface of the object in question, so we can do analyses there.
+     */
+    object = 6,
   };
 } // namespace ryujin
 
@@ -113,7 +120,8 @@ DECLARE_ENUM(ryujin::Boundary,
                   {ryujin::Boundary::slip, "slip"},
                   {ryujin::Boundary::no_slip, "no_slip"},
                   {ryujin::Boundary::dirichlet, "dirichlet"},
-                  {ryujin::Boundary::dynamic, "dynamic"}));
+                  {ryujin::Boundary::dynamic, "dynamic"},
+                  {ryujin::Boundary::object, "object"}));
 #endif
 
 namespace ryujin
