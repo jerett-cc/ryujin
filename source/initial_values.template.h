@@ -263,7 +263,7 @@ namespace ryujin
       const auto normal = std::get<0>(entry.second);
       const auto id = std::get<3>(entry.second);
 
-      if (id == Boundary::slip || id == Boundary::no_slip) {
+      if (id == Boundary::slip || id == Boundary::no_slip || id == Boundary::object) {
         auto U_i = U.get_tensor(i);
         const auto view = hyperbolic_system_->template view<dim, Number>();
         U_i = view.apply_boundary_conditions(

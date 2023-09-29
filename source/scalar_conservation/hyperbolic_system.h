@@ -777,7 +777,7 @@ namespace ryujin
       if (id == Boundary::dirichlet) {
         result = get_dirichlet_data();
 
-      } else if (id == Boundary::slip) {
+      } else if (id == Boundary::slip || id == Boundary::object) {
         AssertThrow(
             false,
             dealii::ExcMessage("Invalid boundary ID »Boundary::slip«, slip "

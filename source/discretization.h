@@ -121,7 +121,7 @@ DECLARE_ENUM(ryujin::Boundary,
                   {ryujin::Boundary::no_slip, "no_slip"},
                   {ryujin::Boundary::dirichlet, "dirichlet"},
                   {ryujin::Boundary::dynamic, "dynamic"},
-                  {ryujin::Boundary::object, "object"}));
+                  {ryujin::Boundary::object, "object"}));//TODO: rename this??
 #endif
 
 namespace ryujin
