@@ -185,6 +185,9 @@ if(WITH_VALGRIND)
   list(APPEND EXTERNAL_TARGETS "Valgrind::Valgrind")
 endif()
 
+#append braid
+list(APPEND EXTERNAL_TARGETS ${BRAID_LIBRARY})
+
 #
 # Set up the rest:
 #
