@@ -19,11 +19,12 @@
 #include <deal.II/base/mpi.h>
 
 //ryujin includes
-//#include "hyperbolic_module.h"
-//#include "offline_data.h"
-//#include "geometry_cylinder.h"
-//#include "discretization.h"
+#include "hyperbolic_module.h"
+#include "offline_data.h"
+#include "geometry_cylinder.h"
+#include "discretization.h"
 #include "hyperbolic_system.h"
+#include "euler/parabolic_system.h"
 #include "time_loop.h"
 #include "euler/description.h"
 #include "convenience_macros.h"
@@ -31,6 +32,9 @@
 //deal.II includes
 #include <deal.II/base/parameter_acceptor.h>
 #include <deal.II/base/mpi.h>
+#include <deal.II/base/smartpointer.h>
+#include <deal.II/numerics/vector_tools.h>
+#include <deal.II/base/parameter_acceptor.h>
 
 //xbraid include
 #include <braid.h>
@@ -54,7 +58,6 @@ const int dim = 2;
 /*Includes*/
 
 /*-------- Third Party --------*/
-#include <deal.II/numerics/vector_tools.h>
 
 /*-------- Project --------*/
 //#include "offlinedata.h"
@@ -105,7 +108,7 @@ typedef struct _braid_Vector_struct
  * used to store global information relevant to each
  * process.
  *
- * The app stores spatial and temporal communicators,
+ * The @p app stores spatial and temporal communicators,
  * comm_x and comm_t. (For this code, we use MPI_COMM_SELF for
  * comm_x, and MPI_COMM_WORLD for comm_t. For maximum performance,
  * one needs to leverage the spatial parallelism that is build in
@@ -123,10 +126,61 @@ typedef struct _braid_Vector_struct
  * XBRAID
  */
 
-typedef struct _braid_App_struct
+typedef struct _braid_App_struct : public dealii::ParameterAcceptor
 {
-//  public:
-//    MPI_Comm comm_x, comm_t;
+    //TODO: a hyperbolic system pointer vector
+    //a parabolic system pointer
+    //a discretization pointer
+    //a offline_data pointer
+    //a hyperbolic mpdule pointer
+    //a parabolic mpdule pointer
+    //a timeIntegrator pointer? can I use one for this?
+    //a VTU ptput pointer? can I use one for this? seems less likely
+    //a quantities pointer, can I reasonably use one for this?
+  public:
+    using Description = ryujin::Euler::Description;
+    using Number = NUMBER;
+    /**
+     * @copydoc HyperbolicSystem
+     */
+    using HyperbolicSystem = typename Description::HyperbolicSystem;
+    /**
+     * @copydoc ParabolicSystem
+     */
+    using ParabolicSystem = typename Description::ParabolicSystem;
+    /**
+     * @copydoc HyperbolicSystem::View
+     */
+    using HyperbolicSystemView =
+        typename Description::HyperbolicSystem::template View<dim, Number>;
+    /**
+     * @copydoc HyperbolicSystem::problem_dimension
+     */
+    static constexpr unsigned int problem_dimension =
+        HyperbolicSystemView::problem_dimension;
+    /**
+     * @copydoc HyperbolicSystem::n_precomputed_values
+     */
+    static constexpr unsigned int n_precomputed_values =
+        HyperbolicSystemView::n_precomputed_values;
+    /**
+     * @copydoc OfflineData::scalar_type
+     */
+    using scalar_type = typename ryujin::OfflineData<dim, Number>::scalar_type;
+    /**
+     * Typedef for a MultiComponentVector storing the state U.
+     */
+    using vector_type = ryujin::MultiComponentVector<Number, problem_dimension>;
+    /**
+     * Typedef for a MultiComponentVector storing precomputed values.
+     */
+    using precomputed_type = ryujin::MultiComponentVector<Number, n_precomputed_values>;
+
+
+    MPI_Comm comm_x, comm_t;
+    std::vector<dealii::SmartPointer<ryujin::OfflineData<dim,Number>>> offline_data;
+    std::vector<dealii::SmartPointer<ParabolicSystem>> parabolic_system;
+
 ////    TimeIndependent<dim> TI;
 //    std::vector<std::shared_ptr<TimeIndependent<dim>>> TI_p;
 //    int final_step, mg_cycle;
@@ -206,7 +260,6 @@ typedef struct _braid_App_struct
 //    };
 } my_App;
 
-
 /**
  * @brief This function is used to interpolate a vector (from_V) on a certain mesh
  *        to a nother interpolated solution on another mesh.
@@ -256,30 +309,31 @@ int my_Step(braid_App        app,
             braid_Vector     u,
             braid_StepStatus status)
 {
-//  //this variable is used for writing data to
-//  //different files during the parallel computations.
-//  //is passed to run_with_initial_data
-//  static unsigned int num_step_calls = 0;
-//  std::cout << "step called\n";
-//
-//  //grab the MG level for this step
-//  int level;
-//  braid_StepStatusGetLevel(status, &level);
-//  std::cout << "with level= " << level << std::endl;
-//
-//  //use a macro to get rid of some unused variables to avoid -Wall messages
-//  UNUSED(ustop);
-//  UNUSED(fstop);
-//  //grab the start time and end time
-//  double tstart;
-//  double tstop;
-//  braid_StepStatusGetTstartTstop(status, &tstart, &tstop);
-//
-//  //translate the fine level u to the coarse level
-//  //this uses a function from DEALII interpolate to different mesh
-//  EulerEquation<dim>::vector_type u_to_step;
+  //this variable is used for writing data to
+  //different files during the parallel computations.
+  //is passed to run_with_initial_data
+  static unsigned int num_step_calls = 0;
+  std::cout << "step called\n";
+
+  //grab the MG level for this step
+  int level;
+  braid_StepStatusGetLevel(status, &level);
+  std::cout << "with level= " << level << std::endl;
+
+  //use a macro to get rid of some unused variables to avoid -Wall messages
+  UNUSED(ustop);
+  UNUSED(fstop);
+  //grab the start time and end time
+  double tstart;
+  double tstop;
+  braid_StepStatusGetTstartTstop(status, &tstart, &tstop);
+
+  //translate the fine level u to the coarse level
+  //this uses a function from DEALII interpolate to different mesh
+  ryujin::TimeLoop<ryujin::Euler::Description, dim, NUMBER>::vector_type u_to_step;
 //  int coarse_size = app->TI_p.at(level)->offline_data.dof_handler.n_dofs();
 //  resizeVector(u_to_step,coarse_size);
+
 //
 //  //interpolate the data coming in with u (finest level) onto the
 //  //u_to_step (coarse level)
