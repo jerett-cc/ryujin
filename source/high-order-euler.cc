@@ -27,7 +27,15 @@
 #include "euler/parabolic_system.h"
 #include "time_loop.h"
 #include "euler/description.h"
+#include "initial_values.h"
+#include "offline_data.h"
+#include "parabolic_module.h"
+#include "postprocessor.h"
+#include "quantities.h"
+#include "time_integrator.h"
+#include "vtu_output.h"
 #include "convenience_macros.h"
+
 
 //deal.II includes
 #include <deal.II/base/parameter_acceptor.h>
@@ -98,6 +106,77 @@ typedef struct _braid_Vector_struct
 
 } my_Vector;
 
+
+
+///A struct containing all relevant objects to a given MGRIT level
+/**
+ * This struct stores all the relevant information for a given level
+ * in the mgrit algorithm.
+ *
+ * Intended usage is as follows:
+ *
+ *    Vector<LevelStructures> levels;
+ *    for(const auto l : mgrit_levels)
+ *      levels[l].offline_data = std::make_shared<ryujin::OfflineData<dim, Number>(...);
+ *
+ *    //select the relevant level data
+ *    int level = 0;
+ *
+ *    f(...,levels[level].offline_data,...);
+ */
+template<typename Description, int dim, typename Number>
+struct LevelStructures : dealii::ParameterAcceptor
+{
+
+  public:
+
+    LevelStructures();
+
+    void prepare();
+
+    using HyperbolicSystem = typename Description::HyperbolicSystem;
+    using ParabolicSystem = typename Description::ParabolicSystem;
+
+    std::shared_ptr<ryujin::OfflineData<dim,Number>> offline_data;
+    std::shared_ptr<ParabolicSystem> parabolic_system;
+    std::shared_ptr<HyperbolicSystem> hyperbolic_system;
+    std::shared_ptr<ryujin::HyperbolicModule<Description,
+                                             dim,
+                                             Number>> hyperbolic_module;
+    std::shared_ptr<ryujin::ParabolicModule<Description,
+                                            dim,
+                                            Number>> parabolic_module;
+    std::shared_ptr<ryujin::Discretization<dim>> discretization;
+    std::shared_ptr<ryujin::TimeIntegrator<Description,
+                                           dim,
+                                           Number>> time_integrator;
+    std::shared_ptr<ryujin::InitialValues<Description,
+                                          dim,
+                                          Number>> initial_values;
+    std::shared_ptr<ryujin::Postprocessor<Description,
+                                          dim,
+                                          Number>> postprocessor;
+    std::shared_ptr<ryujin::VTUOutput<Description,dim,Number>> vtu_output;
+    std::shared_ptr<ryujin::Quantities<Description,dim,Number>> quantities;
+
+};
+
+template<typename Description, int dim, typename Number>
+LevelStructures<Description,dim, Number>::LevelStructures()
+{
+
+}
+
+/**
+ * this function prepares all the data structures
+ */
+template<typename Description, int dim, typename Number>
+void LevelStructures<Description, dim, Number>::prepare()
+{
+
+}
+
+
 // This struct contains all the data that is unchanging with time.
 /**
  * \brief Struct that contains the HeatEquation and final
@@ -125,139 +204,48 @@ typedef struct _braid_Vector_struct
  *
  * XBRAID
  */
-
 typedef struct _braid_App_struct : public dealii::ParameterAcceptor
 {
-    //TODO: a hyperbolic system pointer vector
-    //a parabolic system pointer
-    //a discretization pointer
-    //a offline_data pointer
-    //a hyperbolic mpdule pointer
-    //a parabolic mpdule pointer
-    //a timeIntegrator pointer? can I use one for this?
-    //a VTU ptput pointer? can I use one for this? seems less likely
-    //a quantities pointer, can I reasonably use one for this?
-  public:
     using Description = ryujin::Euler::Description;
     using Number = NUMBER;
-    /**
-     * @copydoc HyperbolicSystem
-     */
-    using HyperbolicSystem = typename Description::HyperbolicSystem;
-    /**
-     * @copydoc ParabolicSystem
-     */
-    using ParabolicSystem = typename Description::ParabolicSystem;
-    /**
-     * @copydoc HyperbolicSystem::View
-     */
+    using LevelType = LevelStructures<Description, 2, Number>;
+
+  public:
+
     using HyperbolicSystemView =
         typename Description::HyperbolicSystem::template View<dim, Number>;
-    /**
-     * @copydoc HyperbolicSystem::problem_dimension
-     */
+
     static constexpr unsigned int problem_dimension =
         HyperbolicSystemView::problem_dimension;
-    /**
-     * @copydoc HyperbolicSystem::n_precomputed_values
-     */
     static constexpr unsigned int n_precomputed_values =
         HyperbolicSystemView::n_precomputed_values;
-    /**
-     * @copydoc OfflineData::scalar_type
-     */
     using scalar_type = typename ryujin::OfflineData<dim, Number>::scalar_type;
-    /**
-     * Typedef for a MultiComponentVector storing the state U.
-     */
     using vector_type = ryujin::MultiComponentVector<Number, problem_dimension>;
-    /**
-     * Typedef for a MultiComponentVector storing precomputed values.
-     */
     using precomputed_type = ryujin::MultiComponentVector<Number, n_precomputed_values>;
 
 
-    MPI_Comm comm_x, comm_t;
-    std::vector<dealii::SmartPointer<ryujin::OfflineData<dim,Number>>> offline_data;
-    std::vector<dealii::SmartPointer<ParabolicSystem>> parabolic_system;
+    MPI_Comm comm_x, comm_t;//fixme:should these be const somehow?
+    std::vector<LevelType> levels; //instantiation
+    std::vector<unsigned int> refinement_levels;
+    int finest_index, coarsest_index;
 
-////    TimeIndependent<dim> TI;
-//    std::vector<std::shared_ptr<TimeIndependent<dim>>> TI_p;
-//    int final_step, mg_cycle;
-//    int mg_level;//FIXME remove this
-//    std::vector<unsigned int> refinement_levels;
-//    int vect_size, finest_index, coarsest_index, n_solution_variables;
-//    _braid_App_struct(MPI_Comm mpi_comm_x,
-//                      const MPI_Comm comm_t,
-//                      int final_step,
-//                      const unsigned int mg_level,
-//                      const std::vector<unsigned int> refine_levels)
-//    : comm_x(mpi_comm_x),
-//      comm_t(comm_t),
-//      TI_p(refine_levels.size()),
-//      final_step(final_step),
-//      mg_cycle(0),//cycle starts at 0 since there has been no cycles yet
-//      mg_level(mg_level),
-//      refinement_levels(refine_levels)
-//    {
-//      //assert that user specified levels vector is ordered properly
-//      for(unsigned int i = 0; i < refinement_levels.size()-1; ++i)
-//      {
-//        assert(refinement_levels.at(i) <= refinement_levels.at(i+1)
-//            && "in testcase.prm the levels need to be in increasing order");
-//      }
-//
-//      finest_index = 0;
-//      int last_index = refinement_levels.size()-1;
-//      coarsest_index = last_index;
-//      for (unsigned int i=0; i<refinement_levels.size(); i++)
-//      {
-//        std::cout << "_____________________________\n";
-//        std::cout << "Refinement i=" << i << "\n";
-//        /*set up the array of time independent objects.*/
-//
-//        //the finest level should be at level 0 (i=0), ensuring that level queries
-//        //later on match the xbraid standard
-//        TI_p.at(i) = std::make_shared<TimeIndependent<dim>>(mpi_comm_x,
-//                                                            comm_t,
-//                                                            refinement_levels.at(last_index - i));
-//        /*new*/
-//        TI_p[i]->pcout << "Reading parameters and allocating objects... " << std::flush;
-//        TI_p[i]->pcout << "done" << std::endl;
-//        {
-//          print_head(TI_p[i]->pcout, "create triangulation");
-//
-//          TI_p[i]->discretization.setup();
-//
-//          if (TI_p[i]->resume)
-//            TI_p[i]->discretization.triangulation.load(TI_p[i]->base_name + "-checkpoint.mesh");
-//          else
-//            TI_p[i]->discretization.triangulation.refine_global(TI_p[i]->discretization.refinement);
-//
-//          TI_p[i]->pcout << "Number of active cells:       "
-//              << TI_p[i]->discretization.triangulation.n_global_active_cells()
-//              << std::endl;
-//
-//          //FIXME this piece should be the same for every process, find a way to break it out.
-//          print_head(TI_p[i]->pcout, "compute offline data");
-//          TI_p[i]->offline_data.setup();
-//          TI_p[i]->offline_data.assemble();//FIXME to here, we should not need anything past this??
-//
-//          TI_p[i]->pcout << "Number of degrees of freedom: "
-//              << TI_p[i]->offline_data.dof_handler.n_dofs() << std::endl;
-//
-//          print_head(TI_p[i]->pcout, "set up time step");
-//          TI_p[i]->time_stepping.prepare();
-//          TI_p[i]->schlieren_postprocessor.prepare();
-//        }
-//      }//loop
-//      vect_size =  TI_p.at(finest_index)->offline_data.dof_handler.n_dofs();
-//      n_solution_variables = ProblemDescription<dim>::n_solution_variables;
-//      ParameterAcceptor::initialize("step-69.prm");
-//
-//      std::cout << "APP created.\n";
-//      /*new end*/
-//    };
+
+
+    _braid_App_struct(MPI_Comm mpi_comm_x,
+                      const MPI_Comm comm_t)
+    : ParameterAcceptor("/K - MGRIT App"),
+      comm_x(mpi_comm_x),
+      comm_t(comm_t),//todo: rename variables to a_comm_t or something.
+      finest_index(0)//for XBRAID, the finest level is always 0.
+    {
+      refinement_levels = {1,2,5};
+      add_parameter("mgrit refinements",
+                    refinement_levels,
+                    "Vector of levels of global mesh refinement where "
+                    "each MGRIT level will work on.");
+      coarsest_index = refinement_levels.size()-1;
+
+    };
 } my_App;
 
 /**
@@ -724,10 +712,17 @@ int main(int argc, char *argv[])
 
   //todo: change this to a call to something similar to the main ryujin executable. problem_dispach??
 
-  ryujin::TimeLoop<ryujin::Euler::Description, 2, NUMBER> timeloop(comm);
-  dealii::ParameterAcceptor::initialize("cylinder-parameters.prm");//initialize the file specified by the user
+  my_App app(MPI_COMM_WORLD, comm);
+  dealii::ParameterAcceptor::initialize("test.prm");
 
-  timeloop.run();
+  for(const auto xi : app.refinement_levels)
+    std::cout << xi << std::endl;
+//  ryujin::TimeLoop<ryujin::Euler::Description, 2, NUMBER> timeloop(comm);
+//  dealii::ParameterAcceptor::initialize("cylinder-parameters.prm");//initialize the file specified by the user
+
+
+
+
 
   MPI_Finalize();
 
