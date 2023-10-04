@@ -71,6 +71,54 @@ namespace ryujin
     Geometries::populate_geometry_list<dim>(geometry_list_, subsection);
   }
 
+  template <int dim>
+   Discretization<dim>::Discretization(const MPI_Comm &mpi_communicator,
+                                       const int refinement,
+                                       const std::string &subsection)
+       : ParameterAcceptor(subsection)
+       , mpi_communicator_(mpi_communicator)
+       , refinement_(refinement)
+   {
+     const auto smoothing =
+         dealii::Triangulation<dim>::limit_level_difference_at_vertices;
+
+     if constexpr (have_distributed_triangulation<dim>) {
+       const auto settings =
+           Triangulation::Settings::construct_multigrid_hierarchy;
+       triangulation_ = std::make_unique<Triangulation>(
+           mpi_communicator_, smoothing, settings);
+
+     } else {
+       const auto settings = static_cast<typename Triangulation::Settings>(
+           Triangulation::partition_auto |
+           Triangulation::construct_multigrid_hierarchy);
+       /* Beware of the boolean: */
+       triangulation_ = std::make_unique<Triangulation>(
+           mpi_communicator_, smoothing, /*artificial cells*/ true, settings);
+     }
+
+
+     /* Options: */
+
+     geometry_ = "cylinder";
+     add_parameter("geometry",
+                   geometry_,
+                   "Name of the geometry used to create the mesh. Valid names "
+                   "are given by any of the subsections defined below.");
+
+
+     mesh_distortion_ = 0.;
+     add_parameter(
+         "mesh distortion", mesh_distortion_, "Strength of mesh distortion");
+
+     repartitioning_ = false;
+     add_parameter("mesh repartitioning",
+                   repartitioning_,
+                   "try to equalize workload by repartitioning the mesh");
+
+     Geometries::populate_geometry_list<dim>(geometry_list_, subsection);
+   }
+
 
   template <int dim>
   void Discretization<dim>::prepare()

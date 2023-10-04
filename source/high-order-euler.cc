@@ -125,17 +125,21 @@ typedef struct _braid_Vector_struct
  *    f(...,levels[level].offline_data,...);
  */
 template<typename Description, int dim, typename Number>
-struct LevelStructures : dealii::ParameterAcceptor
+class LevelStructures : public dealii::ParameterAcceptor
 {
 
   public:
 
-    LevelStructures();
+    LevelStructures(const MPI_Comm &comm_x,
+                    const int refinement);
 
     void prepare();
 
     using HyperbolicSystem = typename Description::HyperbolicSystem;
     using ParabolicSystem = typename Description::ParabolicSystem;
+
+    MPI_Comm level_comm_x;
+    const int level_refinement;
 
     std::shared_ptr<ryujin::OfflineData<dim,Number>> offline_data;
     std::shared_ptr<ParabolicSystem> parabolic_system;
@@ -162,9 +166,18 @@ struct LevelStructures : dealii::ParameterAcceptor
 };
 
 template<typename Description, int dim, typename Number>
-LevelStructures<Description,dim, Number>::LevelStructures()
+LevelStructures<Description,dim, Number>::LevelStructures(const MPI_Comm& comm_x,
+                                                          const int refinement)
+: ParameterAcceptor("/LevelStructures")
+, level_comm_x(comm_x)
+, level_refinement(refinement)
 {
+  discretization = std::make_shared<ryujin::Discretization<dim>>(level_comm_x,
+                                                                 level_refinement);
+  offline_data = std::make_shared<ryujin::OfflineData<dim, Number>>(level_comm_x,
+                                                                    *discretization);
 
+  prepare();
 }
 
 /**
@@ -173,7 +186,8 @@ LevelStructures<Description,dim, Number>::LevelStructures()
 template<typename Description, int dim, typename Number>
 void LevelStructures<Description, dim, Number>::prepare()
 {
-
+  discretization->prepare();
+  offline_data->prepare(dim+2);
 }
 
 
@@ -208,7 +222,7 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
 {
     using Description = ryujin::Euler::Description;
     using Number = NUMBER;
-    using LevelType = LevelStructures<Description, 2, Number>;
+    using LevelType = std::shared_ptr<LevelStructures<Description, 2, Number>>;
 
   public:
 
@@ -230,10 +244,9 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
     int finest_index, coarsest_index;
 
 
-
     _braid_App_struct(MPI_Comm mpi_comm_x,
                       const MPI_Comm comm_t)
-    : ParameterAcceptor("/K - MGRIT App"),
+    : ParameterAcceptor("/MGRIT"),
       comm_x(mpi_comm_x),
       comm_t(comm_t),//todo: rename variables to a_comm_t or something.
       finest_index(0)//for XBRAID, the finest level is always 0.
@@ -244,6 +257,9 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
                     "Vector of levels of global mesh refinement where "
                     "each MGRIT level will work on.");
       coarsest_index = refinement_levels.size()-1;
+
+      for(const auto refine : refinement_levels)
+        levels.push_back(std::make_shared<LevelStructures<Description, 2, Number>>(comm_x, refine));
 
     };
 } my_App;
@@ -717,6 +733,7 @@ int main(int argc, char *argv[])
 
   for(const auto xi : app.refinement_levels)
     std::cout << xi << std::endl;
+  std::cout << app.levels.at(0)->offline_data->dof_handler().n_dofs() << std::endl;
 //  ryujin::TimeLoop<ryujin::Euler::Description, 2, NUMBER> timeloop(comm);
 //  dealii::ParameterAcceptor::initialize("cylinder-parameters.prm");//initialize the file specified by the user
 
