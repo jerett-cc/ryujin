@@ -36,7 +36,6 @@
 #include "vtu_output.h"
 #include "convenience_macros.h"
 
-
 //deal.II includes
 #include <deal.II/base/parameter_acceptor.h>
 #include <deal.II/base/mpi.h>
@@ -48,6 +47,9 @@
 #include <braid.h>
 #include <braid_test.h>
 
+//mgrit includes
+#include "level_structures.h"
+#include "level_structures.template.h"
 /*
  * Author: Jerett Cherry, Colorado State University
  */
@@ -107,122 +109,15 @@ typedef struct _braid_Vector_struct
 } my_Vector;
 
 
-
-///A struct containing all relevant objects to a given MGRIT level
-/**
- * This struct stores all the relevant information for a given level
- * in the mgrit algorithm.
- *
- * Intended usage is as follows:
- *
- *    Vector<LevelStructures> levels;
- *    for(const auto l : mgrit_levels)
- *      levels[l].offline_data = std::make_shared<ryujin::OfflineData<dim, Number>(...);
- *
- *    //select the relevant level data
- *    int level = 0;
- *
- *    f(...,levels[level].offline_data,...);
- */
-template<typename Description, int dim, typename Number>
-class LevelStructures : public dealii::ParameterAcceptor
-{
-
-  public:
-
-    LevelStructures(const MPI_Comm &comm_x,
-                    const int refinement);
-
-    void prepare();
-
-    using HyperbolicSystem = typename Description::HyperbolicSystem;
-    using ParabolicSystem = typename Description::ParabolicSystem;
-
-    MPI_Comm level_comm_x;
-    const int level_refinement;
-
-    std::shared_ptr<ryujin::OfflineData<dim,Number>> offline_data;
-    std::shared_ptr<ParabolicSystem> parabolic_system;
-    std::shared_ptr<HyperbolicSystem> hyperbolic_system;
-    std::shared_ptr<ryujin::HyperbolicModule<Description,
-                                             dim,
-                                             Number>> hyperbolic_module;
-    std::shared_ptr<ryujin::ParabolicModule<Description,
-                                            dim,
-                                            Number>> parabolic_module;
-    std::shared_ptr<ryujin::Discretization<dim>> discretization;
-    std::shared_ptr<ryujin::TimeIntegrator<Description,
-                                           dim,
-                                           Number>> time_integrator;
-    std::shared_ptr<ryujin::InitialValues<Description,
-                                          dim,
-                                          Number>> initial_values;
-    std::shared_ptr<ryujin::Postprocessor<Description,
-                                          dim,
-                                          Number>> postprocessor;
-    std::shared_ptr<ryujin::VTUOutput<Description,dim,Number>> vtu_output;
-    std::shared_ptr<ryujin::Quantities<Description,dim,Number>> quantities;
-
-};
-
-template<typename Description, int dim, typename Number>
-LevelStructures<Description,dim, Number>::LevelStructures(const MPI_Comm& comm_x,
-                                                          const int refinement)
-: ParameterAcceptor("/LevelStructures")
-, level_comm_x(comm_x)
-, level_refinement(refinement)
-{
-  discretization = std::make_shared<ryujin::Discretization<dim>>(level_comm_x,
-                                                                 level_refinement);
-  offline_data = std::make_shared<ryujin::OfflineData<dim, Number>>(level_comm_x,
-                                                                    *discretization);
-
-  prepare();
-}
-
-/**
- * this function prepares all the data structures
- */
-template<typename Description, int dim, typename Number>
-void LevelStructures<Description, dim, Number>::prepare()
-{
-  discretization->prepare();
-  offline_data->prepare(dim+2);
-}
-
-
 // This struct contains all the data that is unchanging with time.
 /**
- * \brief Struct that contains the HeatEquation and final
- * time step number.
  *
- * XBRAID uses this app structure as information that each
- * process can use when computing, so naturally should be
- * used to store global information relevant to each
- * process.
- *
- * The @p app stores spatial and temporal communicators,
- * comm_x and comm_t. (For this code, we use MPI_COMM_SELF for
- * comm_x, and MPI_COMM_WORLD for comm_t. For maximum performance,
- * one needs to leverage the spatial parallelism that is build in
- * to step-69, and coordinate with the additional parallelism grant-
- * ed by XBRAID. To do this, one should use a custom communicator
- * for comm_x, but MPI_COMM_WORLD is a natural choice for comm_t
- * since it oversees the communication between 'time bricks'.
- *
- * For step-69 to run parallel in time, one needs only to store
- * objects like the sparsity pattern, dof-handler, etc once.
- * Then, this information can be queried by the individual
- * processors doing the work. This information is stored in
- * the TimeIndependent class--reference its documentation.
- *
- * XBRAID
  */
 typedef struct _braid_App_struct : public dealii::ParameterAcceptor
 {
     using Description = ryujin::Euler::Description;
     using Number = NUMBER;
-    using LevelType = std::shared_ptr<LevelStructures<Description, 2, Number>>;
+    using LevelType = std::shared_ptr<ryujin::mgrit::LevelStructures<Description, 2, Number>>;
 
   public:
 
@@ -243,7 +138,6 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
     std::vector<unsigned int> refinement_levels;
     int finest_index, coarsest_index;
 
-
     _braid_App_struct(MPI_Comm mpi_comm_x,
                       const MPI_Comm comm_t)
     : ParameterAcceptor("/MGRIT"),
@@ -259,7 +153,7 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
       coarsest_index = refinement_levels.size()-1;
 
       for(const auto refine : refinement_levels)
-        levels.push_back(std::make_shared<LevelStructures<Description, 2, Number>>(comm_x, refine));
+        levels.push_back(std::make_shared<ryujin::mgrit::LevelStructures<Description, 2, Number>>(comm_x, refine));
 
     };
 } my_App;
