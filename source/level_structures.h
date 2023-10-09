@@ -7,18 +7,14 @@
 
 #pragma once
 
+#include <compile_time_options.h>
+
 //deal.II includes
 #include <deal.II/base/parameter_acceptor.h>
 
 //ryujin includes
-#include "hyperbolic_module.h"
-#include "offline_data.h"
-#include "geometry_cylinder.h"
 #include "discretization.h"
-#include "hyperbolic_system.h"
-//#include "euler/parabolic_system.h"
-#include "time_loop.h"
-#include "euler/description.h"
+#include "hyperbolic_module.h"
 #include "initial_values.h"
 #include "offline_data.h"
 #include "parabolic_module.h"
@@ -26,6 +22,13 @@
 #include "quantities.h"
 #include "time_integrator.h"
 #include "vtu_output.h"
+
+#include <deal.II/base/timer.h>
+#include <deal.II/base/tensor.h>
+
+#include <fstream>
+#include <future>
+#include <sstream>
 
 namespace ryujin{
   namespace mgrit{
@@ -38,7 +41,7 @@ namespace ryujin{
      *
      *    Vector<LevelStructures> levels;
      *    for(const auto l : mgrit_levels)
-     *      levels[l].offline_data = std::make_shared<ryujin::OfflineData<dim, Number>(...);
+     *      levels[l].offline_data = std::make_shared<OfflineData<dim, Number>(...);
      *
      *    //select the relevant level data
      *    int level = 0;
@@ -58,31 +61,35 @@ namespace ryujin{
 
         using HyperbolicSystem = typename Description::HyperbolicSystem;
         using ParabolicSystem = typename Description::ParabolicSystem;
+        using OfflineData = typename OfflineData<dim, Number>;
+        using HyperbolicModule = typename HyperbolicModule<Description,dim, Number>;
+        using Discretization = typename Discretization<dim>;
+        using ParabolicModule = typename ParabolicModule<Description,dim, Number>;
+        using TimeIntegrator = typename TimeIntegrator<Description, dim, Number>;
+        using InitialValues = typename InitialValues<Description, dim, Number>;
+        using VTUOutput = typename VTUOutput<Description, dim, Number>;
+        using Postprocessor = typename Postprocessor<Description, dim, Number>;
+
+
+
+
 
         MPI_Comm level_comm_x;
         const int level_refinement;
 
-        std::shared_ptr<ryujin::OfflineData<dim,Number>> offline_data;
+        std::map<std::string, dealii::Timer> computing_timer;
+
+        std::shared_ptr<OfflineData> offline_data;
         std::shared_ptr<ParabolicSystem> parabolic_system;
         std::shared_ptr<HyperbolicSystem> hyperbolic_system;
-        std::shared_ptr<ryujin::HyperbolicModule<Description,
-        dim,
-        Number>> hyperbolic_module;
-        std::shared_ptr<ryujin::ParabolicModule<Description,
-        dim,
-        Number>> parabolic_module;
-        std::shared_ptr<ryujin::Discretization<dim>> discretization;
-        std::shared_ptr<ryujin::TimeIntegrator<Description,
-        dim,
-        Number>> time_integrator;
-        std::shared_ptr<ryujin::InitialValues<Description,
-        dim,
-        Number>> initial_values;
-        std::shared_ptr<ryujin::Postprocessor<Description,
-        dim,
-        Number>> postprocessor;
-        std::shared_ptr<ryujin::VTUOutput<Description,dim,Number>> vtu_output;
-        std::shared_ptr<ryujin::Quantities<Description,dim,Number>> quantities;
+        std::shared_ptr<HyperbolicModule> hyperbolic_module;
+        std::shared_ptr<ParabolicModule> parabolic_module;
+        std::shared_ptr<Discretization> discretization;
+        std::shared_ptr<TimeIntegrator> time_integrator;
+        std::shared_ptr<InitialValues> initial_values;
+        std::shared_ptr<Postprocessor> postprocessor;
+        std::shared_ptr<VTUOutput> vtu_output;
+        std::shared_ptr<Quantities> quantities;
 
     };
 
@@ -95,10 +102,43 @@ namespace ryujin{
     , level_comm_x(comm_x)
     , level_refinement(refinement)
     {
-      discretization = std::make_shared<ryujin::Discretization<dim>>(level_comm_x,
-          level_refinement);
-      offline_data = std::make_shared<ryujin::OfflineData<dim, Number>>(level_comm_x,
-          *discretization);
+      hyperbolic_system = std::make_shared<HyperbolicSystem>("/Equation");
+      parabolic_system = std::make_shared<ParabolicSystem>("/Equation");
+      discretization = std::make_shared<Discretization>(level_comm_x,
+                                                        level_refinement);
+      offline_data = std::make_shared<OfflineData>(level_comm_x,
+                                                   *discretization,
+                                                   "/OfflineData");
+      initial_values
+        = std::make_shared<InitialValues>(*hyperbolic_system,
+                                          *offline_data,
+                                          "/InitialValues");
+      hyperbolic_module
+        = std::make_shared<HyperbolicModule>(comm_x,
+                                             computing_timer,
+                                             *offline_data,
+                                             *hyperbolic_system,
+                                             *initial_values,
+                                             "/HyperbolicModule");
+      parabolic_module
+        = std::make_shared<ParabolicModule>(comm_x,
+                                            computing_timer,
+                                            *offline_data,
+                                            *hyperbolic_system,
+                                            *parabolic_system,
+                                            *initial_values,
+                                            "/ParabolicModule");
+      time_integrator
+        = std::make_shared<TimeIntegrator>(comm_x,
+                                           computing_timer,
+                                           *offline_data,
+                                           *hyperbolic_module,
+                                           *parabolic_module,
+                                           "/TimeIntegrator");
+
+
+
+
 
       prepare();
     }
