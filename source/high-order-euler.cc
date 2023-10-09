@@ -49,7 +49,7 @@
 
 //mgrit includes
 #include "level_structures.h"
-#include "level_structures.template.h"
+
 /*
  * Author: Jerett Cherry, Colorado State University
  */

@@ -16,7 +16,7 @@
 #include "geometry_cylinder.h"
 #include "discretization.h"
 #include "hyperbolic_system.h"
-#include "euler/parabolic_system.h"
+//#include "euler/parabolic_system.h"
 #include "time_loop.h"
 #include "euler/description.h"
 #include "initial_values.h"
@@ -85,6 +85,36 @@ namespace ryujin{
         std::shared_ptr<ryujin::Quantities<Description,dim,Number>> quantities;
 
     };
+
+    //constructor that takes a MPI_Comm to be used by all objects, and
+    //a global refinement for the underlying triangulation
+    template<typename Description, int dim, typename Number>
+    LevelStructures<Description,dim, Number>::LevelStructures(const MPI_Comm& comm_x,
+        const int refinement)
+    : ParameterAcceptor("/LevelStructures")
+    , level_comm_x(comm_x)
+    , level_refinement(refinement)
+    {
+      discretization = std::make_shared<ryujin::Discretization<dim>>(level_comm_x,
+          level_refinement);
+      offline_data = std::make_shared<ryujin::OfflineData<dim, Number>>(level_comm_x,
+          *discretization);
+
+      prepare();
+    }
+
+    /**
+     * this function prepares all the data structures
+     *
+     * essentially calls prepare fo all underlying structures.
+     */
+    template<typename Description, int dim, typename Number>
+    void LevelStructures<Description, dim, Number>::prepare()
+    {
+      discretization->prepare();
+      offline_data->prepare(dim+2);
+    }
+
   }//namespace mgrit
 }//namespace ryujin
 
