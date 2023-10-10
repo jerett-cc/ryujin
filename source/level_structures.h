@@ -60,22 +60,27 @@ namespace ryujin{
         void prepare();
 
         using HyperbolicSystem = typename Description::HyperbolicSystem;
-        using ParabolicSystem = typename Description::ParabolicSystem;
-        using OfflineData = typename OfflineData<dim, Number>;
-        using HyperbolicModule = typename HyperbolicModule<Description,dim, Number>;
-        using Discretization = typename Discretization<dim>;
-        using ParabolicModule = typename ParabolicModule<Description,dim, Number>;
-        using TimeIntegrator = typename TimeIntegrator<Description, dim, Number>;
-        using InitialValues = typename InitialValues<Description, dim, Number>;
-        using VTUOutput = typename VTUOutput<Description, dim, Number>;
-        using Postprocessor = typename Postprocessor<Description, dim, Number>;
-
-
-
-
+        using HyperbolicSystemView
+            = typename Description::HyperbolicSystem::template View<dim, Number>;
+        using ParabolicSystem
+            = typename Description::ParabolicSystem;
+        using OfflineData
+            = typename ryujin::OfflineData<dim, Number>;
+        using HyperbolicModule
+            = typename ryujin::HyperbolicModule<Description,dim, Number>;
+        using Discretization = typename ryujin::Discretization<dim>;
+        using ParabolicModule = typename ryujin::ParabolicModule<Description,dim, Number>;
+        using TimeIntegrator = typename ryujin::TimeIntegrator<Description, dim, Number>;
+        using InitialValues = typename ryujin::InitialValues<Description, dim, Number>;
+        using VTUOutput = typename ryujin::VTUOutput<Description, dim, Number>;
+        using Postprocessor = typename ryujin::Postprocessor<Description, dim, Number>;
+        using Quantities = typename ryujin::Quantities<Description,dim,Number>;
 
         MPI_Comm level_comm_x;
         const int level_refinement;
+
+        static constexpr unsigned int problem_dimension
+          = HyperbolicSystemView::problem_dimension;
 
         std::map<std::string, dealii::Timer> computing_timer;
 
@@ -135,11 +140,22 @@ namespace ryujin{
                                            *hyperbolic_module,
                                            *parabolic_module,
                                            "/TimeIntegrator");
-
-
-
-
-
+      postprocessor
+              = std::make_shared<Postprocessor>(comm_x,
+                                                *hyperbolic_system,
+                                                *offline_data,
+                                                 "/VTUOutput");
+      vtu_output
+              = std::make_shared<VTUOutput>(comm_x,
+                                            *offline_data,
+                                            *hyperbolic_module,
+                                            *postprocessor,
+                                            "/VTUOutput");
+      quantities
+              = std::make_shared<Quantities>(comm_x,
+                                             *hyperbolic_system,
+                                             *offline_data,
+                                             "/Quantities");
       prepare();
     }
 
