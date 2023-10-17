@@ -17,6 +17,8 @@
 #include "time_integrator.h"
 #include "vtu_output.h"
 
+#include "level_structures.h"
+
 #include <deal.II/base/parameter_acceptor.h>
 #include <deal.II/base/timer.h>
 #include <deal.II/base/tensor.h>
@@ -29,7 +31,6 @@ namespace ryujin{
 
   namespace mgrit
   {
-    using namespace ryujin;
 
     /**
      * The high-level time loop driving the computation, this one is specific to the
@@ -89,24 +90,19 @@ namespace ryujin{
          * Constructor.
          */
         TimeLoopMgrit(const MPI_Comm &mpi_comm,
-            std::shared_ptr<HyperbolicSystem> hyperbolic_system,
-            std::shared_ptr<ParabolicSystem> parabolic_system,
-            std::shared_ptr<Discretization<dim>> discretization,
-            std::shared_ptr<OfflineData<dim, Number>> offline_data,
-            std::shared_ptr<InitialValues<Description, dim, Number>> initial_values,
-            std::shared_ptr<HyperbolicModule<Description, dim, Number>> hyperbolic_module,
-            std::shared_ptr<ParabolicModule<Description, dim, Number>> parabolic_module,
-            std::shared_ptr<TimeIntegrator<Description, dim, Number>> time_integrator,
-            std::shared_ptr<Postprocessor<Description, dim, Number>> postprocessor,
-            std::shared_ptr<VTUOutput<Description, dim, Number>> vtu_output,
-            std::shared_ptr<Quantities<Description, dim, Number>> quantities);
+                      const LevelStructures<Description, dim, Number> &ls,
+                      const Number initial_time,
+                      const Number final_time);
 
         /**
          * Run the high-level time loop.
          */
         void run();
 
-        void run_with_initial_data(const vector_type &U)
+        void run_with_initial_data(const vector_type &U);
+
+        //returns the solution state U, if the size is greater than one.
+        vector_type get_U();
 
       protected:
         /**
@@ -152,6 +148,8 @@ namespace ryujin{
 
         Number t_initial_;
         Number t_final_;
+        vector_type U_;
+
         std::vector<Number> t_refinements_;
 
         Number output_granularity_;
@@ -185,7 +183,7 @@ namespace ryujin{
         const MPI_Comm &mpi_communicator_;
 
         using map_type = typename std::map<std::string, dealii::Timer>;
-        std::shared_pointer<std::map<map_type>> computing_timer_;
+        map_type computing_timer_;
 
         //todo: add pointers here.
         std::shared_ptr<HyperbolicSystem> hyperbolic_system_;

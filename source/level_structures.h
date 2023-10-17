@@ -41,12 +41,12 @@ namespace ryujin{
      *
      *    Vector<LevelStructures> levels;
      *    for(const auto l : mgrit_levels)
-     *      levels[l].offline_data = std::make_shared<OfflineData<dim, Number>(...);
+     *      levels.at(l) = LevelStructures(...);
      *
-     *    //select the relevant level data
+     *    //select the relevant level data, eg. offline data
      *    int level = 0;
      *
-     *    f(...,levels[level].offline_data,...);
+     *    f(...,levels[level]->offline_data,...);
      */
     template<typename Description, int dim, typename Number = double>
     class LevelStructures : public dealii::ParameterAcceptor
@@ -162,7 +162,7 @@ namespace ryujin{
     /**
      * this function prepares all the data structures
      *
-     * essentially calls prepare fo all underlying structures.
+     * essentially calls prepare for all underlying structures.
      */
     template<typename Description, int dim, typename Number>
     void LevelStructures<Description, dim, Number>::prepare()
