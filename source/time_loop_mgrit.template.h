@@ -10,14 +10,11 @@
 #include "scope.h"
 #include "solution_transfer.h"
 #include "time_loop_mgrit.h"
-#include "euler/hyperbolic_system.h"
 #include "hyperbolic_module.h"
 #include "offline_data.h"
 #include "geometry_cylinder.h"
 #include "discretization.h"
-#include "hyperbolic_system.h"
 #include "euler/parabolic_system.h"
-#include "time_loop.h"
 #include "euler/description.h"
 #include "initial_values.h"
 #include "offline_data.h"
@@ -27,6 +24,7 @@
 #include "time_integrator.h"
 #include "vtu_output.h"
 #include "level_structures.h"
+
 
 #include <deal.II/base/logstream.h>
 #include <deal.II/base/revision.h>
@@ -50,14 +48,14 @@ using namespace dealii;
 namespace ryujin{
   namespace mgrit
   {
-    using namespace ryujin;
 
     template <typename Description, int dim, typename Number>
     TimeLoopMgrit<Description, dim, Number>::TimeLoopMgrit(const MPI_Comm &mpi_comm,
-                                                           const LevelStructures<Description,dim, Number> &ls)
+                                                           const LevelStructures<Description,dim, Number> &ls,
+                                                           const Number initial_time,
+                                                           const Number final_time)
     : ParameterAcceptor("/TimeLoop")
     , mpi_communicator_(mpi_comm)
-    , computing_timer_(ls.computing_timer)
     , hyperbolic_system_(ls.hyperbolic_system)
     , parabolic_system_(ls.parabolic_system)
     , discretization_(ls.discretization)
@@ -76,10 +74,9 @@ namespace ryujin{
       base_name_ = "cylinder";
       add_parameter("basename", base_name_, "Base name for all output files");
 
-      t_initial_ = Number(0.);
+      t_initial_ = initial_time;
 
-      t_final_ = Number(5.);
-      add_parameter("final time", t_final_, "Final time");
+      t_final_ = final_time;
 
       add_parameter("refinement timepoints",
           t_refinements_,
@@ -195,10 +192,10 @@ namespace ryujin{
 
 //todo: past this, replace object. with object->
     template <typename Description, int dim, typename Number>
-    void TimeLoop<Description, dim, Number>::run()
+    void TimeLoopMgrit<Description, dim, Number>::run()
     {
 #ifdef DEBUG_OUTPUT
-      std::cout << "TimeLoop<dim, Number>::run()" << std::endl;
+      std::cout << "TimeLoopMgrit<dim, Number>::run()" << std::endl;
 #endif
 
       const bool write_output_files = enable_checkpointing_ ||
@@ -235,7 +232,7 @@ namespace ryujin{
 
         if (resume_) {
           print_info("resuming computation: recreating mesh");
-          Checkpointing::load_mesh(discretization_, base_name_);
+          Checkpointing::load_mesh(*discretization_, base_name_);
 
 //          print_info("preparing compute kernels");
 //          prepare_compute_kernels();todo: remove
@@ -243,7 +240,7 @@ namespace ryujin{
           print_info("resuming computation: loading state vector");
           U.reinit(offline_data_->vector_partitioner());
           Checkpointing::load_state_vector(
-              offline_data_, base_name_, U, t, output_cycle, mpi_communicator_);
+              *offline_data_, base_name_, U, t, output_cycle, mpi_communicator_);
           t_initial_ = t;
 
           /* Workaround: Reinitialize Quantities with correct output cycle: */
@@ -343,7 +340,7 @@ namespace ryujin{
           print_info("performing global refinement");
 
           SolutionTransfer<Description, dim, Number> solution_transfer(
-              offline_data_, hyperbolic_system_);
+              *offline_data_, *hyperbolic_system_);
 
           auto &triangulation = discretization_->triangulation();
           for (auto &cell : triangulation.active_cell_iterators())
@@ -390,6 +387,7 @@ namespace ryujin{
         }
       } /* end of loop */
 
+      //U_ = U;//set the member U to be the solution U calculated above
       /* We have actually performed one cycle less. */
       --cycle;
 
@@ -414,12 +412,12 @@ namespace ryujin{
 
 
     template <typename Description, int dim, typename Number>
-    void TimeLoop<Description, dim, Number>::compute_error(
-        const typename TimeLoop<Description, dim, Number>::vector_type &U,
+    void TimeLoopMgrit<Description, dim, Number>::compute_error(
+        const typename TimeLoopMgrit<Description, dim, Number>::vector_type &U,
         const Number t)
     {
 #ifdef DEBUG_OUTPUT
-      std::cout << "TimeLoop<dim, Number>::compute_error()" << std::endl;
+      std::cout << "TimeLoopMgrit<dim, Number>::compute_error()" << std::endl;
 #endif
 
       Vector<Number> difference_per_cell(
@@ -555,14 +553,14 @@ namespace ryujin{
 
 
     template <typename Description, int dim, typename Number>
-    void TimeLoop<Description, dim, Number>::output(
-        const typename TimeLoop<Description, dim, Number>::vector_type &U,
+    void TimeLoopMgrit<Description, dim, Number>::output(
+        const typename TimeLoopMgrit<Description, dim, Number>::vector_type &U,
         const std::string &name,
         Number t,
         unsigned int cycle)
     {
 #ifdef DEBUG_OUTPUT
-      std::cout << "TimeLoop<dim, Number>::output(t = " << t << ")" << std::endl;
+      std::cout << "TimeLoopMgrit<dim, Number>::output(t = " << t << ")" << std::endl;
 #endif
 
       const bool do_full_output =
@@ -617,7 +615,7 @@ namespace ryujin{
         print_info("scheduling checkpointing");
 
         Checkpointing::write_checkpoint(
-            offline_data_, base_name_, U, t, cycle, mpi_communicator_);
+            *offline_data_, base_name_, U, t, cycle, mpi_communicator_);
       }
     }
 
@@ -629,31 +627,31 @@ namespace ryujin{
 
     template <typename Description, int dim, typename Number>
     void
-    TimeLoop<Description, dim, Number>::print_parameters(std::ostream &stream)
+    TimeLoopMgrit<Description, dim, Number>::print_parameters(std::ostream &stream)
     {
       if (mpi_rank_ != 0)
         return;
 
       /* Output commit and library information: */
 
-      /* clang-format off */
-      stream << std::endl;
-      stream << "###" << std::endl;
-      stream << "#" << std::endl;
-      stream << "# deal.II version " << std::setw(8) << DEAL_II_PACKAGE_VERSION
-          << "  -  " << DEAL_II_GIT_REVISION << std::endl;
-      stream << "# ryujin  version " << std::setw(8) << RYUJIN_VERSION
-          << "  -  " << RYUJIN_GIT_REVISION << std::endl;
-      stream << "#" << std::endl;
-      stream << "###" << std::endl;
-
-      /* Print compile time parameters: */
-
-      stream << std::endl
-          << std::endl << "Compile time parameters:" << std::endl << std::endl;
-
-      stream << "NUMBER == " << typeid(Number).name() << std::endl;
-      stream << "SIMD width == " << VectorizedArray<Number>::size() << std::endl;
+//      /* clang-format off */
+//      stream << std::endl;
+//      stream << "###" << std::endl;
+//      stream << "#" << std::endl;
+//      stream << "# deal.II version " << std::setw(8) << DEAL_II_PACKAGE_VERSION
+//          << "  -  " << DEAL_II_GIT_REVISION << std::endl;
+//      stream << "# ryujin  version " << std::setw(8) << RYUJIN_VERSION
+//          << "  -  " << RYUJIN_GIT_REVISION << std::endl;
+//      stream << "#" << std::endl;
+//      stream << "###" << std::endl;
+//
+//      /* Print compile time parameters: */
+//
+//      stream << std::endl
+//          << std::endl << "Compile time parameters:" << std::endl << std::endl;
+//
+//      stream << "NUMBER == " << typeid(Number).name() << std::endl;
+//      stream << "SIMD width == " << VectorizedArray<Number>::size() << std::endl;
 
       /* clang-format on */
 
@@ -672,7 +670,7 @@ namespace ryujin{
 
     template <typename Description, int dim, typename Number>
     void
-    TimeLoop<Description, dim, Number>::print_mpi_partition(std::ostream &stream)
+    TimeLoopMgrit<Description, dim, Number>::print_mpi_partition(std::ostream &stream)
     {
       /*
        * Fixme: this conversion to double is really not elegant. We should
@@ -744,7 +742,7 @@ namespace ryujin{
 
 
     template <typename Description, int dim, typename Number>
-    void TimeLoop<Description, dim, Number>::print_memory_statistics(
+    void TimeLoopMgrit<Description, dim, Number>::print_memory_statistics(
         std::ostream &stream)
     {
       Utilities::System::MemoryStats stats;
@@ -772,9 +770,9 @@ namespace ryujin{
 
 
     template <typename Description, int dim, typename Number>
-    void TimeLoop<Description, dim, Number>::print_timers(std::ostream &stream)
+    void TimeLoopMgrit<Description, dim, Number>::print_timers(std::ostream &stream)
     {
-      std::vector<std::ostringstream> output(computing_timer_->size());
+      std::vector<std::ostringstream> output(computing_timer_.size());
 
       const auto equalize = [&]() {
         const auto ptr =
@@ -857,7 +855,7 @@ namespace ryujin{
 
 
     template <typename Description, int dim, typename Number>
-    void TimeLoop<Description, dim, Number>::print_throughput(
+    void TimeLoopMgrit<Description, dim, Number>::print_throughput(
         unsigned int cycle, Number t, std::ostream &stream, bool final_time)
     {
       /*
@@ -1020,7 +1018,7 @@ stream << output.str() << std::endl;
 
 
     template <typename Description, int dim, typename Number>
-    void TimeLoop<Description, dim, Number>::print_info(const std::string &header)
+    void TimeLoopMgrit<Description, dim, Number>::print_info(const std::string &header)
     {
       if (mpi_rank_ != 0)
         return;
@@ -1031,7 +1029,7 @@ stream << output.str() << std::endl;
 
     template <typename Description, int dim, typename Number>
     void
-    TimeLoop<Description, dim, Number>::print_head(const std::string &header,
+    TimeLoopMgrit<Description, dim, Number>::print_head(const std::string &header,
         const std::string &secondary,
         std::ostream &stream)
     {
@@ -1060,7 +1058,7 @@ stream << output.str() << std::endl;
 
 
     template <typename Description, int dim, typename Number>
-    void TimeLoop<Description, dim, Number>::print_cycle_statistics(
+    void TimeLoopMgrit<Description, dim, Number>::print_cycle_statistics(
         unsigned int cycle,
         Number t,
         unsigned int output_cycle,
@@ -1114,6 +1112,16 @@ stream << output.str() << std::endl;
         }
       }
     }
+
+    template<typename Description,int dim,typename Number>
+    typename TimeLoopMgrit<Description, dim, Number>::vector_type TimeLoopMgrit<Description,dim,Number>::get_U()
+    {
+      Assert(0 < U_.size(),
+          dealii::ExcMessage(
+              "the vector you are trying to access has not been initialized"));
+      return U_;
+    }
+
 
   } // namespace mgrit
 }//namespace ryujin
