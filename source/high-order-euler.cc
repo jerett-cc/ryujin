@@ -35,6 +35,8 @@
 #include "time_integrator.h"
 #include "vtu_output.h"
 #include "convenience_macros.h"
+#include "time_loop_mgrit.h"
+#include "time_loop_mgrit.template.h"
 
 //deal.II includes
 #include <deal.II/base/parameter_acceptor.h>
@@ -78,6 +80,7 @@ const int dim = 2;
 // suppress compiler warnings.
 #define UNUSED(x) (void)(x)
 
+
 /**
  * This function should take a vector and resize it with
  * the size specified
@@ -104,7 +107,7 @@ void resizeVector(V& v,
  */
 typedef struct _braid_Vector_struct
 {
-  ryujin::TimeLoop<ryujin::Euler::Description, dim, NUMBER>::vector_type U;
+  ryujin::TimeLoop<ryujin::Euler::Description, dim, NUMBER>::vector_type U;//change this to
 
 } my_Vector;
 
@@ -177,6 +180,12 @@ void interpolateUBetweenLevels(V& to_v,
                                const int from_level,
                                braid_App& app)
 {
+  UNUSED(to_v);
+  UNUSED(to_level);
+  UNUSED(from_v);
+  UNUSED(from_level);
+  UNUSED(app);
+
 //  assert(to_v.at(0).size() == app->TI_p[to_level]->offline_data.dof_handler.n_dofs()
 //      && "trying to interpolate to a vactor and level where the n_dofs do not match");
 //
@@ -221,17 +230,24 @@ int my_Step(braid_App        app,
   //use a macro to get rid of some unused variables to avoid -Wall messages
   UNUSED(ustop);
   UNUSED(fstop);
+  UNUSED(app);
+  UNUSED(u);
   //grab the start time and end time
   double tstart;
   double tstop;
   braid_StepStatusGetTstartTstop(status, &tstart, &tstop);
 
-  //translate the fine level u to the coarse level
+  //translate the fine level u coming in to the coarse level
   //this uses a function from DEALII interpolate to different mesh
-  ryujin::TimeLoop<ryujin::Euler::Description, dim, NUMBER>::vector_type u_to_step;
-//  int coarse_size = app->TI_p.at(level)->offline_data.dof_handler.n_dofs();
-//  resizeVector(u_to_step,coarse_size);
+  my_Vector u_to_step;
+  std::cout << "size of U_to_step: " << u_to_step.U.size() << std::endl;
+  const auto coarse_offline_data = app->levels.at(level)->offline_data;
+  const auto num_coarse_dof = coarse_offline_data->dof_handler().n_dofs();
+  const auto coarse_size = num_coarse_dof*app->problem_dimension;
+  u_to_step.U.reinit_with_scalar_partitioner(coarse_offline_data->scalar_partitioner());
+  std::cout << "size of U_to_step after reinit: " << u_to_step.U.size() << std::endl;
 
+  exit(1);
 //
 //  //interpolate the data coming in with u (finest level) onto the
 //  //u_to_step (coarse level)
@@ -270,7 +286,7 @@ int my_Step(braid_App        app,
 //                            app);
 //  //now u is updated with the stepped solution.
 ////  std::cout << "Number of my step calls: " << num_step_calls << "\n";
-//  return 0;
+  return 0;
 };
 
 
@@ -289,11 +305,15 @@ my_Init(braid_App     app,
         double        t,
         braid_Vector *u_ptr)
 {
-//  std::cout << "Init called.\n";
+  std::cout << "Init called.\n";
 //
 //  //static unsigned int initcall = 0;
-//  my_Vector *u = new(my_Vector);
-//  //initializes all at a fine level
+  my_Vector *u = new(my_Vector);
+  UNUSED(app);
+  UNUSED(t);
+  UNUSED(u_ptr);
+
+  //initializes all at a fine level
 //  resizeVector(u->data, app->vect_size);
 //
 //  //if t is not zero, we integrate the initial solution from 0->t on the coarsest level, and
@@ -327,7 +347,7 @@ my_Init(braid_App     app,
 //
 //  *u_ptr = u;
 //
-//  return 0;
+  return 0;
 }
 
 
@@ -345,6 +365,10 @@ my_Clone(braid_App     app,
          braid_Vector  u,
          braid_Vector *v_ptr)
 {
+  UNUSED(app);
+  UNUSED(u);
+  UNUSED(v_ptr);
+
 //  std::cout << "Clone called" << std::endl;
 //  UNUSED(app);
 //  my_Vector *v = new(my_Vector);
@@ -366,7 +390,7 @@ my_Clone(braid_App     app,
 //        v->data.at(i) = u->data.at(i);
 //      }
 //    *v_ptr = v;
-//    return 0;
+    return 0;
 }
 
 
@@ -409,6 +433,13 @@ my_Sum(braid_App app,
        double beta,
        braid_Vector y)
 {
+  UNUSED(app);
+  UNUSED(alpha);
+  UNUSED(x);
+  UNUSED(beta);
+  UNUSED(y);
+
+
 //  std::cout << "Sum called\n";
 //  UNUSED(app);
 //  LinearAlgebra::distributed::Vector<double> tmp1, tmp2;
@@ -431,7 +462,7 @@ my_Sum(braid_App app,
 //    y->data.at(i) = tmp1;
 //  }
 //
-//  return 0;
+  return 0;
 }
 
 /**
@@ -451,6 +482,10 @@ my_SpatialNorm(braid_App     app,
                braid_Vector  u,
                double       *norm_ptr)
 {
+  UNUSED(app);
+  UNUSED(u);
+  UNUSED(norm_ptr);
+
 //  std::cout << "Norm called" << std::endl;
 //  UNUSED(app);
 //  double l2 = 0;
@@ -462,7 +497,7 @@ my_SpatialNorm(braid_App     app,
 //    }
 //  *norm_ptr = std::sqrt(l2);
 //
-//  return 0;
+  return 0;
 }
 
 /**
@@ -489,6 +524,10 @@ my_Access(braid_App          app,
           braid_Vector       u,
           braid_AccessStatus astatus)
 {
+  UNUSED(app);
+  UNUSED(u);
+  UNUSED(astatus);
+
 //  static int mgCycle = 0;
 //  std::cout << "Access called" << std::endl;
 //  //get the iteration
@@ -500,7 +539,7 @@ my_Access(braid_App          app,
 //
 //  //for now, we just increment the mg_cycle
 //
-//  return 0;
+  return 0;
 }
 
 /**
@@ -522,10 +561,14 @@ my_BufSize(braid_App           app,
            int                 *size_ptr,
            braid_BufferStatus  bstatus)
 {
+  UNUSED(app);
+  UNUSED(size_ptr);
+  UNUSED(bstatus);
+
 //  UNUSED(bstatus);
 //  int size = app->vect_size * app->n_solution_variables;//no vector can be bigger than this, so we are very conservative.
 //  *size_ptr = (size+1) * sizeof(double);//all values are doubles +1 is for the size of the buffers
-//  return 0;
+  return 0;
 }
 
 /**
@@ -546,6 +589,12 @@ my_BufPack(braid_App           app,
            void               *buffer,
            braid_BufferStatus  bstatus)
 {
+  UNUSED(app);
+  UNUSED(u);
+  UNUSED(buffer);
+  UNUSED(bstatus);
+
+
 //  std::cout << "Buff pack called" << std::endl;
 //  UNUSED(app);
 //  double *dbuffer = (double*)buffer;
@@ -566,7 +615,7 @@ my_BufPack(braid_App           app,
 //
 //  braid_BufferStatusSetSize(bstatus, (buf_size+1)*sizeof(double));
 //
-//  return 0;
+  return 0;
 }
 
 /**
@@ -587,6 +636,11 @@ my_BufUnpack(braid_App           app,
              braid_Vector       *u_ptr,
              braid_BufferStatus  bstatus)
 {
+  UNUSED(app);
+  UNUSED(buffer);
+  UNUSED(u_ptr);
+  UNUSED(bstatus);
+
 //  // the vector should be size (dim + 2) X n_dofs at finest level.
 //  std::cout << "buff unpack called\n";
 //  UNUSED(bstatus);
@@ -611,7 +665,7 @@ my_BufUnpack(braid_App           app,
 //  *u_ptr = u;//modify the u_ptr does this create a memory leak as we just point this pointer somewhere else?
 //
 //  std::cout << "Buffunpack done." << std::endl;
-//  return 0;
+  return 0;
 }
 
 int main(int argc, char *argv[])
@@ -623,14 +677,17 @@ int main(int argc, char *argv[])
   //todo: change this to a call to something similar to the main ryujin executable. problem_dispach??
 
   my_App app(MPI_COMM_WORLD, comm);
+  ryujin::mgrit::TimeLoopMgrit<ryujin::Euler::Description,2,double> time_loop(app.comm_x, *(app.levels.at(0)),0,0.1);
   dealii::ParameterAcceptor::initialize("test.prm");
+
+  time_loop.run();
+  std::cout << "Size of U: " << time_loop.get_U().size() << std::endl;
 
   for(const auto xi : app.refinement_levels)
     std::cout << xi << std::endl;
-  std::cout << app.levels.at(0)->offline_data->dof_handler().n_dofs() << std::endl;
+//  std::cout << app.levels.at(0)->offline_data->dof_handler().n_dofs() << std::endl;
 //  ryujin::TimeLoop<ryujin::Euler::Description, 2, NUMBER> timeloop(comm);
 //  dealii::ParameterAcceptor::initialize("cylinder-parameters.prm");//initialize the file specified by the user
-
 
 
 
