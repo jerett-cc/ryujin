@@ -167,13 +167,13 @@ namespace ryujin{
     template<typename Description, int dim, typename Number>
     void LevelStructures<Description, dim, Number>::prepare()
     {
+      discretization->prepare();
       offline_data->prepare(problem_dimension);
       hyperbolic_module->prepare();
       parabolic_module->prepare();
       time_integrator->prepare();
       postprocessor->prepare();
-      quantities->prepare();
-      discretization->prepare();
+      quantities->prepare("MGRIT_"/*base name*/, 1 /*output cycle*/);
 
     }
 
