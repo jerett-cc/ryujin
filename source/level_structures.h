@@ -59,6 +59,7 @@ namespace ryujin{
 
         void prepare();
 
+        /*Describe relevant typenames*/
         using HyperbolicSystem = typename Description::HyperbolicSystem;
         using HyperbolicSystemView
             = typename Description::HyperbolicSystem::template View<dim, Number>;
@@ -76,14 +77,21 @@ namespace ryujin{
         using Postprocessor = typename ryujin::Postprocessor<Description, dim, Number>;
         using Quantities = typename ryujin::Quantities<Description,dim,Number>;
 
+        //The communicator used for computations spatially on this level
         MPI_Comm level_comm_x;
+        //The amount of refinement for the mesh describing this level.
         const int level_refinement;
-
+        //The dimension for this problem, i.e. the number of unknowns for each
+        //node in the mesh.
         static constexpr unsigned int problem_dimension
           = HyperbolicSystemView::problem_dimension;
 
+        //TODO: do I need this timer?
+        //A map that is used to time different sections of code
+        //The string is typically the section, and the timer corresponds to this.
         std::map<std::string, dealii::Timer> computing_timer;
 
+        //The necessary structures to run a simulation on this level.
         std::shared_ptr<OfflineData> offline_data;
         std::shared_ptr<ParabolicSystem> parabolic_system;
         std::shared_ptr<HyperbolicSystem> hyperbolic_system;
@@ -98,11 +106,11 @@ namespace ryujin{
 
     };
 
-    //constructor that takes a MPI_Comm to be used by all objects, and
-    //a global refinement for the underlying triangulation
+    //Constructor that takes a @p MPI_Comm to be used by all objects, and
+    //a global @p refinement for the underlying triangulation.
     template<typename Description, int dim, typename Number>
     LevelStructures<Description,dim, Number>::LevelStructures(const MPI_Comm& comm_x,
-        const int refinement)
+                                                              const int refinement)
     : ParameterAcceptor("/LevelStructures")
     , level_comm_x(comm_x)
     , level_refinement(refinement)
@@ -160,9 +168,10 @@ namespace ryujin{
     }
 
     /**
-     * this function prepares all the data structures
+     * This function prepares all the data structure pointers.
      *
-     * essentially calls prepare for all underlying structures.
+     * The implementation essentially calls .prepare() for all
+     * underlying structures.
      */
     template<typename Description, int dim, typename Number>
     void LevelStructures<Description, dim, Number>::prepare()
