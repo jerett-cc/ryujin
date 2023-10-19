@@ -40,13 +40,13 @@ namespace ryujin{
      * Intended usage is as follows:
      *
      *    Vector<LevelStructures> levels;
-     *    for(const auto l : mgrit_levels)
-     *      levels.at(l) = LevelStructures(...);
+     *    for(unsigned int i=0; i<levels.size(); i++)
+     *      levels.at(i) = LevelStructures(...);
      *
      *    //select the relevant level data, eg. offline data
      *    int level = 0;
+     *    const auto current_offline_data = levels[level]->offline_data;
      *
-     *    f(...,levels[level]->offline_data,...);
      */
     template<typename Description, int dim, typename Number = double>
     class LevelStructures : public dealii::ParameterAcceptor

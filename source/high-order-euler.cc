@@ -14,6 +14,8 @@
 #include <cmath>
 #include <vector>
 #include <memory>
+#include <algorithm>
+
 
 //MPI
 #include <deal.II/base/mpi.h>
@@ -56,7 +58,6 @@
  * Author: Jerett Cherry, Colorado State University
  */
 
-const int dim = 2;
 /**
  *   \brief Contains the implementation of the mandatory X-Braid functions
  *
@@ -83,7 +84,7 @@ const int dim = 2;
 
 /**
  * This function should take a vector and resize it with
- * the size specified
+ * the size specified TODO: delete this, do not need it anymore.
  */
 
 template<typename Description, typename V, int dim>
@@ -116,8 +117,11 @@ typedef struct _braid_Vector_struct
 /**
  *
  */
-typedef struct _braid_App_struct : public dealii::ParameterAcceptor
+typedef
+    //template<int dim>
+    struct _braid_App_struct : public dealii::ParameterAcceptor
 {
+    const int dim = 2;
     using Description = ryujin::Euler::Description;
     using Number = NUMBER;
     using LevelType = std::shared_ptr<ryujin::mgrit::LevelStructures<Description, 2, Number>>;
@@ -136,28 +140,35 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
     using precomputed_type = ryujin::MultiComponentVector<Number, n_precomputed_values>;
 
 
-    MPI_Comm comm_x, comm_t;//fixme:should these be const somehow?
+    const MPI_Comm comm_x, comm_t;
     std::vector<LevelType> levels; //instantiation
     std::vector<unsigned int> refinement_levels;
     int finest_index, coarsest_index;
 
-    _braid_App_struct(MPI_Comm mpi_comm_x,
+    _braid_App_struct(const MPI_Comm comm_x,
                       const MPI_Comm comm_t)
     : ParameterAcceptor("/MGRIT"),
-      comm_x(mpi_comm_x),
-      comm_t(comm_t),//todo: rename variables to a_comm_t or something.
+      comm_x(comm_x),
+      comm_t(comm_t),
       finest_index(0)//for XBRAID, the finest level is always 0.
     {
-      refinement_levels = {1,2,5};
+      refinement_levels = {5,2,1};
       add_parameter("mgrit refinements",
                     refinement_levels,
                     "Vector of levels of global mesh refinement where "
                     "each MGRIT level will work on.");
       coarsest_index = refinement_levels.size()-1;
 
-      for(const auto refine : refinement_levels)
-        levels.push_back(std::make_shared<ryujin::mgrit::LevelStructures<Description, 2, Number>>(comm_x, refine));
 
+      for(const auto refine : refinement_levels)
+      {
+        if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0)
+        {
+          std::cout << "[INFO] Setting up Structures in App at level "
+              << refine << std::endl;
+        }
+        levels.push_back(std::make_shared<ryujin::mgrit::LevelStructures<Description, 2, Number>>(comm_x, refine));
+      }
     };
 } my_App;
 
@@ -670,29 +681,25 @@ my_BufUnpack(braid_App           app,
 
 int main(int argc, char *argv[])
 {
-  MPI_Comm comm = MPI_COMM_WORLD;
-  MPI_Init(&argc, &argv);
-  //create objects
+  const MPI_Comm comm = MPI_COMM_WORLD;
+  //scoped MPI object, no need to call finalize at the end.
+  dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);  //create objects
 
   //todo: change this to a call to something similar to the main ryujin executable. problem_dispach??
 
-  my_App app(MPI_COMM_WORLD, comm);
+  my_App app(comm, comm);
+  std::cout << "After app" << std::endl;
   ryujin::mgrit::TimeLoopMgrit<ryujin::Euler::Description,2,double> time_loop(app.comm_x, *(app.levels.at(0)),0,0.1);
   dealii::ParameterAcceptor::initialize("test.prm");
 
-  time_loop.run();
-  std::cout << "Size of U: " << time_loop.get_U().size() << std::endl;
+//  time_loop.run();
+//  std::cout << "Size of U: " << time_loop.get_U().size() << std::endl;
 
   for(const auto xi : app.refinement_levels)
     std::cout << xi << std::endl;
 //  std::cout << app.levels.at(0)->offline_data->dof_handler().n_dofs() << std::endl;
 //  ryujin::TimeLoop<ryujin::Euler::Description, 2, NUMBER> timeloop(comm);
 //  dealii::ParameterAcceptor::initialize("cylinder-parameters.prm");//initialize the file specified by the user
-
-
-
-
-  MPI_Finalize();
 
 
 }
