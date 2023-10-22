@@ -87,16 +87,16 @@
  * the size specified TODO: delete this, do not need it anymore.
  */
 
-template<typename Description, typename V, int dim>
-void resizeVector(V& v,
-                  const int size,
-                  const int num_comps = ryujin::TimeLoop<Description,
-                                                         dim,
-                                                         NUMBER>::problem_dimension)
-{
-  for(int i = 0; i < num_comps; ++i)
-    v[i].reinit(size);
-}
+//template<typename Description, typename V, int dim>
+//void resizeVector(V& v,
+//                  const int size,
+//                  const int num_comps = ryujin::TimeLoop<Description,
+//                                                         dim,
+//                                                         NUMBER>::problem_dimension)
+//{
+//  for(int i = 0; i < num_comps; ++i)
+//    v[i].reinit(size);
+//}
 
 
 // This struct contains all data that changes with time. For now
@@ -108,8 +108,7 @@ void resizeVector(V& v,
  */
 typedef struct _braid_Vector_struct
 {
-  ryujin::TimeLoop<ryujin::Euler::Description, dim, NUMBER>::vector_type U;//change this to
-
+  ryujin::TimeLoop<ryujin::Euler::Description, 2, NUMBER>::vector_type U;//change this to
 } my_Vector;
 
 
@@ -117,32 +116,34 @@ typedef struct _braid_Vector_struct
 /**
  *
  */
-typedef
-    //template<int dim>
-    struct _braid_App_struct : public dealii::ParameterAcceptor
+typedef struct _braid_App_struct : public dealii::ParameterAcceptor
 {
-    const int dim = 2;
     using Description = ryujin::Euler::Description;
     using Number = NUMBER;
-    using LevelType = std::shared_ptr<ryujin::mgrit::LevelStructures<Description, 2, Number>>;
+    using LevelType
+        = std::shared_ptr<ryujin::mgrit::LevelStructures<Description, 2, Number>>;
+    using TimeLoopType
+        = std::shared_ptr<ryujin::mgrit::TimeLoopMgrit<Description,2,Number>>;
 
   public:
 
     using HyperbolicSystemView =
-        typename Description::HyperbolicSystem::template View<dim, Number>;
+        typename Description::HyperbolicSystem::template View<2, Number>;
 
     static constexpr unsigned int problem_dimension =
         HyperbolicSystemView::problem_dimension;
     static constexpr unsigned int n_precomputed_values =
         HyperbolicSystemView::n_precomputed_values;
-    using scalar_type = typename ryujin::OfflineData<dim, Number>::scalar_type;
-    using vector_type = ryujin::MultiComponentVector<Number, problem_dimension>;
+    using scalar_type = typename ryujin::OfflineData<2, Number>::scalar_type;
+    using vector_type = ryujin::MultiComponentVector<Number, problem_dimension>;//TODO: determine if I need these typenames at all in app;
     using precomputed_type = ryujin::MultiComponentVector<Number, n_precomputed_values>;
 
 
     const MPI_Comm comm_x, comm_t;
     std::vector<LevelType> levels; //instantiation
     std::vector<unsigned int> refinement_levels;
+
+    std::vector<TimeLoopType> time_loops;
     int finest_index, coarsest_index;
 
     _braid_App_struct(const MPI_Comm comm_x,
@@ -150,6 +151,8 @@ typedef
     : ParameterAcceptor("/MGRIT"),
       comm_x(comm_x),
       comm_t(comm_t),
+      levels(1),
+      time_loops(1),
       finest_index(0)//for XBRAID, the finest level is always 0.
     {
       refinement_levels = {5,2,1};
@@ -158,18 +161,46 @@ typedef
                     "Vector of levels of global mesh refinement where "
                     "each MGRIT level will work on.");
       coarsest_index = refinement_levels.size()-1;
+      levels[0] = std::make_shared<ryujin::mgrit::LevelStructures<Description, 2, Number>>(comm_x, 0);
+      time_loops[0] = std::make_shared<ryujin::mgrit::TimeLoopMgrit<Description, 2, Number>>(comm_x, *levels[0],0,0);
 
+      //default objects. their member variables will be modified when
+      //parameteracceptor initialize is called, then you can call prepare.
+      //FIXME: a potential bug can be introduced when a user calls prepare()
+      //before they call parameterhandler::initialize, how to stop this?
+    };
 
-      for(const auto refine : refinement_levels)
+    //This function NEEDS to be called after parameter handler has been initialized
+    //otherwise user defined refinement levels are not going to be used, only the
+    //default above.
+    void prepare()
+    {
+      //reset the coarsest index
+      coarsest_index = refinement_levels.size()-1;
+
+      //resize the vectors
+      levels.resize(refinement_levels.size());
+      time_loops.resize(refinement_levels.size());
+
+      //reorder refinement levels in descending order,
+      //this matches the fact that Xbraid has the finest level of MG
+      //as 0.
+      std::sort(refinement_levels.rbegin(), refinement_levels.rend());
+
+      //TODO: need to make a way to remove duplicates, or at least warn user
+      //that duplicate refinement levels are inefficient.
+
+      for(unsigned int i=0; i<refinement_levels.size(); i++)
       {
         if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0)
         {
           std::cout << "[INFO] Setting up Structures in App at level "
-              << refine << std::endl;
+              << refinement_levels[i] << std::endl;
         }
-        levels.push_back(std::make_shared<ryujin::mgrit::LevelStructures<Description, 2, Number>>(comm_x, refine));
+        levels[i] = std::make_shared<ryujin::mgrit::LevelStructures<Description, 2, Number>>(comm_x, refinement_levels[i]);
+        time_loops[i] = std::make_shared<ryujin::mgrit::TimeLoopMgrit<Description,2,Number>>(comm_x, *(levels[i]), 0,0);
       }
-    };
+    }
 } my_App;
 
 /**
@@ -687,10 +718,22 @@ int main(int argc, char *argv[])
 
   //todo: change this to a call to something similar to the main ryujin executable. problem_dispach??
 
+  //set up app and all underlying data, initialize parameters
   my_App app(comm, comm);
-  std::cout << "After app" << std::endl;
-  ryujin::mgrit::TimeLoopMgrit<ryujin::Euler::Description,2,double> time_loop(app.comm_x, *(app.levels.at(0)),0,0.1);
   dealii::ParameterAcceptor::initialize("test.prm");
+
+  //initialize time loop and call parameter acceptor initialize again
+//  ryujin::mgrit::TimeLoopMgrit<ryujin::Euler::Description,2,double> time_loop(app.comm_x, *(app.levels.at(0)),0,0.1);
+//  dealii::ParameterAcceptor::initialize("test.prm");
+
+
+//  std::cout << app.levels.size() << std::endl;
+//  std::cout << app.refinement_levels.size() << std::endl;
+
+  app.prepare();//call after initialize the parameters
+  std::cout << app.levels.size() << std::endl;//check parameters again
+  std::cout << app.refinement_levels.size() << std::endl;
+
 
 //  time_loop.run();
 //  std::cout << "Size of U: " << time_loop.get_U().size() << std::endl;
