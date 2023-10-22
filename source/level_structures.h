@@ -55,7 +55,7 @@ namespace ryujin{
       public:
 
         LevelStructures(const MPI_Comm &comm_x,
-            const int refinement);
+            const int refinement = 0);
 
         void prepare();
 
@@ -69,13 +69,13 @@ namespace ryujin{
             = typename ryujin::OfflineData<dim, Number>;
         using HyperbolicModule
             = typename ryujin::HyperbolicModule<Description,dim, Number>;
-        using Discretization = typename ryujin::Discretization<dim>;
-        using ParabolicModule = typename ryujin::ParabolicModule<Description,dim, Number>;
-        using TimeIntegrator = typename ryujin::TimeIntegrator<Description, dim, Number>;
-        using InitialValues = typename ryujin::InitialValues<Description, dim, Number>;
-        using VTUOutput = typename ryujin::VTUOutput<Description, dim, Number>;
-        using Postprocessor = typename ryujin::Postprocessor<Description, dim, Number>;
-        using Quantities = typename ryujin::Quantities<Description,dim,Number>;
+        using Discretization = ryujin::Discretization<dim>;
+        using ParabolicModule = ryujin::ParabolicModule<Description,dim, Number>;
+        using TimeIntegrator = ryujin::TimeIntegrator<Description, dim, Number>;
+        using InitialValues = ryujin::InitialValues<Description, dim, Number>;
+        using VTUOutput = ryujin::VTUOutput<Description, dim, Number>;
+        using Postprocessor = ryujin::Postprocessor<Description, dim, Number>;
+        using Quantities = ryujin::Quantities<Description,dim,Number>;
 
         //The communicator used for computations spatially on this level
         MPI_Comm level_comm_x;
@@ -92,14 +92,14 @@ namespace ryujin{
         std::map<std::string, dealii::Timer> computing_timer;
 
         //The necessary structures to run a simulation on this level.
-        std::shared_ptr<OfflineData> offline_data;
-        std::shared_ptr<ParabolicSystem> parabolic_system;
         std::shared_ptr<HyperbolicSystem> hyperbolic_system;
+        std::shared_ptr<ParabolicSystem> parabolic_system;
+        std::shared_ptr<Discretization> discretization;
+        std::shared_ptr<OfflineData> offline_data;
+        std::shared_ptr<InitialValues> initial_values;
         std::shared_ptr<HyperbolicModule> hyperbolic_module;
         std::shared_ptr<ParabolicModule> parabolic_module;
-        std::shared_ptr<Discretization> discretization;
         std::shared_ptr<TimeIntegrator> time_integrator;
-        std::shared_ptr<InitialValues> initial_values;
         std::shared_ptr<Postprocessor> postprocessor;
         std::shared_ptr<VTUOutput> vtu_output;
         std::shared_ptr<Quantities> quantities;
@@ -114,56 +114,50 @@ namespace ryujin{
     : ParameterAcceptor("/LevelStructures")
     , level_comm_x(comm_x)
     , level_refinement(refinement)
+    , hyperbolic_system(std::make_shared<HyperbolicSystem>("/Equation"))
+    , parabolic_system(std::make_shared<ParabolicSystem>("/Equation"))
+    , discretization(std::make_shared<Discretization>(level_comm_x,
+                                                      level_refinement))
+    , offline_data(std::make_shared<OfflineData>(level_comm_x,
+                                                 *discretization,
+                                                 "/OfflineData"))
+    , initial_values(std::make_shared<InitialValues>(*hyperbolic_system,
+                                                     *offline_data,
+                                                     "/InitialValues"))
+    , hyperbolic_module(std::make_shared<HyperbolicModule>(comm_x,
+                                                           computing_timer,
+                                                           *offline_data,
+                                                           *hyperbolic_system,
+                                                           *initial_values,
+                                                           "/HyperbolicModule"))
+    , parabolic_module(std::make_shared<ParabolicModule>(comm_x,
+                                                         computing_timer,
+                                                         *offline_data,
+                                                         *hyperbolic_system,
+                                                         *parabolic_system,
+                                                         *initial_values,
+                                                         "/ParabolicModule"))
+    , time_integrator(std::make_shared<TimeIntegrator>(comm_x,
+                                                       computing_timer,
+                                                       *offline_data,
+                                                       *hyperbolic_module,
+                                                       *parabolic_module,
+                                                       "/TimeIntegrator"))
+    , postprocessor(std::make_shared<Postprocessor>(comm_x,
+                                                    *hyperbolic_system,
+                                                    *offline_data,
+                                                    "/VTUOutput"))
+    , vtu_output(std::make_shared<VTUOutput>(comm_x,
+                                             *offline_data,
+                                             *hyperbolic_module,
+                                             *postprocessor,
+                                             "/VTUOutput"))
+    , quantities(std::make_shared<Quantities>(comm_x,
+                                             *hyperbolic_system,
+                                             *offline_data,
+                                             "/Quantities"))
     {
-      hyperbolic_system = std::make_shared<HyperbolicSystem>("/Equation");
-      parabolic_system = std::make_shared<ParabolicSystem>("/Equation");
-      discretization = std::make_shared<Discretization>(level_comm_x,
-                                                        level_refinement);
-      offline_data = std::make_shared<OfflineData>(level_comm_x,
-                                                   *discretization,
-                                                   "/OfflineData");
-      initial_values
-        = std::make_shared<InitialValues>(*hyperbolic_system,
-                                          *offline_data,
-                                          "/InitialValues");
-      hyperbolic_module
-        = std::make_shared<HyperbolicModule>(comm_x,
-                                             computing_timer,
-                                             *offline_data,
-                                             *hyperbolic_system,
-                                             *initial_values,
-                                             "/HyperbolicModule");
-      parabolic_module
-        = std::make_shared<ParabolicModule>(comm_x,
-                                            computing_timer,
-                                            *offline_data,
-                                            *hyperbolic_system,
-                                            *parabolic_system,
-                                            *initial_values,
-                                            "/ParabolicModule");
-      time_integrator
-        = std::make_shared<TimeIntegrator>(comm_x,
-                                           computing_timer,
-                                           *offline_data,
-                                           *hyperbolic_module,
-                                           *parabolic_module,
-                                           "/TimeIntegrator");
-      postprocessor
-              = std::make_shared<Postprocessor>(comm_x,
-                                                *hyperbolic_system,
-                                                *offline_data,
-                                                 "/VTUOutput");
-      vtu_output
-              = std::make_shared<VTUOutput>(comm_x,
-                                            *offline_data,
-                                            *hyperbolic_module,
-                                            *postprocessor,
-                                            "/VTUOutput");
-      quantities
-              = std::make_shared<Quantities>(comm_x,
-                                             *hyperbolic_system,
-                                             *offline_data,
-                                             "/Quantities");
+      //prepare the data structures
       prepare();
     }
 
