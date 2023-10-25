@@ -7,7 +7,11 @@ configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/compile_time_options.h.in
   ${CMAKE_CURRENT_BINARY_DIR}/compile_time_options.h
   )
-
+  
+configure_file(
+  compile_time_options.h.in
+  compile_time_options.h
+  )
 #
 # Common and equation-independent source files and target:
 #
@@ -48,6 +52,12 @@ set_property(SOURCE time_loop.cc APPEND PROPERTY COMPILE_DEFINITIONS
   RYUJIN_GIT_REVISION="${GIT_REVISION}"
   RYUJIN_GIT_SHORTREV="${GIT_SHORTREV}"
   )
+  
+set_property(SOURCE time_loop_mgrit.cc APPEND PROPERTY COMPILE_DEFINITIONS
+  RYUJIN_VERSION="${RYUJIN_VERSION}"
+  RYUJIN_GIT_REVISION="${GIT_REVISION}"
+  RYUJIN_GIT_SHORTREV="${GIT_SHORTREV}"
+  )
 
 #
 # Equation-specific source files and compilation targets:
@@ -82,6 +92,25 @@ foreach(_file ${_files})
 endforeach()
 
 #
+# MGRIT dependencies/library
+#
+SET(MGRIT_DEPENDENT_SOURCE_FILES
+  time_loop_mgrit.cc
+  )
+
+add_library(obj_mgrit OBJECT ${MGRIT_DEPENDENT_SOURCE_FILES})
+target_include_directories(obj_mgrit PUBLIC
+  ${CMAKE_BINARY_DIR}/source/euler/
+  ${CMAKE_BINARY_DIR}/source/
+  ${CMAKE_CURRENT_SOURCE_DIR}
+  )
+  deal_ii_setup_target(obj_mgrit)
+
+target_link_libraries(obj_mgrit ${EXTERNAL_TARGETS} obj_euler)
+
+#list(APPEND OBJECT_TARGETS obj_mgrit)
+
+#
 # The executable
 #
 
@@ -99,10 +128,9 @@ install(TARGETS ryujin DESTINATION ${CMAKE_INSTALL_BINDIR})
 #
 
 
-
 add_executable(high-order-euler high-order-euler.cc)
 deal_ii_setup_target(high-order-euler)
-target_link_libraries(high-order-euler obj_common ${OBJECT_TARGETS} ${EXTERNAL_TARGETS})
+target_link_libraries(high-order-euler obj_common obj_mgrit ${OBJECT_TARGETS} ${EXTERNAL_TARGETS})
 set_target_properties(high-order-euler PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/run"
   )

@@ -46,6 +46,7 @@
 #include <deal.II/base/smartpointer.h>
 #include <deal.II/numerics/vector_tools.h>
 #include <deal.II/base/parameter_acceptor.h>
+#include <deal.II/lac/la_parallel_vector.h>
 
 //xbraid include
 #include <braid.h>
@@ -68,53 +69,28 @@
  *  or may not be implemented in here.
  */
 
-/*Includes*/
-
-/*-------- Third Party --------*/
-
-/*-------- Project --------*/
-//#include "offlinedata.h"
-//#include "parallel-in-time-euler.h"
-
 // This preprocessor macro is used on function arguments
 // that are not used in the function. It is used to
 // suppress compiler warnings.
 #define UNUSED(x) (void)(x)
-
-
-/**
- * This function should take a vector and resize it with
- * the size specified TODO: delete this, do not need it anymore.
- */
-
-//template<typename Description, typename V, int dim>
-//void resizeVector(V& v,
-//                  const int size,
-//                  const int num_comps = ryujin::TimeLoop<Description,
-//                                                         dim,
-//                                                         NUMBER>::problem_dimension)
-//{
-//  for(int i = 0; i < num_comps; ++i)
-//    v[i].reinit(size);
-//}
-
 
 // This struct contains all data that changes with time. For now
 // this is just the solution data. When doing AMR this should
 // probably include the triangulization, the sparsity patter,
 // constraints, etc.
 /**
- * \brief Struct that contains the deal.ii vector of size (dim+2,n_dofs).
+ * \brief Struct that contains a ryujin::TimeLoop::vector_type of size problem_dimension*n_dofs.
  */
 typedef struct _braid_Vector_struct
 {
-  ryujin::TimeLoop<ryujin::Euler::Description, 2, NUMBER>::vector_type U;//change this to
+  ryujin::TimeLoop<ryujin::Euler::Description, 2, NUMBER>::vector_type U;
 } my_Vector;
 
 
 // This struct contains all the data that is unchanging with time.
 /**
- *
+ * The app structure that xbraid passes around to all its functions. Contains all
+ * level specific information that we will query.
  */
 typedef struct _braid_App_struct : public dealii::ParameterAcceptor
 {
@@ -134,7 +110,7 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
         HyperbolicSystemView::problem_dimension;
     static constexpr unsigned int n_precomputed_values =
         HyperbolicSystemView::n_precomputed_values;
-    using scalar_type = typename ryujin::OfflineData<2, Number>::scalar_type;
+    using scalar_type = ryujin::OfflineData<2, Number>::scalar_type;
     using vector_type = ryujin::MultiComponentVector<Number, problem_dimension>;//TODO: determine if I need these typenames at all in app;
     using precomputed_type = ryujin::MultiComponentVector<Number, n_precomputed_values>;
 
@@ -161,6 +137,8 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
                     "Vector of levels of global mesh refinement where "
                     "each MGRIT level will work on.");
       coarsest_index = refinement_levels.size()-1;
+      //need to set up temporary objects so that we can call ParameterAcceptor::initialize and
+      //all subsections will have been defined. Then, we fill the correct information by calling
       levels[0] = std::make_shared<ryujin::mgrit::LevelStructures<Description, 2, Number>>(comm_x, 0);
       time_loops[0] = std::make_shared<ryujin::mgrit::TimeLoopMgrit<Description, 2, Number>>(comm_x, *levels[0],0,0);
 
@@ -173,12 +151,16 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
     //This function NEEDS to be called after parameter handler has been initialized
     //otherwise user defined refinement levels are not going to be used, only the
     //default above.
+    //TODO: create a warning or a bool that warns users who try to use unprepared app.
     void prepare()
     {
       //reset the coarsest index
       coarsest_index = refinement_levels.size()-1;
 
-      //resize the vectors
+      //clear the vectors
+      levels.clear();
+      time_loops.clear();
+      //resize the vectors storing level data
       levels.resize(refinement_levels.size());
       time_loops.resize(refinement_levels.size());
 
@@ -197,6 +179,8 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
           std::cout << "[INFO] Setting up Structures in App at level "
               << refinement_levels[i] << std::endl;
         }
+        //TODO: determine if I should just make a time loop object for each level and using only this.
+        // i.e. does app really ned to know all the level structures info?
         levels[i] = std::make_shared<ryujin::mgrit::LevelStructures<Description, 2, Number>>(comm_x, refinement_levels[i]);
         time_loops[i] = std::make_shared<ryujin::mgrit::TimeLoopMgrit<Description,2,Number>>(comm_x, *(levels[i]), 0,0);
       }
@@ -213,32 +197,50 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
  * @param[in]  from_level the mg level which currently stores the solution
  * @param[in]  app, the user defined app which stores needed information about the mg levels
  *
- * NOTE: this function only works if the vectors to_v and from_v have an at() method implemented.
+ * NOTE: this function only works if the vectors to_v and from_v have an extract_component method implemented.
+ * and the method insert_component;
  */
 template<typename V>
 void interpolateUBetweenLevels(V& to_v,
                                const int to_level,
                                const V& from_v,
                                const int from_level,
-                               braid_App& app)
+                               const braid_App& app)
 {
-  UNUSED(to_v);
-  UNUSED(to_level);
-  UNUSED(from_v);
-  UNUSED(from_level);
-  UNUSED(app);
+  Assert((to_v.size() == app->levels[to_level]->offline_data->dof_handler().n_dofs()*app->problem_dimension)
+      , ExcMessage("Trying to interpolate to a vector and level where the n_dofs do not match will not work."));
+  using scalar_type = ryujin::OfflineData<2,NUMBER>::scalar_type;
+  scalar_type from_component,to_component;
 
-//  assert(to_v.at(0).size() == app->TI_p[to_level]->offline_data.dof_handler.n_dofs()
-//      && "trying to interpolate to a vactor and level where the n_dofs do not match");
-//
-//  unsigned int n_solution_variables = ProblemDescription<dim>::n_solution_variables;//constant at any dimension
-//  for(unsigned int comp=0; comp<n_solution_variables; comp++)
-//    {
-//      VectorTools::interpolate_to_different_mesh(app->TI_p[from_level]->offline_data.dof_handler,
-//                                                 from_v.at(comp),
-//                                                 app->TI_p[to_level]->offline_data.dof_handler,
-//                                                 to_v.at(comp));
-//    }
+  const unsigned int problem_dimension = app->problem_dimension;
+  const auto &from_partitioner = app->levels[from_level]->offline_data->scalar_partitioner();
+  const auto &to_partitioner = app->levels[to_level]->offline_data->scalar_partitioner();
+  const auto &comm = app->comm_x;
+
+  //reinit the components to match the correct info.
+  from_component.reinit(from_partitioner,comm);
+  to_component.reinit(to_partitioner,comm);
+
+  for(unsigned int comp=0; comp<problem_dimension; comp++)
+    {
+      //extract component
+      from_v.extract_component(from_component,comp);
+      //interpolate this into the to_component
+      dealii::VectorTools::interpolate_to_different_mesh(app->levels[from_level]->offline_data->dof_handler(),
+                                                         from_component,
+                                                         app->levels[to_level]->offline_data->dof_handler(),
+                                                         to_component);
+      //place component
+      to_v.insert_component(to_component,comp);
+    }
+  //todo:test this.
+}
+
+
+void print_solution(ryujin::MultiComponentVector<double, 4>& v, const braid_App& app)
+{
+  const auto time_loop = app->time_loops[0];
+  time_loop->output(v, "test-output", 300, 69);
 }
 
 /**
@@ -255,7 +257,7 @@ void interpolateUBetweenLevels(V& to_v,
 int my_Step(braid_App        app,
             braid_Vector     ustop,
             braid_Vector     fstop,
-            braid_Vector     u,
+            braid_Vector     u/*u at the finest spatial level*/,
             braid_StepStatus status)
 {
   //this variable is used for writing data to
@@ -282,14 +284,20 @@ int my_Step(braid_App        app,
   //translate the fine level u coming in to the coarse level
   //this uses a function from DEALII interpolate to different mesh
   my_Vector u_to_step;
-  std::cout << "size of U_to_step: " << u_to_step.U.size() << std::endl;
+//  std::cout << "size of U_to_step: " << u_to_step.U.size() << std::endl;
+  const auto fine_offline_data = app->levels.at(0)->offline_data;//FIXME: do I need both of these, or is one scalar partitioner ok?
   const auto coarse_offline_data = app->levels.at(level)->offline_data;
   const auto num_coarse_dof = coarse_offline_data->dof_handler().n_dofs();
   const auto coarse_size = num_coarse_dof*app->problem_dimension;
   u_to_step.U.reinit_with_scalar_partitioner(coarse_offline_data->scalar_partitioner());
-  std::cout << "size of U_to_step after reinit: " << u_to_step.U.size() << std::endl;
 
-  exit(1);
+//TODO: finish me
+
+  //interpolate between levels
+  interpolateUBetweenLevels(u_to_step.U, level, u->U, 0, app);
+
+//TODO: test that this interpolation works.
+
 //
 //  //interpolate the data coming in with u (finest level) onto the
 //  //u_to_step (coarse level)
@@ -347,47 +355,34 @@ my_Init(braid_App     app,
         double        t,
         braid_Vector *u_ptr)
 {
-  std::cout << "Init called.\n";
-//
-//  //static unsigned int initcall = 0;
+  if (dealii::Utilities::MPI::this_mpi_process(app->comm_t) == 0)
+   {
+    std::cout << "[INFO] Initializing XBraid vectors" << std::endl;
+   }
+
   my_Vector *u = new(my_Vector);
-  UNUSED(app);
-  UNUSED(t);
-  UNUSED(u_ptr);
 
   //initializes all at a fine level
-//  resizeVector(u->data, app->vect_size);
-//
-//  //if t is not zero, we integrate the initial solution from 0->t on the coarsest level, and
-//  //get a coarse solution.
-//  if(std::abs(t-0) > 1e-10)//NOTE: FIXME?: this could in theory cause problems when the time bricks are so many that one has an end time before 10^-10.
-//  {
-//    //create the time stepping object
-//    EulerEquation<dim> eq(app->TI_p[app->coarsest_index], 0, t);
-//    std::unique_ptr<my_Vector> u_coarse = std::make_unique<my_Vector>();//coarse vector
-//    resizeVector(u_coarse->data,
-//                 app->TI_p[app->coarsest_index]->offline_data.dof_handler.n_dofs());
-//
-//    //interpolate the fine mesh to the appropriate mesh
-//    interpolateUBetweenLevels(u_coarse->data, app->coarsest_index,
-//                              u->data, app->finest_index,
-//                              app);
-//    //run with initial data
-//    std::cout << "end time " << t << std::endl;
-//    eq.run_with_initial_data(u_coarse->data, 0, t, 0, false);
-//
-//    //interpolate the coarse mesh back to the fine mesh.
-//    interpolateUBetweenLevels(u->data, app->finest_index,
-//                              u_coarse->data,app->coarsest_index,
-//                              app);
-//  }
-////  //else do nothing to U, as we will initialize time = 0 inside the run function.
-////  EulerEquation<dim> eq(app->TI_p[app->finest_index], 0, t);
-////  unsigned int procID = Utilities::MPI::this_mpi_process(app->comm_t);
-////  eq.call = initcall++;
-////  eq.output(u->data, "init_test", t, procID);
-//
-//  *u_ptr = u;
+  u->U.reinit_with_scalar_partitioner(app->levels[0]->offline_data->scalar_partitioner());
+
+  //defines a coarse vector which will be stepped, then restricted down to the fine level
+  my_Vector *coarse_u = new(my_Vector);
+  coarse_u->U.reinit_with_scalar_partitioner(app->levels[app->coarsest_index]->offline_data->scalar_partitioner());
+  coarse_u->U = app->levels[app->coarsest_index]->initial_values->interpolate();//sets up U data at t=0;
+
+  //steps to the correct end time on the coarse level to end time t
+  app->time_loops[app->coarsest_index]->run_with_initial_data(coarse_u->U,t);
+
+  interpolateUBetweenLevels(u->U, 0, coarse_u->U, app->coarsest_index, app);
+
+  //TODO: test that this works by outputting
+  print_solution(u->U, app);
+
+  //delete the temporary coarse U.
+  delete coarse_u;
+
+  //reassign pointer XBraid will use
+  *u_ptr = u;
 //
   return 0;
 }
