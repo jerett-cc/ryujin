@@ -172,6 +172,7 @@ namespace ryujin{
     {
       discretization->prepare();
       offline_data->prepare(problem_dimension);
+      initial_values->parse_parameters_callback();
       hyperbolic_module->prepare();
       parabolic_module->prepare();
       time_integrator->prepare();

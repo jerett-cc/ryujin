@@ -47,6 +47,7 @@
 #include <deal.II/numerics/vector_tools.h>
 #include <deal.II/base/parameter_acceptor.h>
 #include <deal.II/lac/la_parallel_vector.h>
+#include <deal.II/base/tensor.h>
 
 //xbraid include
 #include <braid.h>
@@ -121,6 +122,7 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
 
     std::vector<TimeLoopType> time_loops;
     int finest_index, coarsest_index;
+    unsigned int n_fine_dofs;
 
     _braid_App_struct(const MPI_Comm comm_x,
                       const MPI_Comm comm_t)
@@ -141,7 +143,7 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
       //all subsections will have been defined. Then, we fill the correct information by calling
       levels[0] = std::make_shared<ryujin::mgrit::LevelStructures<Description, 2, Number>>(comm_x, 0);
       time_loops[0] = std::make_shared<ryujin::mgrit::TimeLoopMgrit<Description, 2, Number>>(comm_x, *levels[0],0,0);
-
+      n_fine_dofs = levels[0]->offline_data->dof_handler().n_dofs();
       //default objects. their member variables will be modified when
       //parameteracceptor initialize is called, then you can call prepare.
       //FIXME: a potential bug can be introduced when a user calls prepare()
@@ -184,6 +186,7 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
         levels[i] = std::make_shared<ryujin::mgrit::LevelStructures<Description, 2, Number>>(comm_x, refinement_levels[i]);
         time_loops[i] = std::make_shared<ryujin::mgrit::TimeLoopMgrit<Description,2,Number>>(comm_x, *(levels[i]), 0,0);
       }
+      n_fine_dofs = levels[0]->offline_data->dof_handler().n_dofs();
     }
 } my_App;
 
@@ -200,14 +203,13 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
  * NOTE: this function only works if the vectors to_v and from_v have an extract_component method implemented.
  * and the method insert_component;
  */
-template<typename V>
-void interpolateUBetweenLevels(V& to_v,
+void interpolateUBetweenLevels(my_Vector& to_v,
                                const int to_level,
-                               const V& from_v,
+                               const my_Vector& from_v,
                                const int from_level,
                                const braid_App& app)
 {
-  Assert((to_v.size() == app->levels[to_level]->offline_data->dof_handler().n_dofs()*app->problem_dimension)
+  Assert((to_v.U.size() == app->levels[to_level]->offline_data->dof_handler().n_dofs()*app->problem_dimension)
       , ExcMessage("Trying to interpolate to a vector and level where the n_dofs do not match will not work."));
   using scalar_type = ryujin::OfflineData<2,NUMBER>::scalar_type;
   scalar_type from_component,to_component;
@@ -224,23 +226,33 @@ void interpolateUBetweenLevels(V& to_v,
   for(unsigned int comp=0; comp<problem_dimension; comp++)
     {
       //extract component
-      from_v.extract_component(from_component,comp);
+      from_v.U.extract_component(from_component,comp);
       //interpolate this into the to_component
       dealii::VectorTools::interpolate_to_different_mesh(app->levels[from_level]->offline_data->dof_handler(),
                                                          from_component,
                                                          app->levels[to_level]->offline_data->dof_handler(),
                                                          to_component);
       //place component
-      to_v.insert_component(to_component,comp);
+      to_v.U.insert_component(to_component,comp);
     }
   //todo:test this.
 }
 
 
-void print_solution(ryujin::MultiComponentVector<double, 4>& v, const braid_App& app)
+void print_solution(ryujin::MultiComponentVector<double, 4>& v, const braid_App& app, const double t=0;)
 {
-  const auto time_loop = app->time_loops[0];
-  time_loop->output(v, "test-output", 300, 69);
+  std::cout << "printing solution" << std::endl;
+  auto time_loop = app->time_loops[0];
+  auto quantities = app->levels[0]->quantities;
+  time_loop->output(v, "./test-output", 300, 1);
+//  quantities->write_out(v, 245, 1);
+}
+
+///This function reinits a vector to the specified level, making sure that the partition matches that of the level.
+void reinit_to_level(my_Vector* u, braid_App& app, const unsigned int level) {
+  Assert(app->levels.size()>level, ExcMessage("The level being reinitialized does not exist."));
+  u->U.reinit_with_scalar_partitioner(
+      app->levels[level]->offline_data->scalar_partitioner());
 }
 
 /**
@@ -289,12 +301,12 @@ int my_Step(braid_App        app,
   const auto coarse_offline_data = app->levels.at(level)->offline_data;
   const auto num_coarse_dof = coarse_offline_data->dof_handler().n_dofs();
   const auto coarse_size = num_coarse_dof*app->problem_dimension;
-  u_to_step.U.reinit_with_scalar_partitioner(coarse_offline_data->scalar_partitioner());
+  reinit_to_level(&u_to_step, app, level);
 
 //TODO: finish me
 
   //interpolate between levels
-  interpolateUBetweenLevels(u_to_step.U, level, u->U, 0, app);
+  interpolateUBetweenLevels(u_to_step, level, *u, 0, app);
 
 //TODO: test that this interpolation works.
 
@@ -339,7 +351,6 @@ int my_Step(braid_App        app,
   return 0;
 };
 
-
 /**
  * @brief my_Init - Initializes a solution data at the given time
  * For this, the init function initializes each time point with a coarsest grid calculation of the solution.
@@ -363,20 +374,20 @@ my_Init(braid_App     app,
   my_Vector *u = new(my_Vector);
 
   //initializes all at a fine level
-  u->U.reinit_with_scalar_partitioner(app->levels[0]->offline_data->scalar_partitioner());
+  reinit_to_level(u, app, 0);
 
-  //defines a coarse vector which will be stepped, then restricted down to the fine level
+  //defines a coarse vector, at the coarsest level, which will be stepped, then restricted down to the fine level
   my_Vector *coarse_u = new(my_Vector);
-  coarse_u->U.reinit_with_scalar_partitioner(app->levels[app->coarsest_index]->offline_data->scalar_partitioner());
-  coarse_u->U = app->levels[app->coarsest_index]->initial_values->interpolate();//sets up U data at t=0;
+  reinit_to_level(coarse_u, app, app->coarsest_index);
+  coarse_u->U = app->levels[app->coarsest_index]->initial_values->interpolate(0);//sets up U data at t=0;
 
   //steps to the correct end time on the coarse level to end time t
   app->time_loops[app->coarsest_index]->run_with_initial_data(coarse_u->U,t);
 
-  interpolateUBetweenLevels(u->U, 0, coarse_u->U, app->coarsest_index, app);
+  interpolateUBetweenLevels(*u, 0/*finest level*/, *coarse_u, app->coarsest_index, app);
 
   //TODO: test that this works by outputting
-  print_solution(u->U, app);
+  print_solution(u->U, app, t);
 
   //delete the temporary coarse U.
   delete coarse_u;
@@ -402,32 +413,18 @@ my_Clone(braid_App     app,
          braid_Vector  u,
          braid_Vector *v_ptr)
 {
-  UNUSED(app);
-  UNUSED(u);
-  UNUSED(v_ptr);
 
-//  std::cout << "Clone called" << std::endl;
-//  UNUSED(app);
-//  my_Vector *v = new(my_Vector);
-//  int size = u->data[0].size();
-////  Assert(size == app->TI.offline_data.dof_handler.n_dofs(),
-////      "size of cloned vector does not match the number of dof's. It should.");
-//
-//  for(unsigned int i=0;
-//        i < ProblemDescription<dim>::n_solution_variables;
-//        ++i)
-//    {
-//      v->data.at(i).reinit(size);
-//    }
-//
-//  for(unsigned int i=0;
-//          i < ProblemDescription<dim>::n_solution_variables;
-//          ++i)
-//      {
-//        v->data.at(i) = u->data.at(i);
-//      }
-//    *v_ptr = v;
-    return 0;
+  if (dealii::Utilities::MPI::this_mpi_process(app->comm_t) == 0)
+  {
+    std::cout << "[INFO] Cloning XBraid vectors" << std::endl;
+  }
+
+  UNUSED(app);
+  my_Vector *v = new(my_Vector);
+  v->U.equ(1, u->U);
+
+  *v_ptr = v;
+  return 0;
 }
 
 
@@ -443,8 +440,12 @@ int
 my_Free(braid_App    app,
         braid_Vector u)
 {
-  std::cout << "Free called" << std::endl;
   UNUSED(app);
+  if (dealii::Utilities::MPI::this_mpi_process(app->comm_t) == 0)
+    {
+      std::cout << "[INFO] Freeing XBraid vectors" << std::endl;
+    }
+
   delete u;
 
   return 0;
@@ -471,34 +472,14 @@ my_Sum(braid_App app,
        braid_Vector y)
 {
   UNUSED(app);
-  UNUSED(alpha);
-  UNUSED(x);
-  UNUSED(beta);
-  UNUSED(y);
 
+  if (dealii::Utilities::MPI::this_mpi_process(app->comm_t) == 0)
+  {
+    std::cout << "[INFO] Summing XBraid vectors" << std::endl;
+  }
 
-//  std::cout << "Sum called\n";
-//  UNUSED(app);
-//  LinearAlgebra::distributed::Vector<double> tmp1, tmp2;
-//  int x_size = x->data[0].size();//size of x
-//  int y_size = y->data[0].size();
-//  assert(x_size == y_size && "adding vectors of different sizes will not work");
-//
-//  tmp1.reinit(x_size);
-//  tmp2.reinit(y_size);
-//  for(unsigned int i=0;
-//      i < ProblemDescription<dim>::n_solution_variables;
-//      ++i)
-//  {
-//    tmp1 = x->data.at(i);
-//    tmp2 = y->data.at(i);
-//    tmp1*=alpha;
-//    tmp2*=beta;
-//    tmp1+=tmp2;
-//
-//    y->data.at(i) = tmp1;
-//  }
-//
+  y->U.sadd(beta, alpha, x->U);
+
   return 0;
 }
 
@@ -520,20 +501,13 @@ my_SpatialNorm(braid_App     app,
                double       *norm_ptr)
 {
   UNUSED(app);
-  UNUSED(u);
-  UNUSED(norm_ptr);
+  if (dealii::Utilities::MPI::this_mpi_process(app->comm_t) == 0)
+  {
+    std::cout << "[INFO] Calculating XBraid vector spatial norm" << std::endl;
+  }
 
-//  std::cout << "Norm called" << std::endl;
-//  UNUSED(app);
-//  double l2 = 0;
-//  for(unsigned int i=0;
-//        i < ProblemDescription<dim>::n_solution_variables;
-//        ++i)
-//    {
-//      l2 +=u->data.at(i).norm_sqr();
-//    }
-//  *norm_ptr = std::sqrt(l2);
-//
+  *norm_ptr = u->U.l2_norm();
+
   return 0;
 }
 
@@ -561,21 +535,25 @@ my_Access(braid_App          app,
           braid_Vector       u,
           braid_AccessStatus astatus)
 {
+  if (dealii::Utilities::MPI::this_mpi_process(app->comm_t) == 0)
+  {
+    std::cout << "[INFO] Access Called" << std::endl;
+  }
+  static int mgCycle = 0;
   UNUSED(app);
   UNUSED(u);
-  UNUSED(astatus);
 
-//  static int mgCycle = 0;
-//  std::cout << "Access called" << std::endl;
-//  //get the iteration
-//  braid_AccessStatusGetIter(astatus, &mgCycle);
-//  std::cout << "Cycles done: " << mgCycle << std::endl;
-//  app->mg_cycle = mgCycle;
-//  UNUSED(u);
-//  UNUSED(astatus);
-//
-//  //for now, we just increment the mg_cycle
-//
+  //state what iteration we are on
+  braid_AccessStatusGetIter(astatus, &mgCycle);
+
+  if (dealii::Utilities::MPI::this_mpi_process(app->comm_t) == 0)
+  {
+    std::cout << "Cycles done: " << mgCycle << std::endl;
+  }
+
+  //calculate drag and lift of this u and output to terminal//TODO: better output this
+  //calculateDragAndLift(u, app);
+
   return 0;
 }
 
@@ -598,13 +576,20 @@ my_BufSize(braid_App           app,
            int                 *size_ptr,
            braid_BufferStatus  bstatus)
 {
-  UNUSED(app);
-  UNUSED(size_ptr);
+  if (dealii::Utilities::MPI::this_mpi_process(app->comm_t) == 0)
+  {
+    std::cout << "[INFO] Buf_size Called" << std::endl;
+  }
+
+  //TODO: answer question about what the buffer size whould be, i think it should be
+  //problem_dimension*number of spatial nodes. But there is some question in my mind about
+  //if the MPI communication is from this Time Brick (which owns a distributed vector on a few
+  //processors) or among the spatial processors. I suspect the former.
   UNUSED(bstatus);
 
-//  UNUSED(bstatus);
-//  int size = app->vect_size * app->n_solution_variables;//no vector can be bigger than this, so we are very conservative.
-//  *size_ptr = (size+1) * sizeof(double);//all values are doubles +1 is for the size of the buffers
+  //no vector can be bigger than this, so we are very conservative.
+  int size = app->n_fine_dofs * app->problem_dimension;
+  *size_ptr = (size+1) * sizeof(NUMBER);//all values are doubles +1 is for the size of the buffers
   return 0;
 }
 
@@ -625,33 +610,31 @@ my_BufPack(braid_App           app,
            braid_Vector        u,
            void               *buffer,
            braid_BufferStatus  bstatus)
-{
-  UNUSED(app);
-  UNUSED(u);
-  UNUSED(buffer);
-  UNUSED(bstatus);
+{//TODO: test this with n_dof output
+  if (dealii::Utilities::MPI::this_mpi_process(app->comm_t) == 0)
+  {
+    std::cout << "[INFO] BufPack Called" << std::endl;
+  }
 
+  const int problem_dimension = app->problem_dimension;
+  NUMBER *dbuffer = (NUMBER*)buffer;
+  unsigned int n_dof = app->levels[0]->offline_data->dof_handler().n_dofs();//number of dofs at fines level
+  unsigned int buf_size = n_dof * app->problem_dimension;
+  dbuffer[0] = buf_size + 1;//buffer + size
+  dealii::Tensor<1, problem_dimension, NUMBER> temp_tensor;
 
-//  std::cout << "Buff pack called" << std::endl;
-//  UNUSED(app);
-//  double *dbuffer = (double*)buffer;
-//
-//  unsigned int n_dof = app->vect_size;//number of dofs at fines level
-//  assert(n_dof == u->data.at(0).size() && "the number of degrees of freedom do not match");
-//  unsigned int n_solution_variables = app->TI_p[0]->time_stepping.n_solution_variables;//total problem dimension.(spacedim + density + energy)
-//  unsigned int buf_size = n_dof * n_solution_variables;
-//  dbuffer[0] = buf_size + 1;//buffer + size
-//
-//  for(unsigned int j=0; j < n_solution_variables; ++j)
-//  {
-//    for(unsigned int i=0; i != n_dof; ++i)
-//    {
-//      dbuffer[j*n_dof + i + 1] = (u->data).at(j)(i);
-//    }
-//  }
-//
-//  braid_BufferStatusSetSize(bstatus, (buf_size+1)*sizeof(double));
-//
+  for(unsigned int node=0; node < buf_size; node++)
+  {
+    //extract tensor at this node
+    temp_tensor = u->U.get_tensor(node);
+    for(unsigned int i=0; i < problem_dimension; ++i)
+    {
+      dbuffer[node*n_dof + i + 1] = temp_tensor[i];
+    }
+  }
+
+  braid_BufferStatusSetSize(bstatus, (buf_size+1)*sizeof(NUMBER));
+
   return 0;
 }
 
@@ -673,34 +656,32 @@ my_BufUnpack(braid_App           app,
              braid_Vector       *u_ptr,
              braid_BufferStatus  bstatus)
 {
-  UNUSED(app);
-  UNUSED(buffer);
-  UNUSED(u_ptr);
-  UNUSED(bstatus);
+  // the vector should be size (dim + 2) X n_dofs at finest level.
+  my_Vector *u = NULL; // the vector we will pack the info into
+  double *dbuffer = (double*)buffer;
+  int buf_size = static_cast<int>(dbuffer[0]);//TODO: is this dangerous?
+  const int problem_dimension = app->problem_dimension;
 
-//  // the vector should be size (dim + 2) X n_dofs at finest level.
-//  std::cout << "buff unpack called\n";
-//  UNUSED(bstatus);
-//  my_Vector *u = NULL; // the vector we will pack the info into
-//  double *dbuffer = (double*)buffer;
-//  int buf_size = static_cast<int>(dbuffer[0]);
-//
-//  u = new(my_Vector);//where does this get deleted?
-//
-//  resizeVector(u->data, app->vect_size, app->n_solution_variables);
-//
-//  //unpack the sent data into the right level
-//  for(int j=0; j < app->n_solution_variables; ++j)
-//  {
-//    for(int i = 0; i < app->vect_size; ++i)
-//    {
-//      u->data.at(j)(i) = dbuffer[j*app->vect_size + i + 1];//+1 because buffer_size = n_dof + 1
-//      assert(j*app->vect_size + i +1 <= buf_size && "somehow, you are exceeding the buffer size as you unpack");
-//    }
-//  }
-//
-//  *u_ptr = u;//modify the u_ptr does this create a memory leak as we just point this pointer somewhere else?
-//
+  u = new(my_Vector);//TODO: where does this get deleted?
+  reinit_to_level(u, app, app->finest_index);//each U is at the finest level.
+  dealii::Tensor<1, problem_dimension, NUMBER> temp_tensor;
+
+  //unpack the sent data into the right level
+  for(int node=0; node < app->n_fine_dofs; node++)
+  {
+    //get tensor at node.
+    for(int i = 0; i < app->problem_dimension; ++i)
+    {
+      temp_tensor[i] = dbuffer[node*app->n_fine_dofs + i + 1];//+1 because buffer_size = n_dof + 1
+      Assert(node*app->n_fine_dofs + i +1 <= buf_size,
+          ExcMessage("somehow, you are exceeding the buffer size as you unpack"));
+    }
+    //insert tensor at node
+    u->U.write_tensor(temp_tensor, node);
+  }
+
+  *u_ptr = u;//modify the u_ptr does this create a memory leak as we just point this pointer somewhere else?
+
 //  std::cout << "Buffunpack done." << std::endl;
   return 0;
 }
@@ -715,12 +696,13 @@ int main(int argc, char *argv[])
 
   //set up app and all underlying data, initialize parameters
   my_App app(comm, comm);
+  my_Vector *V = NULL;
+  V = new(my_Vector);
   dealii::ParameterAcceptor::initialize("test.prm");
 
   //initialize time loop and call parameter acceptor initialize again
 //  ryujin::mgrit::TimeLoopMgrit<ryujin::Euler::Description,2,double> time_loop(app.comm_x, *(app.levels.at(0)),0,0.1);
 //  dealii::ParameterAcceptor::initialize("test.prm");
-
 
 //  std::cout << app.levels.size() << std::endl;
 //  std::cout << app.refinement_levels.size() << std::endl;
@@ -728,16 +710,14 @@ int main(int argc, char *argv[])
   app.prepare();//call after initialize the parameters
   std::cout << app.levels.size() << std::endl;//check parameters again
   std::cout << app.refinement_levels.size() << std::endl;
+//  dealii::ParameterAcceptor::initialize("test.prm");
 
+  my_Init(&app, 2.0, &V);
 
-//  time_loop.run();
-//  std::cout << "Size of U: " << time_loop.get_U().size() << std::endl;
 
   for(const auto xi : app.refinement_levels)
     std::cout << xi << std::endl;
-//  std::cout << app.levels.at(0)->offline_data->dof_handler().n_dofs() << std::endl;
-//  ryujin::TimeLoop<ryujin::Euler::Description, 2, NUMBER> timeloop(comm);
-//  dealii::ParameterAcceptor::initialize("cylinder-parameters.prm");//initialize the file specified by the user
 
+  delete V;
 
 }
