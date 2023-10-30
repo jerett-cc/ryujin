@@ -177,6 +177,7 @@ namespace ryujin{
       parabolic_module->prepare();
       time_integrator->prepare();
       postprocessor->prepare();
+      vtu_output->prepare();
       quantities->prepare("MGRIT_"/*base name*/, 1 /*output cycle*/);
 
     }
