@@ -15,6 +15,7 @@
 #include <vector>
 #include <memory>
 #include <algorithm>
+#include <string>
 
 
 //MPI
@@ -190,6 +191,13 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
     }
 } my_App;
 
+void print_solution(ryujin::MultiComponentVector<double, 4>& v, const braid_App& app, const double t=0, const unsigned int level = 0)
+{
+  std::cout << "printing solution" << std::endl;
+  const auto time_loop = app->time_loops[level];
+  time_loop->output(v, "./test-output" + std::to_string(t), t /*current time*/, 1/*cycle*/);
+}
+
 /**
  * @brief This function is used to interpolate a vector (from_V) on a certain mesh
  *        to a nother interpolated solution on another mesh.
@@ -204,9 +212,9 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
  * and the method insert_component;
  */
 void interpolateUBetweenLevels(my_Vector& to_v,
-                               const int to_level,
+                               const unsigned int to_level,
                                const my_Vector& from_v,
-                               const int from_level,
+                               const unsigned int from_level,
                                const braid_App& app)
 {
   Assert((to_v.U.size() == app->levels[to_level]->offline_data->dof_handler().n_dofs()*app->problem_dimension)
@@ -235,17 +243,8 @@ void interpolateUBetweenLevels(my_Vector& to_v,
       //place component
       to_v.U.insert_component(to_component,comp);
     }
+    print_solution(to_v.U,app,21212);//todo: delete me.
   //todo:test this.
-}
-
-
-void print_solution(ryujin::MultiComponentVector<double, 4>& v, const braid_App& app, const double t=0;)
-{
-  std::cout << "printing solution" << std::endl;
-  auto time_loop = app->time_loops[0];
-  auto quantities = app->levels[0]->quantities;
-  time_loop->output(v, "./test-output", 300, 1);
-//  quantities->write_out(v, 245, 1);
 }
 
 ///This function reinits a vector to the specified level, making sure that the partition matches that of the level.
@@ -310,44 +309,6 @@ int my_Step(braid_App        app,
 
 //TODO: test that this interpolation works.
 
-//
-//  //interpolate the data coming in with u (finest level) onto the
-//  //u_to_step (coarse level)
-//  interpolateUBetweenLevels(u_to_step,
-//                            level,
-//                            u->data,
-//                            app->finest_index,
-//                            app);
-//
-//
-//  //set up the object that is going to do the time stepping
-//  //the vector size here should match that of the right level.
-//  EulerEquation<dim> eq(app->TI_p[level], tstart, tstop);
-//
-//  //set the level
-//  eq.setLevel(level);
-//
-//  //set the mg_cycle
-//  eq.setCycle(app->mg_cycle);
-//
-//  std::cout << "_____________Level: " << level << "\n"
-//            << "ndof at this level: " << eq.get_size() << std::endl;
-//  //update u_interpolated with a step
-//  u_to_step = eq.run_with_initial_data(u_to_step,
-//                                       tstart,
-//                                       tstop,
-//                                       num_step_calls);
-//  ++num_step_calls;
-//
-//  //now that we have completed the step, we interpolate back to the
-//  //finest level from the current level and coarse solution
-//  interpolateUBetweenLevels(u->data,
-//                            app->finest_index,
-//                            u_to_step,
-//                            level,
-//                            app);
-//  //now u is updated with the stepped solution.
-////  std::cout << "Number of my step calls: " << num_step_calls << "\n";
   return 0;
 };
 
@@ -374,12 +335,17 @@ my_Init(braid_App     app,
   my_Vector *u = new(my_Vector);
 
   //initializes all at a fine level
-  reinit_to_level(u, app, 0);
+  reinit_to_level(u, app, 0/*0 is the finest level*/);
+  std::cout << u->U.size() << "<- fine size" << std::endl;
 
   //defines a coarse vector, at the coarsest level, which will be stepped, then restricted down to the fine level
   my_Vector *coarse_u = new(my_Vector);
   reinit_to_level(coarse_u, app, app->coarsest_index);
+  std::cout << coarse_u->U.size() << "<- coarse size" << std::endl;
+
   coarse_u->U = app->levels[app->coarsest_index]->initial_values->interpolate(0);//sets up U data at t=0;
+
+  print_solution(coarse_u->U, app, 100, app->coarsest_index);
 
   //steps to the correct end time on the coarse level to end time t
   app->time_loops[app->coarsest_index]->run_with_initial_data(coarse_u->U,t);
@@ -389,7 +355,8 @@ my_Init(braid_App     app,
   //TODO: test that this works by outputting
   print_solution(u->U, app, t);
 
-  //delete the temporary coarse U.
+  //delete the temporary coarse U. 
+  //todo: fix me!
   delete coarse_u;
 
   //reassign pointer XBraid will use
@@ -714,9 +681,13 @@ int main(int argc, char *argv[])
 
   my_Init(&app, 2.0, &V);
 
+  for(const auto &entry : app.levels[0]->vtu_output->vtu_output_quantities_)
+    std::cout << entry << std::endl;
 
-  for(const auto xi : app.refinement_levels)
-    std::cout << xi << std::endl;
+  for(const auto level: app.refinement_levels)
+    std::cout << level << std::endl;
+
+  std::cout << app.coarsest_index << std::endl;
 
   delete V;
 
