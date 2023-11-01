@@ -388,6 +388,7 @@ my_Clone(braid_App     app,
 
   UNUSED(app);
   my_Vector *v = new(my_Vector);
+  reinit_to_level(v,app,0);
   v->U.equ(1, u->U);
 
   *v_ptr = v;
@@ -557,6 +558,8 @@ my_BufSize(braid_App           app,
   //no vector can be bigger than this, so we are very conservative.
   int size = app->n_fine_dofs * app->problem_dimension;
   *size_ptr = (size+1) * sizeof(NUMBER);//all values are doubles +1 is for the size of the buffers
+  std::cout << "Size in bytes of the NUMBER: " << sizeof(NUMBER) << std::endl;
+  std::cout << "Problem_dimension: " << app->problem_dimension << " n_dofs: " << app->n_fine_dofs << std::endl;
   return 0;
 }
 
@@ -667,27 +670,54 @@ int main(int argc, char *argv[])
   V = new(my_Vector);
   dealii::ParameterAcceptor::initialize("test.prm");
 
-  //initialize time loop and call parameter acceptor initialize again
-//  ryujin::mgrit::TimeLoopMgrit<ryujin::Euler::Description,2,double> time_loop(app.comm_x, *(app.levels.at(0)),0,0.1);
-//  dealii::ParameterAcceptor::initialize("test.prm");
-
-//  std::cout << app.levels.size() << std::endl;
-//  std::cout << app.refinement_levels.size() << std::endl;
-
   app.prepare();//call after initialize the parameters
   std::cout << app.levels.size() << std::endl;//check parameters again
   std::cout << app.refinement_levels.size() << std::endl;
-//  dealii::ParameterAcceptor::initialize("test.prm");
 
+  //test my_Init
   my_Init(&app, 2.0, &V);
 
-  for(const auto &entry : app.levels[0]->vtu_output->vtu_output_quantities_)
-    std::cout << entry << std::endl;
+  //test my_Clone
+  my_Vector *V_cloned;
+  my_Clone(&app, V, &V_cloned);
+  print_solution(V_cloned->U, &app, 10101/*time set to arbitrary time identified with clone*/, 0);
 
-  for(const auto level: app.refinement_levels)
-    std::cout << level << std::endl;
+  //test my_SpatialNorm
+  double norm = 0;
+  double norm_cloned = norm;
+  my_SpatialNorm(&app, V_cloned, &norm_cloned);
+  my_SpatialNorm(&app, V, &norm);
 
-  std::cout << app.coarsest_index << std::endl;
+  Assert(std::abs(norm - norm_cloned) < 1e-6, ExcMessage("The norm of V and the norm of the cloned V do not match."));
+  std::cout << "Norm assertion passed." << std::endl;
+
+  //test my_Sum
+  my_Sum(&app, 1, V_cloned, 1, V);
+  my_SpatialNorm(&app, V, &norm);
+  std::cout << "Norm x+x: " << norm << std::endl;
+  my_Sum(&app, 2, V_cloned, 0, V);
+  my_SpatialNorm(&app, V, &norm);
+  std::cout << "Norm 2*x: " << norm << std::endl;
+
+  //test my_BuffSize
+  int* size;
+  *size = 0;
+  my_BufSize(&app, size, NULL);
+  std::cout << "Buffer size: " << *size << std::endl;
+
+  //test my_Free
+  my_Free(&app, V);
+  my_Free(&app, V_cloned);
+
+  Assert((V == NULL && V_cloned == NULL) , ExcMessage("The pointers are not null after free."));
+
+
+
+
+
+
+
+
 
   delete V;
 
