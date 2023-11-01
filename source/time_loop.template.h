@@ -18,14 +18,6 @@
 #include <deal.II/numerics/vector_tools.h>
 #include <deal.II/numerics/vector_tools.templates.h>
 
-#include <deal.II/base/point.h>
-#include <deal.II/base/quadrature_lib.h>
-#include <deal.II/fe/fe_q.h>
-#include <deal.II/fe/fe_values.h>
-#include <deal.II/base/symmetric_tensor.h>
-#include <deal.II/grid/tria_accessor.h>
-#include <vector>
-
 #include <fstream>
 #include <iomanip>
 
