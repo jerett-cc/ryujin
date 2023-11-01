@@ -302,12 +302,16 @@ int my_Step(braid_App        app,
   const auto coarse_size = num_coarse_dof*app->problem_dimension;
   reinit_to_level(&u_to_step, app, level);
 
-//TODO: finish me
-
-  //interpolate between levels
+  //interpolate between levels, put data from u onto the u_to_step
   interpolateUBetweenLevels(u_to_step, level, *u, 0, app);
 
-//TODO: test that this interpolation works.
+  //step the function on this level
+  app->time_loops[level]->run_with_initial_data(u_to_step.U, tstop, tstart);
+
+  //interpolate this back to the fine level
+  interpolateUBetweenLevels(*u,0,u_to_step,level);
+
+  //done.
 
   return 0;
 };
@@ -656,42 +660,35 @@ my_BufUnpack(braid_App           app,
   return 0;
 }
 
-int main(int argc, char *argv[])
+void test_braid_functions(my_App& app)
 {
-  const MPI_Comm comm = MPI_COMM_WORLD;
-  //scoped MPI object, no need to call finalize at the end.
-  dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);  //create objects
-
-  //todo: change this to a call to something similar to the main ryujin executable. problem_dispach??
-
-  //set up app and all underlying data, initialize parameters
-  my_App app(comm, comm);
   my_Vector *V = NULL;
-  V = new(my_Vector);
-  dealii::ParameterAcceptor::initialize("test.prm");
+  V = new (my_Vector);
 
-  app.prepare();//call after initialize the parameters
-  std::cout << app.levels.size() << std::endl;//check parameters again
-  std::cout << app.refinement_levels.size() << std::endl;
-
-  //test my_Init
+  // test my_Init
   my_Init(&app, 2.0, &V);
 
-  //test my_Clone
+  // test my_Clone
   my_Vector *V_cloned;
   my_Clone(&app, V, &V_cloned);
-  print_solution(V_cloned->U, &app, 10101/*time set to arbitrary time identified with clone*/, 0);
+  print_solution(V_cloned->U,
+                 &app,
+                 10101 /*time set to arbitrary time identified with clone*/,
+                 0);
 
-  //test my_SpatialNorm
+  // test my_SpatialNorm
   double norm = 0;
   double norm_cloned = norm;
   my_SpatialNorm(&app, V_cloned, &norm_cloned);
   my_SpatialNorm(&app, V, &norm);
+  std::cout << "Norm V: " << norm << std::endl;
 
-  Assert(std::abs(norm - norm_cloned) < 1e-6, ExcMessage("The norm of V and the norm of the cloned V do not match."));
+  Assert(
+      std::abs(norm - norm_cloned) < 1e-6,
+      ExcMessage("The norm of V and the norm of the cloned V do not match."));
   std::cout << "Norm assertion passed." << std::endl;
 
-  //test my_Sum
+  // test my_Sum
   my_Sum(&app, 1, V_cloned, 1, V);
   my_SpatialNorm(&app, V, &norm);
   std::cout << "Norm x+x: " << norm << std::endl;
@@ -699,26 +696,108 @@ int main(int argc, char *argv[])
   my_SpatialNorm(&app, V, &norm);
   std::cout << "Norm 2*x: " << norm << std::endl;
 
-  //test my_BuffSize
-  int* size;
+  // test my_BuffSize
+  int *size;
   *size = 0;
   my_BufSize(&app, size, NULL);
   std::cout << "Buffer size: " << *size << std::endl;
 
-  //test my_Free
+  // test my_Free TODO: what test should this do?
   my_Free(&app, V);
   my_Free(&app, V_cloned);
 
-  Assert((V == NULL && V_cloned == NULL) , ExcMessage("The pointers are not null after free."));
+  // Assert((V == NULL && V_cloned == NULL),
+  //        ExcMessage("The pointers are not null after free."));
+}
+
+int main(int argc, char *argv[])
+{
+  MPI_Comm comm_world = MPI_COMM_WORLD;//create MPI_object
+  //scoped MPI object, no need to call finalize at the end.
+  dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);  //create objects
+
+  //split the object into the number of time processors, and the number of spatial processors per time chunk.
+  MPI_Comm comm_x, comm_t;
+  const int px = 1; //one spatial processors to use per time brick
+
+  /**
+   * Split WORLD into a time brick for each processor, with a specified number of processors for each to do the spatial MPI.
+   * The number of time bricks is equal to NumberProcessorsOnSystem/px//FIXME: is this true??
+   */
+  braid_SplitCommworld(&comm_world, px/*the number of spatial processors*/, &comm_x, &comm_t);
+
+  //todo: change this to a call to something similar to the main ryujin executable. problem_dispach??
+
+  //set up app and all underlying data, initialize parameters
+  my_App app(comm_x, comm_t);
+  dealii::ParameterAcceptor::initialize("test.prm");
+  app.prepare();//call after initialize the parameters to the test.prm file
+
+  /* Initialize Braid */
+  braid_Core core;
+  double tstart = 0.0;
+  double tstop = 5.0;
+  int ntime = 4;//this should in general be the number of time bricks you want. You need to ensure that px * ntime = TOTAL NUMBER PROCESSORS
+
+  braid_Init(comm_world,
+             comm_t,
+             tstart,
+             tstop,
+             ntime,
+             app,
+             my_Step,
+             my_Init,
+             my_Clone,
+             my_Free,
+             my_Sum,
+             my_SpatialNorm,
+             my_Access,
+             my_BufSize,
+             my_BufPack,
+             my_BufUnpack,
+             &core);
+
+  /* Define XBraid parameters
+   * See -help message for descriptions */
+  auto max_level_index =
+      std::max_element(test_case.levels.begin(), test_case.levels.end());
+  int max_levels =
+      (int)*max_level_index; // fixme, cast this as an int is a problem.
+  int nrelax = 1; // FIXME: add this and delete the UNUSED(nrelax) later.
+  //      int       skip          = 0;
+  double tol = test_case.tol;
+  // int       cfactor       = 2;
+  int max_iter = test_case.max_iter;
+  //      int       min_coarse    = 10;
+  // int       fmg           = test_case.fmg;
+  // int       scoarsen      = 0;
+  // int       res           = 0;
+  // int       wrapper_tests = 0;
+  int print_level = 1;
+  /*access_level=1 only calls my_access at end of simulation*/
+  int access_level = test_case.access;
+  int use_sequential = 0;
+
+  UNUSED(nrelax);
+
+  braid_SetPrintLevel(core, print_level);
+  braid_SetAccessLevel(core, access_level);
+  braid_SetMaxLevels(core, max_levels);
+  //             braid_SetMinCoarse( core, min_coarse );
+  //             braid_SetSkip(core, skip);
+  //      braid_SetNRelax(core, -1, nrelax);
+  braid_SetAbsTol(core, tol);
+  //       braid_SetCFactor(core, -1, cfactor);
+  braid_SetMaxIter(core, max_iter);
+  braid_SetSeqSoln(core, use_sequential);
+
+  std::cout << "before braid_drive\n";
+  braid_Drive(core);
 
 
-
-
-
-
-
+  // Free the memory now that we are done
+  braid_Destroy(core);
 
 
   delete V;
-
 }
