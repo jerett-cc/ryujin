@@ -561,24 +561,24 @@ my_BufSize(braid_App           app,
 
   //no vector can be bigger than this, so we are very conservative.
   int size = app->n_fine_dofs * app->problem_dimension;
-  *size_ptr = (size+1) * sizeof(NUMBER);//all values are doubles +1 is for the size of the buffers
+  *size_ptr = (size+1);//+1 is for the size of the buffers being stored in the first component.
   std::cout << "Size in bytes of the NUMBER: " << sizeof(NUMBER) << std::endl;
   std::cout << "Problem_dimension: " << app->problem_dimension << " n_dofs: " << app->n_fine_dofs << std::endl;
   return 0;
 }
 
 /**
- *  \brief Linearizes a vector to be sent to another processor
+ *  @brief Linearizes a vector to be sent to another processor
  *
  *  Linearizes (packs) a data buffer with the contents of
  *  some solution state u.
  *
- *  \param app - The braid app struct containing user data
- *  \param u The vector that must be packed into buffer
- *  \param buffer The buffer that must be filled with u
- *  \param bstatus The XBraid status structure
- *  \return Success (0) or failure (1)
- */
+ *  @param app - The braid app struct containing user data
+ *  @param u The vector that must be packed into buffer
+ *  @param buffer The buffer that must be filled with u
+ *  @param bstatus The XBraid status structure
+ *  @return Success (0) or failure (1)
+ */ 
 int
 my_BufPack(braid_App           app,
            braid_Vector        u,
@@ -592,22 +592,26 @@ my_BufPack(braid_App           app,
 
   const int problem_dimension = app->problem_dimension;
   NUMBER *dbuffer = (NUMBER*)buffer;
-  unsigned int n_dof = app->levels[0]->offline_data->dof_handler().n_dofs();//number of dofs at fines level
+  unsigned int n_dof = app->levels[0]->offline_data->dof_handler().n_dofs();//number of dofs at finest level
   unsigned int buf_size = n_dof * app->problem_dimension;
   dbuffer[0] = buf_size + 1;//buffer + size
   dealii::Tensor<1, problem_dimension, NUMBER> temp_tensor;
 
-  for(unsigned int node=0; node < buf_size; node++)
+  for(unsigned int node=0; node < n_dof; node++)
   {
     //extract tensor at this node
     temp_tensor = u->U.get_tensor(node);
-    for(unsigned int i=0; i < problem_dimension; ++i)
-    {
-      dbuffer[node*n_dof + i + 1] = temp_tensor[i];
+    std::cout << "after get_tensor" << std::endl;
+    for (unsigned int i = 0; component < problem_dimension; ++component) {
+      Assert(buf_size >= (node + component),
+             ExcMessage("In my_BufPack, the size of node + component is "
+                        "greater than the buff_size (the expected size of the vector)."));
+      std::cout << "node" + std::to_string(i) "+1 = " << node + component + 1 << std::endl;
+      dbuffer[node + component + 1] = temp_tensor[component];
     }
   }
-
-  braid_BufferStatusSetSize(bstatus, (buf_size+1)*sizeof(NUMBER));
+  std::cout << "after loop" << std::endl;
+  braid_BufferStatusSetSize(bstatus, (buf_size+1)*sizeof(NUMBER));//set the number of bytes stored in this buffer (TODO: this is off since the dbuffer[0] is a integer.)
 
   return 0;
 }
@@ -630,24 +634,24 @@ my_BufUnpack(braid_App           app,
              braid_Vector       *u_ptr,
              braid_BufferStatus  bstatus)
 {
-  // the vector should be size (dim + 2) X n_dofs at finest level.
-  my_Vector *u = NULL; // the vector we will pack the info into
-  double *dbuffer = (double*)buffer;
+  NUMBER *dbuffer = (NUMBER*)buffer;
   int buf_size = static_cast<int>(dbuffer[0]);//TODO: is this dangerous?
   const int problem_dimension = app->problem_dimension;
 
-  u = new(my_Vector);//TODO: where does this get deleted?
+  // the vector should be size (dim + 2) X n_dofs at finest level.
+  my_Vector *u = NULL; // the vector we will pack the info into
+  u = new(my_Vector);//TODO: where does this get deleted? Probably wherever owns the u_ptr.
   reinit_to_level(u, app, app->finest_index);//each U is at the finest level.
   dealii::Tensor<1, problem_dimension, NUMBER> temp_tensor;
 
   //unpack the sent data into the right level
-  for(int node=0; node < app->n_fine_dofs; node++)
+  for(unsigned int node=0; node < app->n_fine_dofs; node++)
   {
     //get tensor at node.
-    for(int i = 0; i < app->problem_dimension; ++i)
+    for(unsigned int component = 0; component < app->problem_dimension; ++component)
     {
-      temp_tensor[i] = dbuffer[node*app->n_fine_dofs + i + 1];//+1 because buffer_size = n_dof + 1
-      Assert(node*app->n_fine_dofs + i +1 <= buf_size,
+      temp_tensor[component] = dbuffer[node + component + 1];//+1 because buffer_size = n_dof + 1
+      Assert(node + component +1 <= buf_size,
           ExcMessage("somehow, you are exceeding the buffer size as you unpack"));
     }
     //insert tensor at node
@@ -697,10 +701,9 @@ void test_braid_functions(my_App& app)
   std::cout << "Norm 2*x: " << norm << std::endl;
 
   // test my_BuffSize
-  int *size;
-  *size = 0;
-  my_BufSize(&app, size, NULL);
-  std::cout << "Buffer size: " << *size << std::endl;
+  int size = 0;
+  my_BufSize(&app, &size, NULL);
+  std::cout << "Buffer size: " << size << std::endl;
 
   // test my_Free TODO: what test should this do?
   my_Free(&app, V);
@@ -710,6 +713,7 @@ void test_braid_functions(my_App& app)
   //        ExcMessage("The pointers are not null after free."));
 }
 
+//todo: change this to a call to something similar to the main ryujin executable. problem_dispach??
 int main(int argc, char *argv[])
 {
   MPI_Comm comm_world = MPI_COMM_WORLD;//create MPI_object
@@ -744,7 +748,7 @@ int main(int argc, char *argv[])
              tstart,
              tstop,
              ntime,
-             app,
+             &app,
              my_Step,
              my_Init,
              my_Clone,
@@ -760,14 +764,14 @@ int main(int argc, char *argv[])
   /* Define XBraid parameters
    * See -help message for descriptions */
   auto max_level_index =
-      std::max_element(test_case.levels.begin(), test_case.levels.end());
+      std::max_element(app.refinement_levels.begin(), app.refinement_levels.end());
   int max_levels =
       (int)*max_level_index; // fixme, cast this as an int is a problem.
   int nrelax = 1; // FIXME: add this and delete the UNUSED(nrelax) later.
   //      int       skip          = 0;
-  double tol = test_case.tol;
+  double tol = 1e-2;
   // int       cfactor       = 2;
-  int max_iter = test_case.max_iter;
+  int max_iter = 6;
   //      int       min_coarse    = 10;
   // int       fmg           = test_case.fmg;
   // int       scoarsen      = 0;
@@ -775,7 +779,7 @@ int main(int argc, char *argv[])
   // int       wrapper_tests = 0;
   int print_level = 1;
   /*access_level=1 only calls my_access at end of simulation*/
-  int access_level = test_case.access;
+  int access_level = 2;
   int use_sequential = 0;
 
   UNUSED(nrelax);
