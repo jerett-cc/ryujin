@@ -99,12 +99,17 @@ namespace ryujin{
          */
         void run();
 
-        void run_with_initial_data(const vector_type &U);
+        /**
+         * Run the time loop with a reference to a vector.
+         * The size of the vector must match the n_dofs
+         * from this Class' discretization.
+         */
+        void run_with_initial_data(vector_type &U, const Number end_time, const Number start_time=0);
 
         //returns the solution state U, if the size is greater than one.
         vector_type get_U();
 
-      protected:
+//      protected:
         /**
          * @name Private methods for run()
          */

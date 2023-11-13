@@ -191,22 +191,62 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
     }
 } my_App;
 
-void print_solution(ryujin::MultiComponentVector<double, 4>& v, const braid_App& app, const double t=0, const unsigned int level = 0)
+/**
+ * @brief Asserts that no value in the solution vector is nan. 
+ * 
+ *  This should not be used on large vectors as it loops through all elements.
+ * 
+ * @param app - The app which describes all levels
+ * @param U - The vector to test
+*/
+
+void no_nans(const my_App &app, const my_Vector &U, const std::string caller)
 {
+  for (unsigned int i=0; i < app.n_fine_dofs; i++)
+  {
+    // std::cout << "Testing nans: " << i << " isNAN: " << std::isnan(U.U[i]) <<  std::endl;
+    Assert(!std::isnan(U.U[i]), ExcMessage("Nan in solution after " + caller));
+  }
+}
+
+void no_nans(const my_App &app, const ryujin::MultiComponentVector<double, 4> &v, const std::string caller)
+{
+  for (unsigned int i=0; i < app.n_fine_dofs; i++)
+  {
+    // std::cout << "Testing nans: " << i << " isNAN: " << std::isnan(v[i]) <<  std::endl;
+    // Assert(!std::isnan(v[i]), ExcMessage("Nan in solution after " + caller));
+  }
+}
+
+/**
+ * @brief a ryujin::MulticomponentVector<double, 4> at a time t.
+ * @param v - The vector to be printed.
+ * @param app - the my_App object which stores the timeloop which does the printing
+ * @param t - the time t at which the vector is printed fixme: does this need to be here? could put it in the fname
+ * @param level - the level from which this vector comes. fixme: this should really not be a separate thing. For example, one could call this for a vector from level 0, but ask it to print level 8. this is a problem
+ * @param 
+*/
+void print_solution(ryujin::MultiComponentVector<double, 4> &v,
+                    const braid_App &app,
+                    const double t = 0,
+                    const unsigned int level = 0,
+                    const std::string fname = "./test-output")
+{
+  no_nans(*app, v, "print solution");//Remove
   std::cout << "printing solution" << std::endl;
   const auto time_loop = app->time_loops[level];
-  time_loop->output(v, "./test-output" + std::to_string(t), t /*current time*/, 1/*cycle*/);
+  time_loop->output(v, fname + std::to_string(t), t /*current time*/, 1/*cycle*/);
 }
 
 /**
  * @brief This function is used to interpolate a vector (from_V) on a certain mesh
  *        to a nother interpolated solution on another mesh.
  *
- * @param[out] to_v, the vector V to which we are interpolating the solution
- * @param[in]  the mg level we are interpolating to
- * @param[in]  from_V the vector storing the solution we wish to interpolate
- * @param[in]  from_level the mg level which currently stores the solution
- * @param[in]  app, the user defined app which stores needed information about the mg levels
+ * @param  to_v - the vector V to which we are interpolating the solution
+ * @param  to_level - the mg level we are interpolating to
+ * @param  from_V - the vector storing the solution we wish to interpolate
+ * @param  from_level - the mg level which currently stores the solution
+ * @param  app - the user defined app which stores needed information about the mg levels
  *
  * NOTE: this function only works if the vectors to_v and from_v have an extract_component method implemented.
  * and the method insert_component;
@@ -230,21 +270,22 @@ void interpolateUBetweenLevels(my_Vector& to_v,
   //reinit the components to match the correct info.
   from_component.reinit(from_partitioner,comm);
   to_component.reinit(to_partitioner,comm);
-
+  // no_nans(*app, from_v, "before interpolation");
   for(unsigned int comp=0; comp<problem_dimension; comp++)
-    {
-      //extract component
-      from_v.U.extract_component(from_component,comp);
-      //interpolate this into the to_component
-      dealii::VectorTools::interpolate_to_different_mesh(app->levels[from_level]->offline_data->dof_handler(),
-                                                         from_component,
-                                                         app->levels[to_level]->offline_data->dof_handler(),
-                                                         to_component);
-      //place component
-      to_v.U.insert_component(to_component,comp);
-    }
-    print_solution(to_v.U,app,21212);//todo: delete me.
-  //todo:test this.
+  {
+    // extract component
+    from_v.U.extract_component(from_component, comp);
+    // interpolate this into the to_component
+    dealii::VectorTools::interpolate_to_different_mesh(
+        app->levels[from_level]->offline_data->dof_handler(),
+        from_component,
+        app->levels[to_level]->offline_data->dof_handler(),
+        to_component);
+    // place component
+    to_v.U.insert_component(to_component, comp);
+  }
+
+  no_nans(*app, to_v, "interpolateBetweenLevels");//remove
 }
 
 ///This function reinits a vector to the specified level, making sure that the partition matches that of the level.
@@ -275,43 +316,47 @@ int my_Step(braid_App        app,
   //different files during the parallel computations.
   //is passed to run_with_initial_data
   static unsigned int num_step_calls = 0;
-  std::cout << "step called\n";
 
   //grab the MG level for this step
   int level;
   braid_StepStatusGetLevel(status, &level);
-  std::cout << "with level= " << level << std::endl;
 
   //use a macro to get rid of some unused variables to avoid -Wall messages
   UNUSED(ustop);
   UNUSED(fstop);
-  UNUSED(app);
-  UNUSED(u);
   //grab the start time and end time
   double tstart;
   double tstop;
   braid_StepStatusGetTstartTstop(status, &tstart, &tstop);
 
+  if (dealii::Utilities::MPI::this_mpi_process(app->comm_t) == 0) 
+  {
+    std::cout << "[INFO] Stepping on level: " 
+    << level << std::endl
+    << "on interval: [" << tstart << ", " << tstop << "]" << std::endl
+    << "total step call number " << num_step_calls << std::endl;
+  }
+
   //translate the fine level u coming in to the coarse level
   //this uses a function from DEALII interpolate to different mesh
+
+  //new, coarse vector
   my_Vector u_to_step;
-//  std::cout << "size of U_to_step: " << u_to_step.U.size() << std::endl;
-  const auto fine_offline_data = app->levels.at(0)->offline_data;//FIXME: do I need both of these, or is one scalar partitioner ok?
-  const auto coarse_offline_data = app->levels.at(level)->offline_data;
-  const auto num_coarse_dof = coarse_offline_data->dof_handler().n_dofs();
-  const auto coarse_size = num_coarse_dof*app->problem_dimension;
   reinit_to_level(&u_to_step, app, level);
 
-  //interpolate between levels, put data from u onto the u_to_step
+  //interpolate between levels, put data from u (fine level) onto the u_to_step (coarse level)
   interpolateUBetweenLevels(u_to_step, level, *u, 0, app);
 
   //step the function on this level
   app->time_loops[level]->run_with_initial_data(u_to_step.U, tstop, tstart);
 
   //interpolate this back to the fine level
-  interpolateUBetweenLevels(*u,0,u_to_step,level);
-
+  interpolateUBetweenLevels(*u,0,u_to_step,level, app);
+  num_step_calls++;
   //done.
+
+  no_nans(*app, *u, "step");//remove
+
 
   return 0;
 };
@@ -340,12 +385,12 @@ my_Init(braid_App     app,
 
   //initializes all at a fine level
   reinit_to_level(u, app, 0/*0 is the finest level*/);
-  std::cout << u->U.size() << "<- fine size" << std::endl;
+  // std::cout << u->U.size() << "<- fine size" << std::endl;
 
   //defines a coarse vector, at the coarsest level, which will be stepped, then restricted down to the fine level
   my_Vector *coarse_u = new(my_Vector);
   reinit_to_level(coarse_u, app, app->coarsest_index);
-  std::cout << coarse_u->U.size() << "<- coarse size" << std::endl;
+  // std::cout << coarse_u->U.size() << "<- coarse size" << std::endl;
 
   coarse_u->U = app->levels[app->coarsest_index]->initial_values->interpolate(0);//sets up U data at t=0;
 
@@ -357,7 +402,9 @@ my_Init(braid_App     app,
   interpolateUBetweenLevels(*u, 0/*finest level*/, *coarse_u, app->coarsest_index, app);
 
   //TODO: test that this works by outputting
-  print_solution(u->U, app, t);
+  // print_solution(u->U, app, t);
+
+
 
   //delete the temporary coarse U. 
   //todo: fix me!
@@ -365,6 +412,9 @@ my_Init(braid_App     app,
 
   //reassign pointer XBraid will use
   *u_ptr = u;
+
+  no_nans(*app, *u, "init");//remove
+
 //
   return 0;
 }
@@ -384,18 +434,20 @@ my_Clone(braid_App     app,
          braid_Vector  u,
          braid_Vector *v_ptr)
 {
-
   if (dealii::Utilities::MPI::this_mpi_process(app->comm_t) == 0)
   {
     std::cout << "[INFO] Cloning XBraid vectors" << std::endl;
   }
 
-  UNUSED(app);
   my_Vector *v = new(my_Vector);
+  //all vectors are 'fine level' vectors
   reinit_to_level(v,app,0);
   v->U.equ(1, u->U);
 
   *v_ptr = v;
+
+  no_nans(*app, *v, "clone");//remove
+
   return 0;
 }
 
@@ -414,9 +466,9 @@ my_Free(braid_App    app,
 {
   UNUSED(app);
   if (dealii::Utilities::MPI::this_mpi_process(app->comm_t) == 0)
-    {
-      std::cout << "[INFO] Freeing XBraid vectors" << std::endl;
-    }
+  {
+    std::cout << "[INFO] Freeing XBraid vectors" << std::endl;
+  }
 
   delete u;
 
@@ -452,6 +504,8 @@ my_Sum(braid_App app,
 
   y->U.sadd(beta, alpha, x->U);
 
+  no_nans(*app, *y, "sum");//remove
+
   return 0;
 }
 
@@ -479,6 +533,9 @@ my_SpatialNorm(braid_App     app,
   }
 
   *norm_ptr = u->U.l2_norm();
+
+
+  no_nans(*app, *u, "spatialnorm");//removed
 
   return 0;
 }
@@ -512,11 +569,13 @@ my_Access(braid_App          app,
     std::cout << "[INFO] Access Called" << std::endl;
   }
   static int mgCycle = 0;
+  double t = 0;
   UNUSED(app);
   UNUSED(u);
 
   //state what iteration we are on
   braid_AccessStatusGetIter(astatus, &mgCycle);
+  braid_AccessStatusGetT(astatus, &t);
 
   if (dealii::Utilities::MPI::this_mpi_process(app->comm_t) == 0)
   {
@@ -525,6 +584,8 @@ my_Access(braid_App          app,
 
   //calculate drag and lift of this u and output to terminal//TODO: better output this
   //calculateDragAndLift(u, app);
+  std::string fname = "./cycle" + std::to_string(mgCycle);
+  print_solution(u->U, app, t, 0/*level, always needs to be zero, to be fixed*/, fname);
 
   return 0;
 }
@@ -561,9 +622,12 @@ my_BufSize(braid_App           app,
 
   //no vector can be bigger than this, so we are very conservative.
   int size = app->n_fine_dofs * app->problem_dimension;
-  *size_ptr = (size+1);//+1 is for the size of the buffers being stored in the first component.
+  *size_ptr = (size+1)*sizeof(NUMBER);//+1 is for the size of the buffers being stored in the first component.
   std::cout << "Size in bytes of the NUMBER: " << sizeof(NUMBER) << std::endl;
   std::cout << "Problem_dimension: " << app->problem_dimension << " n_dofs: " << app->n_fine_dofs << std::endl;
+  std::cout << "buf_size: " << *size_ptr << std::endl;
+
+
   return 0;
 }
 
@@ -596,21 +660,20 @@ my_BufPack(braid_App           app,
   unsigned int buf_size = n_dof * app->problem_dimension;
   dbuffer[0] = buf_size + 1;//buffer + size
   dealii::Tensor<1, problem_dimension, NUMBER> temp_tensor;
-
+  // dealii::Tensor<1,problem_dimension, dealii::VectorizedArray<NUMBER>> temp_tensor_vectorized;
   for(unsigned int node=0; node < n_dof; node++)
   {
     //extract tensor at this node
-    temp_tensor = u->U.get_tensor(node);
-    std::cout << "after get_tensor" << std::endl;
-    for (unsigned int i = 0; component < problem_dimension; ++component) {
+    temp_tensor = u->U.get_tensor(node);//TODO:FIXME: test linear method for speed...
+    // std::cout << "after get_tensor" << std::endl;
+    for (unsigned int component = 0; component < problem_dimension; ++component) {
       Assert(buf_size >= (node + component),
              ExcMessage("In my_BufPack, the size of node + component is "
                         "greater than the buff_size (the expected size of the vector)."));
-      std::cout << "node" + std::to_string(i) "+1 = " << node + component + 1 << std::endl;
-      dbuffer[node + component + 1] = temp_tensor[component];
+      dbuffer[problem_dimension*(node) + component + 1] = u->U[problem_dimension*node + component];
     }
   }
-  std::cout << "after loop" << std::endl;
+  // std::cout << "after loop" << std::endl;
   braid_BufferStatusSetSize(bstatus, (buf_size+1)*sizeof(NUMBER));//set the number of bytes stored in this buffer (TODO: this is off since the dbuffer[0] is a integer.)
 
   return 0;
@@ -634,6 +697,11 @@ my_BufUnpack(braid_App           app,
              braid_Vector       *u_ptr,
              braid_BufferStatus  bstatus)
 {
+  if (dealii::Utilities::MPI::this_mpi_process(app->comm_t) == 0)
+  {
+    std::cout << "[INFO] BufUnpack Called" << std::endl;
+  }
+
   NUMBER *dbuffer = (NUMBER*)buffer;
   int buf_size = static_cast<int>(dbuffer[0]);//TODO: is this dangerous?
   const int problem_dimension = app->problem_dimension;
@@ -650,15 +718,18 @@ my_BufUnpack(braid_App           app,
     //get tensor at node.
     for(unsigned int component = 0; component < app->problem_dimension; ++component)
     {
-      temp_tensor[component] = dbuffer[node + component + 1];//+1 because buffer_size = n_dof + 1
+      // temp_tensor[component] = dbuffer[app->problem_dimension*node + component + 1];//+1 because buffer_size = n_dof + 1
+      u->U[app->problem_dimension*node + component] = dbuffer[app->problem_dimension*node + component + 1];//test for speed.
       Assert(node + component +1 <= buf_size,
           ExcMessage("somehow, you are exceeding the buffer size as you unpack"));
     }
     //insert tensor at node
-    u->U.write_tensor(temp_tensor, node);
+    // u->U.write_tensor(temp_tensor, node);//TODO:FIXME: try linear method?
   }
 
   *u_ptr = u;//modify the u_ptr does this create a memory leak as we just point this pointer somewhere else?
+
+  no_nans(*app, *u, "unpack");
 
 //  std::cout << "Buffunpack done." << std::endl;
   return 0;
@@ -730,8 +801,6 @@ int main(int argc, char *argv[])
    */
   braid_SplitCommworld(&comm_world, px/*the number of spatial processors*/, &comm_x, &comm_t);
 
-  //todo: change this to a call to something similar to the main ryujin executable. problem_dispach??
-
   //set up app and all underlying data, initialize parameters
   my_App app(comm_x, comm_t);
   dealii::ParameterAcceptor::initialize("test.prm");
@@ -777,7 +846,7 @@ int main(int argc, char *argv[])
   // int       scoarsen      = 0;
   // int       res           = 0;
   // int       wrapper_tests = 0;
-  int print_level = 1;
+  int print_level = 2;
   /*access_level=1 only calls my_access at end of simulation*/
   int access_level = 2;
   int use_sequential = 0;
@@ -803,5 +872,4 @@ int main(int argc, char *argv[])
   braid_Destroy(core);
 
 
-  delete V;
 }
