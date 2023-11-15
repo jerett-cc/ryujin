@@ -76,6 +76,14 @@
 // suppress compiler warnings.
 #define UNUSED(x) (void)(x)
 
+/**
+ * This function calculates the forces actind on an object in the domain (a specific boundary::id) and returns a dealii::Tensor<1,dim>.
+ * In 2d, this is a Tensor<1,2> where the first component gives us the drag acting on an object.
+ * 
+ * \param app - The app from the MGRIT simulation storing relevant data structures.
+ * \param V - The my_Vector which we 
+*/
+
 // This struct contains all data that changes with time. For now
 // this is just the solution data. When doing AMR this should
 // probably include the triangulization, the sparsity patter,
@@ -124,6 +132,9 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
     std::vector<TimeLoopType> time_loops;
     int finest_index, coarsest_index;
     unsigned int n_fine_dofs;
+
+    //a pointer to store a vector which represents the time average of all time points (after 0)
+    // my_Vector* time_avg;
 
     _braid_App_struct(const MPI_Comm comm_x,
                       const MPI_Comm comm_t)
@@ -189,6 +200,8 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
       }
       n_fine_dofs = levels[0]->offline_data->dof_handler().n_dofs();
     }
+
+    // void set_time_averaged_pointer(my_Vector& a_time_avg) {time_avg = a_time_avg;};
 } my_App;
 
 /**
@@ -587,6 +600,9 @@ my_Access(braid_App          app,
   std::string fname = "./cycle" + std::to_string(mgCycle);
   print_solution(u->U, app, t, 0/*level, always needs to be zero, to be fixed*/, fname);
 
+  //calculate drag and lift for this solution on level 0
+
+
   return 0;
 }
 
@@ -735,7 +751,7 @@ my_BufUnpack(braid_App           app,
   return 0;
 }
 
-void test_braid_functions(my_App& app)
+void test_braid_functions(my_App& app, braid_MPI_Comm comm_x = MPI_COMM_WORLD)
 {
   my_Vector *V = NULL;
   V = new (my_Vector);
@@ -782,6 +798,27 @@ void test_braid_functions(my_App& app)
 
   // Assert((V == NULL && V_cloned == NULL),
   //        ExcMessage("The pointers are not null after free."));
+
+    //tests for functions
+  braid_TestAll(&app,
+                comm_x,
+                stdout,/*FILE *fp,*/
+                0.0/*time to initialize*/,
+                1.0,/*time step to take from what you initialize*/
+                0.0,/*time step used for coarsen and refine test, since I do not need this function, it does not matter*/
+                my_Init,
+                my_Free,
+                my_Clone,
+                my_Sum,
+                my_SpatialNorm, 
+                my_BufSize,
+                my_BufPack,
+                my_BufUnpack,
+                NULL,/*coarsen function*/
+                NULL,/*refine function*/
+                NULL,/*residual*/
+                my_Step);
+
 }
 
 //todo: change this to a call to something similar to the main ryujin executable. problem_dispach??
@@ -799,12 +836,24 @@ int main(int argc, char *argv[])
    * Split WORLD into a time brick for each processor, with a specified number of processors for each to do the spatial MPI.
    * The number of time bricks is equal to NumberProcessorsOnSystem/px//FIXME: is this true??
    */
-  braid_SplitCommworld(&comm_world, px/*the number of spatial processors*/, &comm_x, &comm_t);
+  Assert(dealii::Utilities::MPI::n_mpi_processes(comm_world) % px == 0,
+         ExcMessage(
+             "You are trying to divide world into a number of spatial "
+             "processors per time brick that will cause MPI to stall. The "
+             "variable px needs to divide the number of processors total."));
+  braid_SplitCommworld(&comm_world,
+                       px /*the number of spatial processors per time brick*/,
+                       &comm_x,
+                       &comm_t);
 
   //set up app and all underlying data, initialize parameters
   my_App app(comm_x, comm_t);
   dealii::ParameterAcceptor::initialize("test.prm");
   app.prepare();//call after initialize the parameters to the test.prm file
+
+  //initialize the time_averaged vector to the finest level
+  // my_Vector time_averaged;
+  // reinit_to_level(&time_averaged, app, 0/*the finest level*/);
 
   /* Initialize Braid */
   braid_Core core;
