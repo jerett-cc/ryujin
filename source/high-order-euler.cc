@@ -384,38 +384,40 @@ my_Init(braid_App     app,
     std::cout << "[INFO] Initializing XBraid vectors" << std::endl;
    }
 
-  my_Vector *u = new(my_Vector);
-
-  //initializes all at a fine level
-  reinit_to_level(u, app, 0/*0 is the finest level*/);
-  // std::cout << u->U.size() << "<- fine size" << std::endl;
-
   //defines a coarse vector, at the coarsest level, which will be stepped, then restricted down to the fine level
-  my_Vector *coarse_u = new(my_Vector);
-  reinit_to_level(coarse_u, app, app->coarsest_index);
-  // std::cout << coarse_u->U.size() << "<- coarse size" << std::endl;
+  //interpolate the fine initial state into the coarse vector, then interpolates it up to the coarse level and steps
+  my_Vector *u = new(my_Vector);
+  my_Vector *temp_coarse = new(my_Vector);
+  reinit_to_level(u, app, app->finest_index);//this is the u that we will start each time brick with.
+  reinit_to_level(temp_coarse, app, app->coarsest_index);//coarse on the coarses level.
+  u->U = app->levels[app->finest_index]->initial_values->interpolate(0);//sets up U data at t=0;
+  
+  std::cout << "in init::coarsest_index=" << app->coarsest_index << std::endl;
+  std::cout << "in init::finest_index=" << app->finest_index << std::endl;
+  
+  //if T is not zero, we step on the coarsest level until we are done.
+  //TODO: implicit assumption that T>0 always here
+  if(std::abs(t) > 1e-12)
+  {
+    std::cout << "T>0" << std::endl;
+    //interpolate the initial conditions up to the coarsest mesh
+    interpolateUBetweenLevels(*temp_coarse, app->coarsest_index, *u, app->finest_index, app);
+    auto str = "initialized_at_t="+std::to_string(t);
+    std::cout << str << std::endl;
+    //steps to the correct end time on the coarse level to end time t
+    app->time_loops[app->coarsest_index]->run_with_initial_data(temp_coarse->U,t);
+        print_solution(temp_coarse->U, app, t, app->coarsest_index, str);
 
-  coarse_u->U = app->levels[app->coarsest_index]->initial_values->interpolate(0);//sets up U data at t=0;
-
-  print_solution(coarse_u->U, app, 100, app->coarsest_index);
-
-  //steps to the correct end time on the coarse level to end time t
-  app->time_loops[app->coarsest_index]->run_with_initial_data(coarse_u->U,t);
-
-  interpolateUBetweenLevels(*u, 0/*finest level*/, *coarse_u, app->coarsest_index, app);
-
-  //TODO: test that this works by outputting
-  // print_solution(u->U, app, t);
-
-
-
+    interpolateUBetweenLevels(*u, app->finest_index, *temp_coarse, app->coarsest_index, app);
+  }
   //delete the temporary coarse U. 
   //todo: fix me!
-  delete coarse_u;
+  delete temp_coarse;
 
   //reassign pointer XBraid will use
   *u_ptr = u;
 
+  std::cout << "num global vs num local " << u->U.size() << "--" << u->U.locally_owned_size() << std::endl;
   no_nans(*app, *u, "init");//todo: remove
 
 //
@@ -824,7 +826,7 @@ int main(int argc, char *argv[])
 
   /**
    * Split WORLD into a time brick for each processor, with a specified number of processors for each to do the spatial MPI.
-   * The number of time bricks is equal to NumberProcessorsOnSystem/px//FIXME: is this true??
+   * The number of time bricks is equal to NumberProcessorsOnSystem/px    //FIXME: is this true??
    */
   Assert(dealii::Utilities::MPI::n_mpi_processes(comm_world) % px == 0,
          ExcMessage(
