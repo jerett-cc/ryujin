@@ -215,19 +215,10 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
 
 void no_nans(const my_App &app, const my_Vector &U, const std::string caller)
 {
-  for (unsigned int i=0; i < app.n_fine_dofs; i++)
+  for (unsigned int i=0; i < U.U.size(); i++)
   {
     // std::cout << "Testing nans: " << i << " isNAN: " << std::isnan(U.U[i]) <<  std::endl;
     Assert(!std::isnan(U.U[i]), ExcMessage("Nan in solution after " + caller));
-  }
-}
-
-void no_nans(const my_App &app, const ryujin::MultiComponentVector<double, 4> &v, const std::string caller)
-{
-  for (unsigned int i=0; i < app.n_fine_dofs; i++)
-  {
-    // std::cout << "Testing nans: " << i << " isNAN: " << std::isnan(v[i]) <<  std::endl;
-    // Assert(!std::isnan(v[i]), ExcMessage("Nan in solution after " + caller));
   }
 }
 
@@ -245,7 +236,6 @@ void print_solution(ryujin::MultiComponentVector<double, 4> &v,
                     const unsigned int level = 0,
                     const std::string fname = "./test-output")
 {
-  no_nans(*app, v, "print solution");//Remove
   std::cout << "printing solution" << std::endl;
   const auto time_loop = app->time_loops[level];
   time_loop->output(v, fname + std::to_string(t), t /*current time*/, 1/*cycle*/);
@@ -426,7 +416,7 @@ my_Init(braid_App     app,
   //reassign pointer XBraid will use
   *u_ptr = u;
 
-  no_nans(*app, *u, "init");//remove
+  no_nans(*app, *u, "init");//todo: remove
 
 //
   return 0;
