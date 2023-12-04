@@ -169,17 +169,17 @@ namespace ryujin
 
     std::map<std::string, dealii::Timer> computing_timer_;
 
-    HyperbolicSystem hyperbolic_system_;
-    ParabolicSystem parabolic_system_;
-    Discretization<dim> discretization_;
-    OfflineData<dim, Number> offline_data_;
-    InitialValues<Description, dim, Number> initial_values_;
-    HyperbolicModule<Description, dim, Number> hyperbolic_module_;
-    ParabolicModule<Description, dim, Number> parabolic_module_;
-    TimeIntegrator<Description, dim, Number> time_integrator_;
-    Postprocessor<Description, dim, Number> postprocessor_;
-    VTUOutput<Description, dim, Number> vtu_output_;
-    Quantities<Description, dim, Number> quantities_;
+    std::shared_ptr<HyperbolicSystem> hyperbolic_system_;
+    std::shared_ptr<ParabolicSystem> parabolic_system_;
+    std::shared_ptr<Discretization<dim>> discretization_;
+    std::shared_ptr<OfflineData<dim, Number>> offline_data_;
+    std::shared_ptr<InitialValues<Description, dim, Number>> initial_values_;
+    std::shared_ptr<HyperbolicModule<Description, dim, Number>> hyperbolic_module_;
+    std::shared_ptr<ParabolicModule<Description, dim, Number>> parabolic_module_;
+    std::shared_ptr<TimeIntegrator<Description, dim, Number>> time_integrator_;
+    std::shared_ptr<Postprocessor<Description, dim, Number>> postprocessor_;
+    std::shared_ptr<VTUOutput<Description, dim, Number>> vtu_output_;
+    std::shared_ptr<Quantities<Description, dim, Number>> quantities_;
 
     const unsigned int mpi_rank_;
     const unsigned int n_mpi_processes_;
