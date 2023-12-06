@@ -1,6 +1,8 @@
 build*
 .cache
 /doc
+Testing/
 .cproject
 .project
 .settings/
+.vscode/
