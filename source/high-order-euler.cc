@@ -288,7 +288,7 @@ void interpolateUBetweenLevels(my_Vector& to_v,
     to_v.U.insert_component(to_component, comp);
   }
 
-  no_nans(*app, to_v, "interpolateBetweenLevels");//remove
+  // no_nans(*app, to_v, "interpolateBetweenLevels");//remove
 }
 
 ///This function reinits a vector to the specified level, making sure that the partition matches that of the level.
@@ -349,16 +349,22 @@ int my_Step(braid_App        app,
 
   //interpolate between levels, put data from u (fine level) onto the u_to_step (coarse level)
   interpolateUBetweenLevels(u_to_step, level, *u, 0, app);
-
+  std::cout << "past first interpolation" << std::endl;
+  int count = 0;
+  for(auto element: u_to_step.U)
+    std::cout << "index:" << count++ << "element " << element << std::endl; 
   //step the function on this level
   app->time_loops[level]->run_with_initial_data(u_to_step.U, tstop, tstart);
+  for(auto element: u_to_step.U)
+    std::cout << "---------------------------------------------------/n" << "index:" << count++ << "element " << element << std::endl; 
 
   //interpolate this back to the fine level
   interpolateUBetweenLevels(*u,0,u_to_step,level, app);
+  std::cout << "past second one" << std::endl; 
   num_step_calls++;
   //done.
 
-  no_nans(*app, *u, "step");//remove
+  // no_nans(*app, *u, "step");//remove
 
 
   return 0;
@@ -418,7 +424,7 @@ my_Init(braid_App     app,
   *u_ptr = u;
 
   std::cout << "num global vs num local " << u->U.size() << "--" << u->U.locally_owned_size() << std::endl;
-  no_nans(*app, *u, "init");//todo: remove
+  // no_nans(*app, *u, "init");//todo: remove
 
 //
   return 0;
@@ -451,7 +457,7 @@ my_Clone(braid_App     app,
 
   *v_ptr = v;
 
-  no_nans(*app, *v, "clone");//remove
+  // no_nans(*app, *v, "clone");//remove
 
   return 0;
 }
@@ -509,7 +515,7 @@ my_Sum(braid_App app,
 
   y->U.sadd(beta, alpha, x->U);
 
-  no_nans(*app, *y, "sum");//remove
+  // no_nans(*app, *y, "sum");//remove
 
   return 0;
 }
@@ -540,7 +546,7 @@ my_SpatialNorm(braid_App     app,
   *norm_ptr = u->U.l2_norm();
 
 
-  no_nans(*app, *u, "spatialnorm");//removed
+  // no_nans(*app, *u, "spatialnorm");//removed
 
   return 0;
 }
@@ -737,7 +743,7 @@ my_BufUnpack(braid_App           app,
 
   *u_ptr = u;//modify the u_ptr does this create a memory leak as we just point this pointer somewhere else?
 
-  no_nans(*app, *u, "unpack");
+  // no_nans(*app, *u, "unpack");
 
 //  std::cout << "Buffunpack done." << std::endl;
   return 0;
@@ -823,6 +829,7 @@ int main(int argc, char *argv[])
   //split the object into the number of time processors, and the number of spatial processors per time chunk.
   MPI_Comm comm_x, comm_t;
   const int px = 1; //one spatial processors to use per time brick
+  std::cout << "Number of Proc specified: " << px << std::endl;
 
   /**
    * Split WORLD into a time brick for each processor, with a specified number of processors for each to do the spatial MPI.
@@ -881,7 +888,7 @@ int main(int argc, char *argv[])
   //      int       skip          = 0;
   double tol = 1e-2;
   // int       cfactor       = 2;
-  int max_iter = 6;
+  int max_iter = 0;
   //      int       min_coarse    = 10;
   // int       fmg           = test_case.fmg;
   // int       scoarsen      = 0;
