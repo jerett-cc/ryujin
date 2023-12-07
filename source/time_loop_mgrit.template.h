@@ -416,58 +416,9 @@ namespace ryujin{
       const bool write_output_files = enable_checkpointing_ ||
           enable_output_full_ ||
           enable_output_levelsets_;
-      // std::cout << "running with initial data "
-      //     << "with writing: " << write_output_files << std::endl
-      //     << "enable_checkpointing: " << enable_checkpointing_ << std::endl
-      //     << "enable_output_full: " << enable_output_full_ << std::endl
-      //     << "enable_output_levelsets: " << enable_output_levelsets_ << std::endl;
-
-//      /* Attach log file: */
-//      if (mpi_rank_ == 0)
-//        logfile_.open(base_name_ + ".log");
-
-//      print_parameters(logfile_);
 
       Number t = start_time;//we will start at the initial time that this object was created with
       unsigned int output_cycle = 0;
-
-
-//        if (resume_) {
-//          print_info("resuming computation: recreating mesh");
-//          Checkpointing::load_mesh(*discretization_, base_name_);
-//
-////          print_info("preparing compute kernels");
-////          prepare_compute_kernels();todo: remove
-//
-//          print_info("resuming computation: loading state vector");
-//          U.reinit(offline_data_->vector_partitioner());
-//          Checkpointing::load_state_vector(
-//              *offline_data_, base_name_, U, t, output_cycle, mpi_communicator_);
-//          t_initial_ = t;
-//
-//          /* Workaround: Reinitialize Quantities with correct output cycle: */
-//          quantities_->prepare(base_name_, output_cycle);
-//
-//          /* Remove outdated refinement timestamps: */
-//          const auto new_end =
-//              std::remove_if(t_refinements_.begin(),
-//                  t_refinements_.end(),
-//                  [&](const Number &t_ref) { return (t >= t_ref); });
-//          t_refinements_.erase(new_end, t_refinements_.end());
-
-//        } else {
-//FIXME: this section needs to be removed, but is useful for setting up the initial conditions.
-//          print_info("creating mesh");
-//          discretization_.prepare();todo remove this
-
-//          print_info("preparing compute kernels");
-//          prepare_compute_kernels();todo remove this
-//
-//          print_info("interpolating initial values");
-//          U.reinit(offline_data_->vector_partitioner());
-//          U = initial_values_->interpolate();
-//        }
-//      }
 
       unsigned int cycle = 1;
       Number last_terminal_output = (terminal_update_interval_ == Number(0.)
@@ -477,40 +428,14 @@ namespace ryujin{
       /* Loop: */
 
       print_info("entering main loop");
-      computing_timer_["time loop"].start();
-
 
       for (;; ++cycle) {
 
         /* Accumulate quantities of interest: */
 
         if (enable_compute_quantities_) {
-          Scope scope(computing_timer_,
-              "time step [X] 1 - accumulate quantities");
           quantities_->accumulate(U, t);
         }
-
-        /* Perform output: */
-
-//        if (t >= output_cycle * output_granularity_) {
-//          if (write_output_files) {
-//            output(U, base_name_ + "-solution", t, output_cycle);
-//            if (enable_compute_error_) {
-//              const auto analytic = initial_values_->interpolate(t);
-//              output(
-//                  analytic, base_name_ + "-analytic_solution", t, output_cycle);
-//            }
-//          }
-//          if (enable_compute_quantities_ &&
-//              (output_cycle % output_quantities_multiplier_ == 0) &&
-//              (output_cycle > 0)) {
-//            Scope scope(computing_timer_,
-//                "time step [X] 2 - write out quantities");
-//            quantities_->write_out(U, t, output_cycle);
-//          }
-//          ++output_cycle;
-//        }
-
 
         /* Break if we have reached the final time: */
 
@@ -518,7 +443,14 @@ namespace ryujin{
           break;
 
 
+        /* Take a step: */
         const auto tau = time_integrator_->step(U, t);
+        std::cout << "U after step:" << std::endl;
+        for(unsigned int i = 0; i < U.size(); i++)
+        {
+          std::cout << "U[" << i << "] = " << U[i] << std::endl;
+        }
+
         if(post_process_)//TODO: remove me? and remove me from time loop class.
           postprocessor_->post_process_data(U,t);
         t += tau;
@@ -528,18 +460,6 @@ namespace ryujin{
       /* We have actually performed one cycle less. */
       --cycle;
 
-      computing_timer_["time loop"].stop();
-
-//      if (terminal_update_interval_ != Number(0.)) {
-//        /* Write final timing statistics to screen and logfile: */
-//        print_cycle_statistics(
-//            cycle, t, output_cycle, /*logfile*/ true, /*final*/ true);
-//      }
-//
-//      if (enable_compute_error_) {
-//        /* Output final error: */
-//        compute_error(U, t);
-//      }
     }
 
 

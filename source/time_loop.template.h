@@ -371,7 +371,7 @@ namespace ryujin
 
       const auto tau = time_integrator_->step(U, t);
       if(post_process_)
-        postprocessor_.post_process_data(U,t);
+        postprocessor_->post_process_data(U,t);
       t += tau;
 
       /* Print and record cycle statistics: */
