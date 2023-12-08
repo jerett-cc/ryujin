@@ -819,17 +819,53 @@ void test_braid_functions(my_App& app, braid_MPI_Comm comm_x = MPI_COMM_WORLD)
 
 }
 
+class MPIParameters : public dealii::ParameterAcceptor 
+{
+  public:
+    MPIParameters()
+    : ParameterAcceptor("MPI Parameters")
+    {
+      px = 1;
+      add_parameter("px",
+                    px,
+                    "Number of spatial processors per time brick. "
+                    "Must evenly divide allotted processes from MPI.");
+      num_time = 4;
+      add_parameter("Time Bricks",
+                    num_time,
+                    "Number of time bricks total.");
+      tstart = 0.0;
+      add_parameter("Start Time",
+                    tstart);
+
+      tstop = 5.0;
+      add_parameter("Stop Time",
+                    tstop);
+
+    };
+
+  int px = 1;//Default number of x spatial processors is 1.
+  int num_time;//Default number of coarse points is equal to 4.
+  double tstart;
+  double tstop;
+
+};
+
 //todo: change this to a call to something similar to the main ryujin executable. problem_dispach??
 int main(int argc, char *argv[])
 {
+
+  MPIParameters mpi_parameters;
+  dealii::ParameterAcceptor::initialize("MPIParameters.prm");
+
   MPI_Comm comm_world = MPI_COMM_WORLD;//create MPI_object
   //scoped MPI object, no need to call finalize at the end.
   dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);  //create objects
 
   //split the object into the number of time processors, and the number of spatial processors per time chunk.
   MPI_Comm comm_x, comm_t;
-  const int px = 1; //one spatial processors to use per time brick
-  std::cout << "Number of Proc specified: " << px << std::endl;
+  const int px = mpi_parameters.px; //one spatial processors to use per time brick
+  std::cout << "px: " << px << std::endl;
 
   /**
    * Split WORLD into a time brick for each processor, with a specified number of processors for each to do the spatial MPI.
@@ -856,9 +892,11 @@ int main(int argc, char *argv[])
 
   /* Initialize Braid */
   braid_Core core;
-  double tstart = 0.0;
-  double tstop = 5.0;
-  int ntime = 4;//this should in general be the number of time bricks you want. You need to ensure that px * ntime = TOTAL NUMBER PROCESSORS
+  double tstart = mpi_parameters.tstart;
+  double tstop = mpi_parameters.tstop;
+  int ntime = mpi_parameters.num_time;//this should in general be the number of time bricks you want. You need to ensure that px * ntime = TOTAL NUMBER PROCESSORS
+
+  std::cout << "Start: " << tstart << " Stop: " << tstop << " # bricks: " << ntime << std::endl;
 
   braid_Init(comm_world,
              comm_t,
