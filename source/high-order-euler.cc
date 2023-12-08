@@ -882,8 +882,7 @@ int main(int argc, char *argv[])
    * See -help message for descriptions */
   auto max_level_index =
       std::max_element(app.refinement_levels.begin(), app.refinement_levels.end());
-  int max_levels =
-      (int)*max_level_index; // fixme, cast this as an int is a problem.
+  unsigned int max_levels = app.refinement_levels.size(); // fixme, cthis is later cast to an int.
   int nrelax = 1; // FIXME: add this and delete the UNUSED(nrelax) later.
   //      int       skip          = 0;
   double tol = 1e-2;
