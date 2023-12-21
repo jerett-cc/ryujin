@@ -856,7 +856,6 @@ int main(int argc, char *argv[])
 {
 
   MPIParameters mpi_parameters;
-  dealii::ParameterAcceptor::initialize("MPIParameters.prm");
 
   MPI_Comm comm_world = MPI_COMM_WORLD;//create MPI_object
   //scoped MPI object, no need to call finalize at the end.
@@ -918,8 +917,6 @@ int main(int argc, char *argv[])
 
   /* Define XBraid parameters
    * See -help message for descriptions */
-  auto max_level_index =
-      std::max_element(app.refinement_levels.begin(), app.refinement_levels.end());
   unsigned int max_levels = app.refinement_levels.size(); // fixme, cthis is later cast to an int.
   int nrelax = 1; // FIXME: add this and delete the UNUSED(nrelax) later.
   //      int       skip          = 0;
