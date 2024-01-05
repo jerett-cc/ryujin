@@ -410,9 +410,17 @@ namespace ryujin{
     }
 
     template <typename Description, int dim, typename Number>
-    void TimeLoopMgrit<Description, dim, Number>::run_with_initial_data(vector_type &U, const Number end_time, const Number start_time)
+    void TimeLoopMgrit<Description, dim, Number>::run_with_initial_data(vector_type &U, 
+      const Number end_time, const Number start_time, const bool print_vector)
     {
 
+      if(print_vector)
+      {
+        std::cout << "U before stepping." << std::endl;
+        U.print(std::cout);
+      }
+      // if(dealii::Utilities::MPI::this_mpi_process(mpi_communicator_) == 0)
+        // U.print(std::cout);
       const bool write_output_files = enable_checkpointing_ ||
           enable_output_full_ ||
           enable_output_levelsets_;
@@ -436,6 +444,12 @@ namespace ryujin{
         if (enable_compute_quantities_) {
           quantities_->accumulate(U, t);
         }
+        if(print_vector)
+        {
+          std::string fname = "timeloop" + std::to_string(cycle);
+          std::cout << "Printing U to file before step in file " << fname << std::endl;
+          output(U,fname,t,0);
+        }
 
         /* Break if we have reached the final time: */
 
@@ -445,18 +459,12 @@ namespace ryujin{
 
         /* Take a step: */
         const auto tau = time_integrator_->step(U, t);
-        std::cout << "U after step:" << std::endl;
-        for(unsigned int i = 0; i < U.size(); i++)
-        {
-          std::cout << "U[" << i << "] = " << U[i] << std::endl;
-        }
-
+        
         if(post_process_)//TODO: remove me? and remove me from time loop class.
           postprocessor_->post_process_data(U,t);
         t += tau;
 
       } /* end of loop */
-
       /* We have actually performed one cycle less. */
       --cycle;
 

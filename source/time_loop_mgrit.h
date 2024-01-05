@@ -104,7 +104,7 @@ namespace ryujin{
          * The size of the vector must match the n_dofs
          * from this Class' discretization.
          */
-        void run_with_initial_data(vector_type &U, const Number end_time, const Number start_time=0);
+        void run_with_initial_data(vector_type &U, const Number end_time, const Number start_time=0, const bool print_vector = false);
 
         //returns the solution state U, if the size is greater than one.
         vector_type get_U();
