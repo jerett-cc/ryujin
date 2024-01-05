@@ -125,7 +125,7 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
     using precomputed_type = ryujin::MultiComponentVector<Number, n_precomputed_values>;
 
 
-    const MPI_Comm comm_x, comm_t;
+    MPI_Comm comm_x, comm_t; //todo: can I make this const? uninitialized communicators now.
     std::vector<LevelType> levels; //instantiation
     std::vector<unsigned int> refinement_levels;
 
@@ -136,11 +136,12 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
     //a pointer to store a vector which represents the time average of all time points (after 0)
     // my_Vector* time_avg;
 
-    _braid_App_struct(const MPI_Comm comm_x,
-                      const MPI_Comm comm_t)
+    // _braid_App_struct(const MPI_Comm comm_x,
+    //                   const MPI_Comm comm_t)
+    _braid_App_struct()
     : ParameterAcceptor("/MGRIT"),
-      comm_x(comm_x),
-      comm_t(comm_t),
+      // comm_x(comm_x),
+      // comm_t(comm_t),
       levels(1),
       time_loops(1),
       finest_index(0)//for XBRAID, the finest level is always 0.
@@ -151,17 +152,28 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
                     "Vector of levels of global mesh refinement where "
                     "each MGRIT level will work on.");
       coarsest_index = refinement_levels.size()-1;
-      //need to set up temporary objects so that we can call ParameterAcceptor::initialize and
-      //all subsections will have been defined. Then, we fill the correct information by calling
-      levels[0] = std::make_shared<ryujin::mgrit::LevelStructures<Description, 2, Number>>(comm_x, 0);
-      time_loops[0] = std::make_shared<ryujin::mgrit::TimeLoopMgrit<Description, 2, Number>>(comm_x, *levels[0],0,0);
-      n_fine_dofs = levels[0]->offline_data->dof_handler().n_dofs();
-      //default objects. their member variables will be modified when
-      //parameteracceptor initialize is called, then you can call prepare.
-      //FIXME: a potential bug can be introduced when a user calls prepare()
-      //before they call parameterhandler::initialize, how to stop this?
+      // //need to set up temporary objects so that we can call ParameterAcceptor::initialize and
+      // //all subsections will have been defined. Then, we fill the correct information by calling
+      levels[0] = std::make_shared<ryujin::mgrit::LevelStructures<Description, 2, Number>>(MPI_COMM_WORLD, 0); //FIXME: does this cause a bug?
+      time_loops[0] = std::make_shared<ryujin::mgrit::TimeLoopMgrit<Description, 2, Number>>(MPI_COMM_WORLD, *levels[0],0,0); //Need both of these to define subesctions... annoying.
+      // //default objects. their member variables will be modified when
+      // //parameteracceptor initialize is called, then you can call prepare.
+      // //FIXME: a potential bug can be introduced when a user calls prepare()
+      // //before they call parameterhandler::initialize, how to stop this?
     };
 
+    // Initialize the app with the correct communicators. Then call prepare.
+    // This needs to be called after parameteracceptor is intialized. App should not be used before this is done.
+    void initialize(const MPI_Comm a_comm_x, const MPI_Comm a_comm_t)
+    {
+      comm_x = a_comm_x;
+      comm_t = a_comm_t;
+      //now that the proper
+      prepare();
+      initialized = true;//now the user can access data in app. TODO: implement a check for getter functions.
+    }
+
+  private:
     //This function NEEDS to be called after parameter handler has been initialized
     //otherwise user defined refinement levels are not going to be used, only the
     //default above.
@@ -178,9 +190,9 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
       levels.resize(refinement_levels.size());
       time_loops.resize(refinement_levels.size());
 
-      //reorder refinement levels in descending order,
+      //Reorder refinement levels in descending order of refinement,
       //this matches the fact that Xbraid has the finest level of MG
-      //as 0.
+      //as 0. I.E. the most refined data is accessed with refinement_levels[0]
       std::sort(refinement_levels.rbegin(), refinement_levels.rend());
 
       //TODO: need to make a way to remove duplicates, or at least warn user
@@ -196,10 +208,14 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
         //TODO: determine if I should just make a time loop object for each level and using only this.
         // i.e. does app really ned to know all the level structures info?
         levels[i] = std::make_shared<ryujin::mgrit::LevelStructures<Description, 2, Number>>(comm_x, refinement_levels[i]);
-        time_loops[i] = std::make_shared<ryujin::mgrit::TimeLoopMgrit<Description,2,Number>>(comm_x, *(levels[i]), 0,0);
+        time_loops[i] = std::make_shared<ryujin::mgrit::TimeLoopMgrit<Description,2,Number>>(comm_x, *(levels[i]), 
+                                                                                             0/*initial time is irrelevant*/,
+        0/*final time is irrelevant*/);
       }
       n_fine_dofs = levels[0]->offline_data->dof_handler().n_dofs();
     }
+
+    bool initialized = false;
 
     // void set_time_averaged_pointer(my_Vector& a_time_avg) {time_avg = a_time_avg;};
 } my_App;
@@ -287,7 +303,7 @@ void interpolateUBetweenLevels(my_Vector& to_v,
     // place component
     to_v.U.insert_component(to_component, comp);
   }
-
+  to_v.U.update_ghost_values();
   // no_nans(*app, to_v, "interpolateBetweenLevels");//remove
 }
 
@@ -296,6 +312,7 @@ void reinit_to_level(my_Vector* u, braid_App& app, const unsigned int level) {
   Assert(app->levels.size()>level, ExcMessage("The level being reinitialized does not exist."));
   u->U.reinit_with_scalar_partitioner(
       app->levels[level]->offline_data->scalar_partitioner());
+  u->U.update_ghost_values();//TODO: is this neccessary?
 }
 
 /**
@@ -349,18 +366,30 @@ int my_Step(braid_App        app,
 
   //interpolate between levels, put data from u (fine level) onto the u_to_step (coarse level)
   interpolateUBetweenLevels(u_to_step, level, *u, 0, app);
-  std::cout << "past first interpolation" << std::endl;
+  // std::cout << "past first interpolation" << std::endl;
   int count = 0;
-  for(auto element: u_to_step.U)
-    std::cout << "index:" << count++ << "element " << element << std::endl; 
+  // if(dealii::Utilities::MPI::this_mpi_process(app->comm_t) == 0)
+  {
+    std::cout << "[STEP]: U to step is" << std::endl;
+    u_to_step.U.print(std::cout);
+    int n_ghost = u_to_step.U.get_partitioner()->n_ghost_indices();
+    std::string has_ghost = (n_ghost > 0) ? "true" : "false";
+    std::cout << "num ghost: " << n_ghost << std::endl;
+    std::cout << "[STEP]: U_to_step has ghost: " << has_ghost << std::endl;                                     
+  }
   //step the function on this level
-  app->time_loops[level]->run_with_initial_data(u_to_step.U, tstop, tstart);
-  for(auto element: u_to_step.U)
-    std::cout << "---------------------------------------------------/n" << "index:" << count++ << "element " << element << std::endl; 
+  app->time_loops[level]->run_with_initial_data(u_to_step.U, tstop, tstart, true);
+  // if(dealii::Utilities::MPI::this_mpi_process(app->comm_t) == 0)
+  // {
+    std::cout << "[STEP]: U to step after we stepped it is" << std::endl;
+    u_to_step.U.print(std::cout);
+  // }
+  // for(auto element: u_to_step.U)
+  //   std::cout << "---------------------------------------------------/n" << "index:" << count++ << "element " << element << std::endl; 
 
   //interpolate this back to the fine level
   interpolateUBetweenLevels(*u,0,u_to_step,level, app);
-  std::cout << "past second one" << std::endl; 
+  // std::cout << "past second one" << std::endl; 
   num_step_calls++;
   //done.
 
@@ -400,10 +429,11 @@ my_Init(braid_App     app,
   
   std::cout << "in init::coarsest_index=" << app->coarsest_index << std::endl;
   std::cout << "in init::finest_index=" << app->finest_index << std::endl;
+  temp_coarse->U = app->levels[app->coarsest_index]->initial_values->interpolate(0);
   
   //if T is not zero, we step on the coarsest level until we are done.
   //TODO: implicit assumption that T>0 always here
-  if(std::abs(t) > 1e-12)
+  if(std::abs(t) > 0)
   {
     std::cout << "T>0" << std::endl;
     //interpolate the initial conditions up to the coarsest mesh
@@ -423,8 +453,9 @@ my_Init(braid_App     app,
   //reassign pointer XBraid will use
   *u_ptr = u;
 
-  std::cout << "num global vs num local " << u->U.size() << "--" << u->U.locally_owned_size() << std::endl;
-  // no_nans(*app, *u, "init");//todo: remove
+  // if(dealii::Utilities::MPI::this_mpi_process(app->comm_t) == 0)
+  //   std::cout << "num global vs num local " << u->U.size() << "--" << u->U.locally_owned_size() << std::endl;
+  // // no_nans(*app, *u, "init");//todo: remove
 
 //
   return 0;
@@ -689,7 +720,6 @@ my_BufPack(braid_App           app,
   }
   // std::cout << "after loop" << std::endl;
   braid_BufferStatusSetSize(bstatus, (buf_size+1)*sizeof(NUMBER));//set the number of bytes stored in this buffer (TODO: this is off since the dbuffer[0] is a integer.)
-
   return 0;
 }
 
@@ -841,6 +871,15 @@ class MPIParameters : public dealii::ParameterAcceptor
       tstop = 5.0;
       add_parameter("Stop Time",
                     tstop);
+      
+      cfactor = 2; //The default coarsening from level to level is 2, which matches that of XBRAID.
+      add_parameter("cfactor",
+                    cfactor,
+                    "The coarsening factor between time levels.");
+      max_iter = num_time;
+      add_parameter("max_iter", 
+                    max_iter,
+                    "The maximum number of MGRIT iterations.");
 
     };
 
@@ -848,18 +887,23 @@ class MPIParameters : public dealii::ParameterAcceptor
   int num_time;//Default number of coarse points is equal to 4.
   double tstart;
   double tstop;
+  braid_Int cfactor;
+  int max_iter;
 
 };
 
 //todo: change this to a call to something similar to the main ryujin executable. problem_dispach??
 int main(int argc, char *argv[])
 {
-
-  MPIParameters mpi_parameters;
-
-  MPI_Comm comm_world = MPI_COMM_WORLD;//create MPI_object
   //scoped MPI object, no need to call finalize at the end.
   dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);  //create objects
+
+  //set up app and all underlying data, initialize parameters
+  MPIParameters mpi_parameters;
+  my_App app;
+  dealii::ParameterAcceptor::initialize("test.prm");
+
+  MPI_Comm comm_world = MPI_COMM_WORLD;//create MPI_object
 
   //split the object into the number of time processors, and the number of spatial processors per time chunk.
   MPI_Comm comm_x, comm_t;
@@ -880,12 +924,10 @@ int main(int argc, char *argv[])
                        &comm_x,
                        &comm_t);
 
-  //set up app and all underlying data, initialize parameters
-  my_App app(comm_x, comm_t);
-  dealii::ParameterAcceptor::initialize("test.prm");
-  app.prepare();//call after initialize the parameters to the test.prm file
+  // Now that we have set up the communicators we wish to use, we will initialize the app and feed it to XBraid, along with the other functions.
+  app.initialize(comm_x, comm_t);
 
-  //initialize the time_averaged vector to the finest level
+  // initialize the time_averaged vector to the finest level
   // my_Vector time_averaged;
   // reinit_to_level(&time_averaged, app, 0/*the finest level*/);
 
@@ -898,7 +940,7 @@ int main(int argc, char *argv[])
   std::cout << "Start: " << tstart << " Stop: " << tstop << " # bricks: " << ntime << std::endl;
 
   braid_Init(comm_world,
-             comm_t,
+             app.comm_t,
              tstart,
              tstop,
              ntime,
@@ -921,8 +963,7 @@ int main(int argc, char *argv[])
   int nrelax = 1; // FIXME: add this and delete the UNUSED(nrelax) later.
   //      int       skip          = 0;
   double tol = 1e-2;
-  // int       cfactor       = 2;
-  int max_iter = 0;
+  int max_iter = mpi_parameters.max_iter;
   //      int       min_coarse    = 10;
   // int       fmg           = test_case.fmg;
   // int       scoarsen      = 0;
@@ -931,7 +972,7 @@ int main(int argc, char *argv[])
   int print_level = 2;
   /*access_level=1 only calls my_access at end of simulation*/
   int access_level = 2;
-  int use_sequential = 0;
+  int use_sequential = 0; //same as XBRAID default, initial guess is from user defined init.
 
   UNUSED(nrelax);
 
@@ -942,10 +983,9 @@ int main(int argc, char *argv[])
   //             braid_SetSkip(core, skip);
   //      braid_SetNRelax(core, -1, nrelax);
   braid_SetAbsTol(core, tol);
-  //       braid_SetCFactor(core, -1, cfactor);
+  braid_SetCFactor(core, -1, mpi_parameters.cfactor);
   braid_SetMaxIter(core, max_iter);
   braid_SetSeqSoln(core, use_sequential);
-
   std::cout << "before braid_drive\n";
   braid_Drive(core);
 

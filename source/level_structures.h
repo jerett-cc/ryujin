@@ -112,13 +112,13 @@ namespace ryujin{
     LevelStructures<Description,dim, Number>::LevelStructures(const MPI_Comm& comm_x,
                                                               const int refinement)
     : ParameterAcceptor("/LevelStructures")
-    , level_comm_x(comm_x)
+    , level_comm_x(comm_x)//what constructor is used here? copy?
     , level_refinement(refinement)
     , hyperbolic_system(std::make_shared<HyperbolicSystem>("/Equation"))
     , parabolic_system(std::make_shared<ParabolicSystem>("/Equation"))
-    , discretization(std::make_shared<Discretization>(level_comm_x,
+    , discretization(std::make_shared<Discretization>(comm_x,
                                                       level_refinement))
-    , offline_data(std::make_shared<OfflineData>(level_comm_x,
+    , offline_data(std::make_shared<OfflineData>(comm_x,
                                                  *discretization,
                                                  "/OfflineData"))
     , initial_values(std::make_shared<InitialValues>(*hyperbolic_system,
@@ -179,7 +179,6 @@ namespace ryujin{
       postprocessor->prepare();
       vtu_output->prepare();
       quantities->prepare("MGRIT_"/*base name*/, 1 /*output cycle*/);
-
     }
 
   }//namespace mgrit
