@@ -270,7 +270,7 @@ void print_solution(ryujin::MultiComponentVector<double, 4> &v,
  * NOTE: this function only works if the vectors to_v and from_v have an extract_component method implemented.
  * and the method insert_component;
  */
-void interpolateUBetweenLevels(my_Vector& to_v,
+void interpolate_between_levels(my_Vector& to_v,
                                const unsigned int to_level,
                                const my_Vector& from_v,
                                const unsigned int from_level,
@@ -289,7 +289,7 @@ void interpolateUBetweenLevels(my_Vector& to_v,
   //reinit the components to match the correct info.
   from_component.reinit(from_partitioner,comm);
   to_component.reinit(to_partitioner,comm);
-  // no_nans(*app, from_v, "before interpolation");
+
   for(unsigned int comp=0; comp<problem_dimension; comp++)
   {
     // extract component
@@ -316,7 +316,7 @@ void reinit_to_level(my_Vector* u, braid_App& app, const unsigned int level) {
 }
 
 /**
- * @brief my_Step - Creates new eulerproblem object, calls run_with_initial_data(...) and updates U.
+ * @brief my_Step - Interpolates u to the correct level, calls run_with_initial_data and updates u.
  *
  * @param app - The braid app struct
  * @param ustop - The solution data at the end of this time step
@@ -365,37 +365,15 @@ int my_Step(braid_App        app,
   reinit_to_level(&u_to_step, app, level);
 
   //interpolate between levels, put data from u (fine level) onto the u_to_step (coarse level)
-  interpolateUBetweenLevels(u_to_step, level, *u, 0, app);
-  // std::cout << "past first interpolation" << std::endl;
+  interpolate_between_levels(u_to_step, level, *u, 0, app);
   int count = 0;
-  // if(dealii::Utilities::MPI::this_mpi_process(app->comm_t) == 0)
-  {
-    std::cout << "[STEP]: U to step is" << std::endl;
-    u_to_step.U.print(std::cout);
-    int n_ghost = u_to_step.U.get_partitioner()->n_ghost_indices();
-    std::string has_ghost = (n_ghost > 0) ? "true" : "false";
-    std::cout << "num ghost: " << n_ghost << std::endl;
-    std::cout << "[STEP]: U_to_step has ghost: " << has_ghost << std::endl;                                     
-  }
   //step the function on this level
   app->time_loops[level]->run_with_initial_data(u_to_step.U, tstop, tstart, true);
-  // if(dealii::Utilities::MPI::this_mpi_process(app->comm_t) == 0)
-  // {
-    std::cout << "[STEP]: U to step after we stepped it is" << std::endl;
-    u_to_step.U.print(std::cout);
-  // }
-  // for(auto element: u_to_step.U)
-  //   std::cout << "---------------------------------------------------/n" << "index:" << count++ << "element " << element << std::endl; 
 
   //interpolate this back to the fine level
-  interpolateUBetweenLevels(*u,0,u_to_step,level, app);
-  // std::cout << "past second one" << std::endl; 
+  interpolate_between_levels(*u,0,u_to_step,level, app);
   num_step_calls++;
   //done.
-
-  // no_nans(*app, *u, "step");//remove
-
-
   return 0;
 };
 
@@ -414,50 +392,35 @@ my_Init(braid_App     app,
         double        t,
         braid_Vector *u_ptr)
 {
-  if (dealii::Utilities::MPI::this_mpi_process(app->comm_t) == 0)
-   {
-    std::cout << "[INFO] Initializing XBraid vectors" << std::endl;
-   }
+  std::cout << "[INFO] Initializing XBraid vectors at t=" << t << std::endl;
 
-  //defines a coarse vector, at the coarsest level, which will be stepped, then restricted down to the fine level
-  //interpolate the fine initial state into the coarse vector, then interpolates it up to the coarse level and steps
+  // We first define a coarse vector, at the coarsest level, which will be stepped, then restricted down to the fine level
+  // and interpolate the fine initial state into the coarse vector, then interpolates it up to the coarse level and steps.
   my_Vector *u = new(my_Vector);
   my_Vector *temp_coarse = new(my_Vector);
   reinit_to_level(u, app, app->finest_index);//this is the u that we will start each time brick with.
   reinit_to_level(temp_coarse, app, app->coarsest_index);//coarse on the coarses level.
   u->U = app->levels[app->finest_index]->initial_values->interpolate(0);//sets up U data at t=0;
-  
-  std::cout << "in init::coarsest_index=" << app->coarsest_index << std::endl;
-  std::cout << "in init::finest_index=" << app->finest_index << std::endl;
   temp_coarse->U = app->levels[app->coarsest_index]->initial_values->interpolate(0);
   
-  //if T is not zero, we step on the coarsest level until we are done.
-  //TODO: implicit assumption that T>0 always here
-  if(std::abs(t) > 0)
+  // If T is not zero, we step on the coarsest level until we are done. Otherwise we have no need to step any because
+  // the assumtion is that T=0
+  //TODO: implicit assumption that T>0 always here except for T=0.
+  if(std::fabs(t) > 0)
   {
-    std::cout << "T>0" << std::endl;
     //interpolate the initial conditions up to the coarsest mesh
-    interpolateUBetweenLevels(*temp_coarse, app->coarsest_index, *u, app->finest_index, app);
-    auto str = "initialized_at_t="+std::to_string(t);
-    std::cout << str << std::endl;
+    interpolate_between_levels(*temp_coarse, app->coarsest_index, *u, app->finest_index, app);
     //steps to the correct end time on the coarse level to end time t
     app->time_loops[app->coarsest_index]->run_with_initial_data(temp_coarse->U,t);
-        print_solution(temp_coarse->U, app, t, app->coarsest_index, str);
+    print_solution(temp_coarse->U, app, t, app->coarsest_index, str);
 
-    interpolateUBetweenLevels(*u, app->finest_index, *temp_coarse, app->coarsest_index, app);
+    interpolate_between_levels(*u, app->finest_index, *temp_coarse, app->coarsest_index, app);
   }
   //delete the temporary coarse U. 
-  //todo: fix me!
   delete temp_coarse;
 
   //reassign pointer XBraid will use
   *u_ptr = u;
-
-  // if(dealii::Utilities::MPI::this_mpi_process(app->comm_t) == 0)
-  //   std::cout << "num global vs num local " << u->U.size() << "--" << u->U.locally_owned_size() << std::endl;
-  // // no_nans(*app, *u, "init");//todo: remove
-
-//
   return 0;
 }
 
@@ -546,8 +509,6 @@ my_Sum(braid_App app,
 
   y->U.sadd(beta, alpha, x->U);
 
-  // no_nans(*app, *y, "sum");//remove
-
   return 0;
 }
 
@@ -575,9 +536,6 @@ my_SpatialNorm(braid_App     app,
   }
 
   *norm_ptr = u->U.l2_norm();
-
-
-  // no_nans(*app, *u, "spatialnorm");//removed
 
   return 0;
 }
@@ -630,7 +588,7 @@ my_Access(braid_App          app,
   print_solution(u->U, app, t, 0/*level, always needs to be zero, to be fixed*/, fname);
 
   //calculate drag and lift for this solution on level 0
-
+  //TODO: insert drag and lift calculation call.
 
   return 0;
 }
@@ -672,7 +630,6 @@ my_BufSize(braid_App           app,
   std::cout << "Problem_dimension: " << app->problem_dimension << " n_dofs: " << app->n_fine_dofs << std::endl;
   std::cout << "buf_size: " << *size_ptr << std::endl;
 
-
   return 0;
 }
 
@@ -710,15 +667,14 @@ my_BufPack(braid_App           app,
   {
     //extract tensor at this node
     temp_tensor = u->U.get_tensor(node);//TODO:FIXME: test linear method for speed...
-    // std::cout << "after get_tensor" << std::endl;
     for (unsigned int component = 0; component < problem_dimension; ++component) {
       Assert(buf_size >= (node + component),
              ExcMessage("In my_BufPack, the size of node + component is "
                         "greater than the buff_size (the expected size of the vector)."));
       dbuffer[problem_dimension*(node) + component + 1] = u->U[problem_dimension*node + component];
+      assert(!std::isnan(u->U[problem_dimension*node + component]));
     }
   }
-  // std::cout << "after loop" << std::endl;
   braid_BufferStatusSetSize(bstatus, (buf_size+1)*sizeof(NUMBER));//set the number of bytes stored in this buffer (TODO: this is off since the dbuffer[0] is a integer.)
   return 0;
 }
@@ -750,7 +706,7 @@ my_BufUnpack(braid_App           app,
   int buf_size = static_cast<int>(dbuffer[0]);//TODO: is this dangerous?
   const int problem_dimension = app->problem_dimension;
 
-  // the vector should be size (dim + 2) X n_dofs at finest level.
+  // The vector should be size (dim + 2) X n_dofs at finest level.
   my_Vector *u = NULL; // the vector we will pack the info into
   u = new(my_Vector);//TODO: where does this get deleted? Probably wherever owns the u_ptr.
   reinit_to_level(u, app, app->finest_index);//each U is at the finest level.
@@ -773,9 +729,6 @@ my_BufUnpack(braid_App           app,
 
   *u_ptr = u;//modify the u_ptr does this create a memory leak as we just point this pointer somewhere else?
 
-  // no_nans(*app, *u, "unpack");
-
-//  std::cout << "Buffunpack done." << std::endl;
   return 0;
 }
 
@@ -876,7 +829,7 @@ class MPIParameters : public dealii::ParameterAcceptor
       add_parameter("cfactor",
                     cfactor,
                     "The coarsening factor between time levels.");
-      max_iter = num_time;
+      max_iter = num_time;//In theory, mgrit should converge after the number of cycles equal to the number of time points it has.
       add_parameter("max_iter", 
                     max_iter,
                     "The maximum number of MGRIT iterations.");
