@@ -132,6 +132,7 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
     std::vector<TimeLoopType> time_loops;
     int finest_index, coarsest_index;
     unsigned int n_fine_dofs;
+    unsigned int n_locally_owned_dofs;
 
     //a pointer to store a vector which represents the time average of all time points (after 0)
     // my_Vector* time_avg;
@@ -213,6 +214,7 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
         0/*final time is irrelevant*/);
       }
       n_fine_dofs = levels[0]->offline_data->dof_handler().n_dofs();
+      n_locally_owned_dofs = levels[0]->offline_data->n_locally_owned();
     }
 
     bool initialized = false;
@@ -368,7 +370,7 @@ int my_Step(braid_App        app,
   interpolate_between_levels(u_to_step, level, *u, 0, app);
   int count = 0;
   //step the function on this level
-  app->time_loops[level]->run_with_initial_data(u_to_step.U, tstop, tstart, true);
+  app->time_loops[level]->run_with_initial_data(u_to_step.U, tstop, tstart);
 
   //interpolate this back to the fine level
   interpolate_between_levels(*u,0,u_to_step,level, app);
@@ -403,6 +405,7 @@ my_Init(braid_App     app,
   u->U = app->levels[app->finest_index]->initial_values->interpolate(0);//sets up U data at t=0;
   temp_coarse->U = app->levels[app->coarsest_index]->initial_values->interpolate(0);
   
+  std::string str = "initialized_at_t=" + std::to_string(t);
   // If T is not zero, we step on the coarsest level until we are done. Otherwise we have no need to step any because
   // the assumtion is that T=0
   //TODO: implicit assumption that T>0 always here except for T=0.
@@ -658,12 +661,12 @@ my_BufPack(braid_App           app,
 
   const int problem_dimension = app->problem_dimension;
   NUMBER *dbuffer = (NUMBER*)buffer;
-  unsigned int n_dof = app->levels[0]->offline_data->dof_handler().n_dofs();//number of dofs at finest level
-  unsigned int buf_size = n_dof * app->problem_dimension;
+  unsigned int n_locally_owned = app->n_locally_owned_dofs;//number of dofs at finest level
+  unsigned int buf_size = n_locally_owned * app->problem_dimension;
   dbuffer[0] = buf_size + 1;//buffer + size
   dealii::Tensor<1, problem_dimension, NUMBER> temp_tensor;
   // dealii::Tensor<1,problem_dimension, dealii::VectorizedArray<NUMBER>> temp_tensor_vectorized;
-  for(unsigned int node=0; node < n_dof; node++)
+  for(unsigned int node=0; node < n_locally_owned; node++)
   {
     //extract tensor at this node
     temp_tensor = u->U.get_tensor(node);//TODO:FIXME: test linear method for speed...
@@ -671,8 +674,9 @@ my_BufPack(braid_App           app,
       Assert(buf_size >= (node + component),
              ExcMessage("In my_BufPack, the size of node + component is "
                         "greater than the buff_size (the expected size of the vector)."));
-      dbuffer[problem_dimension*(node) + component + 1] = u->U[problem_dimension*node + component];
-      assert(!std::isnan(u->U[problem_dimension*node + component]));
+      dbuffer[problem_dimension*(node) + component + 1] = u->U.local_element(problem_dimension*node + component);
+      Assert(!std::isnan(u->U.local_element(problem_dimension*node + component)),
+        ExcMessage("The vector you are trying to pack has a NaN in it at component " + std::to_string(problem_dimension*node + component)));
     }
   }
   braid_BufferStatusSetSize(bstatus, (buf_size+1)*sizeof(NUMBER));//set the number of bytes stored in this buffer (TODO: this is off since the dbuffer[0] is a integer.)
@@ -713,13 +717,13 @@ my_BufUnpack(braid_App           app,
   dealii::Tensor<1, problem_dimension, NUMBER> temp_tensor;
 
   //unpack the sent data into the right level
-  for(unsigned int node=0; node < app->n_fine_dofs; node++)
+  for(unsigned int node=0; node < app->n_locally_owned_dofs; node++)
   {
     //get tensor at node.
     for(unsigned int component = 0; component < app->problem_dimension; ++component)
     {
       // temp_tensor[component] = dbuffer[app->problem_dimension*node + component + 1];//+1 because buffer_size = n_dof + 1
-      u->U[app->problem_dimension*node + component] = dbuffer[app->problem_dimension*node + component + 1];//test for speed.
+      u->U.local_element(problem_dimension*node + component) = dbuffer[app->problem_dimension*node + component + 1];//test for speed.
       Assert(node + component +1 <= buf_size,
           ExcMessage("somehow, you are exceeding the buffer size as you unpack"));
     }
