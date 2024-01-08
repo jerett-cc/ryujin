@@ -5,6 +5,7 @@
 
 //includes
 #include <iostream>
+#include <fstream>
 #include <filesystem>
 #include <cassert>
 #include <sys/stat.h>
