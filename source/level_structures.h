@@ -55,7 +55,8 @@ namespace ryujin{
       public:
 
         LevelStructures(const MPI_Comm &comm_x,
-            const int refinement = 0);
+            const int refinement = 0,
+            const bool prepare_structures = false);
 
         void prepare();
 
@@ -110,7 +111,8 @@ namespace ryujin{
     //a global @p refinement for the underlying triangulation.
     template<typename Description, int dim, typename Number>
     LevelStructures<Description,dim, Number>::LevelStructures(const MPI_Comm& comm_x,
-                                                              const int refinement)
+                                                              const int refinement,
+                                                              const bool prepare_structures)
     : ParameterAcceptor("/LevelStructures")
     , level_comm_x(comm_x)//what constructor is used here? copy?
     , level_refinement(refinement)
@@ -158,7 +160,8 @@ namespace ryujin{
                                              "/Quantities"))
     {
       //prepare the data structures
-      prepare();
+      if(prepare_structures)
+        prepare();
     }
 
     /**
