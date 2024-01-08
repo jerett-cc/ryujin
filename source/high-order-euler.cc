@@ -140,7 +140,7 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
 
     // _braid_App_struct(const MPI_Comm comm_x,
     //                   const MPI_Comm comm_t)
-    _braid_App_struct()
+    _braid_App_struct(const MPI_Comm comm_world)
     : ParameterAcceptor("/MGRIT"),
       // comm_x(comm_x),
       // comm_t(comm_t),
@@ -156,12 +156,15 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
       coarsest_index = refinement_levels.size()-1;
       // //need to set up temporary objects so that we can call ParameterAcceptor::initialize and
       // //all subsections will have been defined. Then, we fill the correct information by calling
-      levels[0] = std::make_shared<ryujin::mgrit::LevelStructures<Description, 2, Number>>(MPI_COMM_WORLD, 0); //FIXME: does this cause a bug?
-      time_loops[0] = std::make_shared<ryujin::mgrit::TimeLoopMgrit<Description, 2, Number>>(MPI_COMM_WORLD, *levels[0],0,0); //Need both of these to define subesctions... annoying.
+      std::cout << "before levels\n";//FIXME: bug here when number of processes is large.
+      levels[0] = std::make_shared<ryujin::mgrit::LevelStructures<Description, 2, Number>>(comm_world, 0); //FIXME: does this cause a bug?
+      std::cout << "after levels, before time_loops"<< std::endl;
+      time_loops[0] = std::make_shared<ryujin::mgrit::TimeLoopMgrit<Description, 2, Number>>(comm_world, *levels[0],0,0); //Need both of these to define subesctions... annoying.
       // //default objects. their member variables will be modified when
       // //parameteracceptor initialize is called, then you can call prepare.
       // //FIXME: a potential bug can be introduced when a user calls prepare()
       // //before they call parameterhandler::initialize, how to stop this?
+      std::cout << "end default construction" << std::endl;
     };
 
     // Initialize the app with the correct communicators. Then call prepare.
@@ -170,7 +173,7 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
     {
       comm_x = a_comm_x;
       comm_t = a_comm_t;
-      //now that the proper
+      // Prepare all objects now that we have the proper communicators defined.
       prepare();
       initialized = true;//now the user can access data in app. TODO: implement a check for getter functions.
     }
@@ -209,7 +212,7 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
         }
         //TODO: determine if I should just make a time loop object for each level and using only this.
         // i.e. does app really ned to know all the level structures info?
-        levels[i] = std::make_shared<ryujin::mgrit::LevelStructures<Description, 2, Number>>(comm_x, refinement_levels[i]);
+        levels[i] = std::make_shared<ryujin::mgrit::LevelStructures<Description, 2, Number>>(comm_x, refinement_levels[i], true);
         time_loops[i] = std::make_shared<ryujin::mgrit::TimeLoopMgrit<Description,2,Number>>(comm_x, *(levels[i]), 
                                                                                              0/*initial time is irrelevant*/,
         0/*final time is irrelevant*/);
@@ -853,15 +856,20 @@ class MPIParameters : public dealii::ParameterAcceptor
 //todo: change this to a call to something similar to the main ryujin executable. problem_dispach??
 int main(int argc, char *argv[])
 {
+  std::cout << "here 1" << std::endl;
   //scoped MPI object, no need to call finalize at the end.
   dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);  //create objects
-
+  MPI_Comm comm_world = MPI_COMM_WORLD;//create MPI_object
+  std::cout << "here 2" << std::endl;
   //set up app and all underlying data, initialize parameters
   MPIParameters mpi_parameters;
-  my_App app;
+  std::cout << "here 3" << std::endl;
+  my_App app(comm_world);
+  std::cout << "here 4" << std::endl;
+
   dealii::ParameterAcceptor::initialize("test.prm");
 
-  MPI_Comm comm_world = MPI_COMM_WORLD;//create MPI_object
+  
 
   //split the object into the number of time processors, and the number of spatial processors per time chunk.
   MPI_Comm comm_x, comm_t;
