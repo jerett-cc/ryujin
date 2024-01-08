@@ -123,9 +123,11 @@ namespace ryujin
        */
       Indicator(const HyperbolicSystem &hyperbolic_system,
                 const MultiComponentVector<ScalarNumber, n_precomputed_values>
-                    &precomputed_values)
+                    &precomputed_values,
+                const ScalarNumber evc_factor)
           : hyperbolic_system(hyperbolic_system)
           , precomputed_values(precomputed_values)
+          , evc_factor(evc_factor)
       {
       }
 
@@ -146,7 +148,7 @@ namespace ryujin
       /**
        * Return the computed alpha_i value.
        */
-      Number alpha(const Number h_i);
+      Number alpha(const Number h_i) const;
 
       //@}
 
@@ -160,6 +162,8 @@ namespace ryujin
 
       const MultiComponentVector<ScalarNumber, n_precomputed_values>
           &precomputed_values;
+
+      const ScalarNumber evc_factor;
 
       Number rho_i_inverse = 0.;
       Number eta_i = 0.;
@@ -229,7 +233,7 @@ namespace ryujin
 
     template <int dim, typename Number>
     DEAL_II_ALWAYS_INLINE inline Number
-    Indicator<dim, Number>::alpha(const Number hd_i)
+    Indicator<dim, Number>::alpha(const Number hd_i) const
     {
       using ScalarNumber = typename get_value_type<Number>::type;
 
@@ -240,11 +244,10 @@ namespace ryujin
         denominator += std::abs(d_eta_i[k] * right[k]);
       }
 
-      /* FIXME: this can be refactored into a runtime parameter... */
-      const ScalarNumber evc_alpha_0_ = ScalarNumber(1.);
       const auto quotient =
           std::abs(numerator) / (denominator + hd_i * std::abs(eta_i));
-      return std::min(Number(1.), evc_alpha_0_ * quotient);
+
+      return std::min(Number(1.), evc_factor * quotient);
     }
   } // namespace Euler
 } // namespace ryujin

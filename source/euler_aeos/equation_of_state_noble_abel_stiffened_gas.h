@@ -25,6 +25,17 @@ namespace ryujin
         gamma_ = 7. / 5.;
         this->add_parameter("gamma", gamma_, "The ratio of specific heats");
 
+        /*
+         * R is the specific gas constant with units [J / (Kg K)]. More details
+         * can be found at:
+         * https://en.wikipedia.org/wiki/Gas_constant#Specific_gas_constant
+         */
+        R_ = 287.052874;
+        this->add_parameter(
+            "gas constant R", R_, "The specific gas constant R");
+
+        cv_ = R_ / (gamma_ - 1.);
+
         b_ = 0.;
         this->add_parameter(
             "covolume b", b_, "The maximum compressibility constant");
@@ -71,6 +82,17 @@ namespace ryujin
       }
 
       /**
+       * The temperature is given by
+       * \f{align}
+       *   T = (e - q - p_\infty (1 / rho - b)) / c_v
+       * \f}
+       */
+      double temperature(double rho, double e) const final
+      {
+        return (e - q_ - pinf_ * (1. / rho - b_)) / cv_;
+      }
+
+      /**
        * Let \f$X = (1 - b \rho)\f$. The speed of sound is given by
        * \f{align}
        *   c^2 = \frac{\gamma (p + p_\infty)}{\rho X}
@@ -87,6 +109,8 @@ namespace ryujin
 
     private:
       double gamma_;
+      double R_;
+      double cv_;
       double b_;
       double q_;
       double pinf_;

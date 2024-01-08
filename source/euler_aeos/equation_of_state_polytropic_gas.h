@@ -24,6 +24,17 @@ namespace ryujin
       {
         gamma_ = 7. / 5.;
         this->add_parameter("gamma", gamma_, "The ratio of specific heats");
+
+        /*
+         * R is the specific gas constant with units [J / (Kg K)]. More details
+         * can be found at:
+         * https://en.wikipedia.org/wiki/Gas_constant#Specific_gas_constant
+         */
+        R_ = 287.052874;
+        this->add_parameter(
+            "gas constant R", R_, "The specific gas constant R");
+
+        cv_ = R_ / (gamma_ - 1.);
       }
 
       /**
@@ -49,6 +60,17 @@ namespace ryujin
       }
 
       /**
+       * The temperature is given by
+       * \f{align}
+       *   T = e / c_v
+       * \f}
+       */
+      double temperature(double /*rho*/, double e) const final
+      {
+        return e / cv_;
+      }
+
+      /**
        * The speed of sound is given by
        * \f{align}
        *   c^2 = \gamma * (\gamma - 1) e
@@ -61,6 +83,8 @@ namespace ryujin
 
     private:
       double gamma_;
+      double R_;
+      double cv_;
     };
   } // namespace EquationOfStateLibrary
 } // namespace ryujin
