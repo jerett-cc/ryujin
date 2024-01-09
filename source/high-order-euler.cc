@@ -78,6 +78,24 @@
 #define UNUSED(x) (void)(x)
 
 /**
+ * print the local elements and ghost elements of a partitioner
+*/
+void print_partition(const dealii::Utilities::MPI::Partitioner & partition, const MPI_Comm comm = MPI_COMM_WORLD)
+{
+  for(unsigned int proc = 0; proc < dealii::Utilities::MPI::n_mpi_processes(comm); proc++)
+  {
+    if(dealii::Utilities::MPI::this_mpi_process(comm)==proc)
+    {
+      std::cout << "Proc:" << proc <<std::endl;
+      std::cout <<"Local range___________________" << std::endl;
+      partition.locally_owned_range().print(std::cout);
+      std::cout << "ghost elements" << std::endl;
+      partition.ghost_indices().print(std::cout);
+    }
+  }
+}
+
+/**
  * This function calculates the forces actind on an object in the domain (a specific boundary::id) and returns a dealii::Tensor<1,dim>.
  * In 2d, this is a Tensor<1,2> where the first component gives us the drag acting on an object.
  * 
@@ -292,6 +310,8 @@ void interpolate_between_levels(my_Vector& to_v,
   const auto &to_partitioner = app->levels[to_level]->offline_data->scalar_partitioner();
   const auto &comm = app->comm_x;
 
+  // print_partition(*from_partitioner);
+  // print_partition(*to_partitioner);
   //reinit the components to match the correct info.
   from_component.reinit(from_partitioner,comm);
   to_component.reinit(to_partitioner,comm);
