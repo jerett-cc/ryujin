@@ -152,6 +152,7 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
     int finest_index, coarsest_index;
     unsigned int n_fine_dofs;
     unsigned int n_locally_owned_dofs;
+    bool print_solution = false;
 
     //a pointer to store a vector which represents the time average of all time points (after 0)
     // my_Vector* time_avg;
@@ -172,6 +173,11 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
                     "Vector of levels of global mesh refinement where "
                     "each MGRIT level will work on.");
       coarsest_index = refinement_levels.size()-1;
+
+      print_solution = false;
+      add_parameter("print_solution",
+                    print_solution,
+                    "Optional to print the solution in Init and Access.");
       // //need to set up temporary objects so that we can call ParameterAcceptor::initialize and
       // //all subsections will have been defined. Then, we fill the correct information by calling
       std::cout << "before levels\n";//FIXME: bug here when number of processes is large.
@@ -439,7 +445,8 @@ my_Init(braid_App     app,
     interpolate_between_levels(*temp_coarse, app->coarsest_index, *u, app->finest_index, app);
     //steps to the correct end time on the coarse level to end time t
     app->time_loops[app->coarsest_index]->run_with_initial_data(temp_coarse->U,t);
-    print_solution(temp_coarse->U, app, t, app->coarsest_index, str);
+    if(app->print_solution)
+      print_solution(temp_coarse->U, app, t, app->coarsest_index, str);
 
     interpolate_between_levels(*u, app->finest_index, *temp_coarse, app->coarsest_index, app);
   }
@@ -612,7 +619,8 @@ my_Access(braid_App          app,
   //calculate drag and lift of this u and output to terminal//TODO: better output this
   //calculateDragAndLift(u, app);
   std::string fname = "./cycle" + std::to_string(mgCycle);
-  print_solution(u->U, app, t, 0/*level, always needs to be zero, to be fixed*/, fname);
+  if(app->print_solution)
+    print_solution(u->U, app, t, 0/*level, always needs to be zero, to be fixed*/, fname);
 
   //calculate drag and lift for this solution on level 0
   //TODO: insert drag and lift calculation call.
@@ -771,10 +779,11 @@ void test_braid_functions(my_App& app, braid_MPI_Comm comm_x = MPI_COMM_WORLD)
   // test my_Clone
   my_Vector *V_cloned;
   my_Clone(&app, V, &V_cloned);
-  print_solution(V_cloned->U,
-                 &app,
-                 10101 /*time set to arbitrary time identified with clone*/,
-                 0);
+  if(app.print_solution)
+    print_solution(V_cloned->U,
+                  &app,
+                  10101 /*time set to arbitrary time identified with clone*/,
+                  0);
 
   // test my_SpatialNorm
   double norm = 0;
