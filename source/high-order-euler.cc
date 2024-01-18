@@ -269,6 +269,167 @@ void no_nans(const my_App &app, const my_Vector &U, const std::string caller)
 }
 
 /**
+ * @brief Calculates drag and lift at a given my_Vector and app.
+ * 
+ *   This function calculates the drag and lift of a vector, and returns the pair of them.
+ *   ONLY works if dim = 2.
+ * 
+*/
+// template<int dim>//TODO: template this?
+dealii::Tensor<1,2/*dim*/> calculate_drag_and_lift(const my_Vector& u, const my_App& app, const NUMBER t, unsigned int dim = 2)
+{
+  if (dim == 2) {
+    using scalar_type = dealii::LinearAlgebra::distributed::Vector<NUMBER>;
+    
+    // some general variables
+    dealii::Point<2> disk_center; // center at 0,0 for every case, how to not hardcode this?
+    // FIXME: how do we calculate disk center from the information in mesh
+    // generation?
+    double disk_radius = 0.25;
+
+    const auto offline_data = app.levels[app.finest_index]->offline_data;
+    const auto mpi_communicator = app.comm_x;
+    const auto hyperbolic_system_view = app.levels[app.finest_index]->hyperbolic_system->template view<2/*dim*/, NUMBER>();
+    // first, set up the finite element, the data, and the facevalues
+    // const dealii::FiniteElement<2,2> fe = app.levels[app.finest_index]->offline_data->discretization().finite_element(); // the finite element
+    const int degree = app.levels[app.finest_index]->offline_data->discretization().finite_element().degree;
+    // dealii::QGauss<1> face_quadrature_formula = app.levels[app.finest_index]->offline_data->discretization().quadrature_1d();
+    const int n_q_points = app.levels[app.finest_index]->offline_data->discretization().quadrature_1d().size();
+
+    std::vector<double> pressure_values(n_q_points);
+
+    scalar_type density, pressure;
+    std::vector<scalar_type> momentum(dim);
+
+    //    std::cout << "inside calc before density partition" << std::endl;
+    // initialize partitions
+    density.reinit(offline_data->scalar_partitioner(), mpi_communicator);
+    pressure.reinit(offline_data->scalar_partitioner(), mpi_communicator);
+    for (unsigned int c = 0; c < dim; c++)
+      momentum.at(c).reinit(offline_data->scalar_partitioner(),
+                            mpi_communicator);
+
+    dealii::Tensor<1, 2/*dim*/> normal_vector;
+    dealii::SymmetricTensor<2, 2/*dim*/> fluid_stress;
+    dealii::SymmetricTensor<2, 2/*dim*/> fluid_pressure;
+    dealii::Tensor<1, 2/*dim*/> forces;
+
+    dealii::FEFaceValues<2/*dim*/> fe_face_values(
+        app.levels[app.finest_index]->offline_data->discretization().finite_element()/*FE_Q<dim>*/,
+        app.levels[app.finest_index]->offline_data->discretization().quadrature_1d()/*QGauss<dim-1*/,
+        dealii::update_values | dealii::update_quadrature_points |
+            dealii::update_gradients | dealii::update_JxW_values |
+            dealii::update_normal_vectors); // the face values
+
+    double drag = 0.;
+    double lift = 0.;
+
+
+    // Create vectors that store the locally owned parts on every process
+    u.U.extract_component(density, 0);        // extract density
+    u.U.extract_component(pressure, dim + 1); // extract density
+
+    // extract momentum, and convert to velocity
+    for (int c = 0; c < dim; c++) {
+      int comp =
+          c + 1; // momentum is stored in positions [1,...,dim], so add one to c
+      u.U.extract_component(momentum.at(c), comp);
+    }
+
+    // extract energy
+    u.U.extract_component(pressure, dim + 1);
+
+    // convert E to pressure
+    for (unsigned int k = 0; k < offline_data->n_locally_owned(); k++) {
+
+      // calculate momentum norm squared
+      const double &E = pressure.local_element(k);
+      const double &rho = density.local_element(k);
+      double m_square = 0;
+      for (unsigned int d = 0; d < dim; d++)
+        m_square += std::pow(momentum.at(d).local_element(k), 2);
+
+      // pressure = (gamma-1)*internal_energy
+      pressure.local_element(k) = (hyperbolic_system_view.gamma() - 1.0) * (E - 0.5 * m_square / rho);
+    }
+
+    density.update_ghost_values();
+    pressure.update_ghost_values();
+    for (auto mom : momentum)
+      mom.update_ghost_values();
+
+
+    for (const auto &cell :
+         offline_data->dof_handler().active_cell_iterators()) {
+      if (cell->is_locally_owned()) {
+        for (unsigned int face = 0; face < cell->n_faces(); ++face) {
+          if (cell->face(face)->at_boundary() &&
+              (cell->face(face)->boundary_id() == ryujin::Boundary::slip ||
+               cell->face(face)->boundary_id() == ryujin::Boundary::object)) {
+            // if on circle, we do the calculation
+            // first, find if the face center is on the circle
+            const auto tria_iterator = cell->face(
+                face); //->center(true);//center of the face on the manifold
+            const dealii::Point<2/*dim*/> face_center = tria_iterator->center();
+            const double distance = face_center.distance(disk_center);
+
+            //            std::cout << "face center " << face_center <<
+            //            std::endl; std::cout << "distance " << distance <<
+            //            std::endl;
+            // check if we are on circle
+            if (distance <
+                disk_radius + 1e-6) // TODO: ask W for a better way to decide if
+                                    // a face is on circle
+            {
+              //              std::cout << "face center on circle: " <<
+              //              face_center << std::endl;
+              fe_face_values.reinit(cell, face);
+
+              // pressure values
+              fe_face_values.get_function_values(pressure, pressure_values);
+
+              // now, loop over quadrature points calculating their contribution
+              // to the forces acting on the face
+              for (int q = 0; q < n_q_points; ++q) {
+                normal_vector = -fe_face_values.normal_vector(q);
+
+                // form the contributions from pressure
+                for (unsigned int d = 0; d < dim; ++d)
+                  fluid_pressure[d][d] = pressure_values[q];
+
+                fluid_stress = -fluid_pressure; // for the euler equations, the
+                                                // only contribution to stresses
+                                                // comes from pressure
+                forces = fluid_stress * normal_vector * fe_face_values.JxW(q);
+                // the drag is in the x direction, the lift is in the y
+                // direction but FIXME: does this hold true in higher dimension?
+                // look below for this
+                drag += forces[0];
+                lift += forces[1];
+              } // loop over q points
+            }   // if face on the object (circle in the domain)
+          }     // if cell face is at boundary
+        }       // face loop
+      }         // locally_owned cells
+    }           // cell loop
+
+    // now, sum the values across all processes.
+    lift = dealii::Utilities::MPI::sum(lift, mpi_communicator);
+    drag = dealii::Utilities::MPI::sum(drag, mpi_communicator);
+
+    forces[0] = drag;
+    forces[1] = lift;
+    return forces;
+
+  } /* dim is 2, this code only works for dim=2, unfortunately.*/ else {
+    Assert(false, 
+      ExcMessage("You are trying to call calculate_drag_and_lift," + " which only works for dim=2. you called with dim = " + std::to_string(dim)));
+    dealii::Tensor<1,2/*dim*/> forces;
+    return forces;
+  }
+}
+
+/**
  * @brief a ryujin::MulticomponentVector<double, 4> at a time t.
  * @param v - The vector to be printed.
  * @param app - the my_App object which stores the timeloop which does the printing
@@ -604,10 +765,8 @@ my_Access(braid_App          app,
   }
   static int mgCycle = 0;
   double t = 0;
-  UNUSED(app);
-  UNUSED(u);
 
-  //state what iteration we are on
+  //state what iteration we are on, and what time t we are at.
   braid_AccessStatusGetIter(astatus, &mgCycle);
   braid_AccessStatusGetT(astatus, &t);
 
@@ -624,6 +783,10 @@ my_Access(braid_App          app,
 
   //calculate drag and lift for this solution on level 0
   //TODO: insert drag and lift calculation call.
+  dealii:Tensor<1,2> forces = calculate_drag_and_lift(*u,*app,t,2/*dim*/);
+  std::cout << "cycle." + std::to_string(mgCycle) + " drag." +std::to_string(forces[0]) 
+              + " lift." + std::to_string(forces[1]) + " time." +std::to_string(t) << std::endl;
+
 
   return 0;
 }
