@@ -96,15 +96,6 @@ void print_partition(const dealii::Utilities::MPI::Partitioner & partition, cons
   }
 }
 
-
-/**
- * This function calculates the forces actind on an object in the domain (a specific boundary::id) and returns a dealii::Tensor<1,dim>.
- * In 2d, this is a Tensor<1,2> where the first component gives us the drag acting on an object.
- * 
- * \param app - The app from the MGRIT simulation storing relevant data structures.
- * \param V - The my_Vector which we 
-*/
-
 // This struct contains all data that changes with time. For now
 // this is just the solution data. When doing AMR this should
 // probably include the triangulization, the sparsity patter,
@@ -454,7 +445,10 @@ void print_solution(ryujin::MultiComponentVector<double, 4> &v,
 template<int dim, int spacedim>
 void print_cells_on_dofs(dealii::DoFHandler<dim,spacedim>& dof)
 {
-  
+  typename dealii::DoFHandler<dim,spacedim>::cell_iterator cell = dof.begin();
+  const typename dealii::DoFHandler<dim,spacedim>::cell_iterator endcell = dof.end();
+
+  const dealii::types::subdomain_id tria_id = dof.get_triangulation().locally_owned_subdomain();
 }
 
 /**
