@@ -17,6 +17,7 @@
 #include <memory>
 #include <algorithm>
 #include <string>
+#include <utility>
 
 
 //MPI
@@ -94,6 +95,7 @@ void print_partition(const dealii::Utilities::MPI::Partitioner & partition, cons
     }
   }
 }
+
 
 /**
  * This function calculates the forces actind on an object in the domain (a specific boundary::id) and returns a dealii::Tensor<1,dim>.
@@ -446,6 +448,13 @@ void print_solution(ryujin::MultiComponentVector<double, 4> &v,
   std::cout << "printing solution" << std::endl;
   const auto time_loop = app->time_loops[level];
   time_loop->output(v, fname + std::to_string(t), t /*current time*/, 1/*cycle*/);
+}
+
+/**Temporary function to print out cells that interpolate between levels will call.*/
+template<int dim, int spacedim>
+void print_cells_on_dofs(dealii::DoFHandler<dim,spacedim>& dof)
+{
+  
 }
 
 /**
