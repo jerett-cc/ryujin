@@ -381,12 +381,10 @@ int my_Step(braid_App        app,
   double tstop;
   braid_StepStatusGetTstartTstop(status, &tstart, &tstop);
 
-  if (dealii::Utilities::MPI::this_mpi_process(app->comm_t) == 0) 
+  if (1/*this was a mpi comm id check before FIXME*/) 
   {
-    std::cout << "[INFO] Stepping on level: " 
-    << level << std::endl
-    << "on interval: [" << tstart << ", " << tstop << "]" << std::endl
-    << "total step call number " << num_step_calls << std::endl;
+    std::cout << "[INFO] Stepping on level: " + std::to_string(level)+ "\non interval: [" +std::to_string(tstart)+ ", "+std::to_string(tstop)+ "]\n"
+      + "total step call number " +std::to_string(num_step_calls) << std::endl;
   }
 
   //translate the fine level u coming in to the coarse level
