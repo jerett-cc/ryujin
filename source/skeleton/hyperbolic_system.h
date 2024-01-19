@@ -15,9 +15,6 @@
 #include <deal.II/base/tensor.h>
 
 #include <array>
-#include <functional>
-
-#include <offline_data.h>
 
 namespace ryujin
 {

@@ -313,17 +313,5 @@ namespace ryujin
       it.update_ghost_values();
     }
   }
-
-  template<typename Description, int dim, typename Number>
-  void
-  Postprocessor<Description, dim, Number>::post_process_data(const vector_type &U, Number t)
-  {
-#ifdef DEBUG_OUTPUT
-    std::cout << "Postprocessor<dim, Number>::post_process_data()" << std::endl;
-#endif
-
-    const auto view = hyperbolic_system_->template view<dim, Number>();
-    view.post_process(U, t, mpi_communicator_, *offline_data_);
-  }
-
+  
 } // namespace ryujin
