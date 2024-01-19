@@ -183,11 +183,6 @@ namespace ryujin{
           "number of threads (per rank). If set to false then a plain "
           "average per thread \"CPU\" throughput value is computed by "
           "using the umodified total accumulated CPU time.");
-
-      post_process_ = false;
-      add_parameter("enable custom postproc step",
-          post_process_,
-          "do a user defined postprocessing step");
     }
 
     template <typename Description, int dim, typename Number>
@@ -365,8 +360,6 @@ namespace ryujin{
 
 
         const auto tau = time_integrator_->step(U, t);
-        if(post_process_)
-          postprocessor_->post_process_data(U,t);
         t += tau;
 
         /* Print and record cycle statistics: */
@@ -459,9 +452,6 @@ namespace ryujin{
 
         /* Take a step: */
         const auto tau = time_integrator_->step(U, t);
-        
-        if(post_process_)//TODO: remove me? and remove me from time loop class.
-          postprocessor_->post_process_data(U,t);
         t += tau;
 
       } /* end of loop */

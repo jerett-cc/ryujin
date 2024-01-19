@@ -144,7 +144,6 @@ namespace ryujin
     bool enable_output_levelsets_;
     bool enable_compute_error_;
     bool enable_compute_quantities_;
-    bool post_process_;
 
     unsigned int output_checkpoint_multiplier_;
     unsigned int output_full_multiplier_;

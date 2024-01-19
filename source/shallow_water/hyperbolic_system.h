@@ -12,12 +12,7 @@
 #include <patterns_conversion.h>
 #include <simd.h>
 
-
-#include <deal.II/base/parameter_acceptor.h>
-#include <deal.II/base/tensor.h>
-
 #include <array>
-#include <functional>
 
 namespace ryujin
 {
