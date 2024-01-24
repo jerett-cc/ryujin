@@ -224,15 +224,31 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
       {
         if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0)
         {
-          std::cout << "[INFO] Setting up Structures in App at level "
+          std::cout << "[INFO] Declaring Structures in App at level "
               << refinement_levels[i] << std::endl;
         }
         //TODO: determine if I should just make a time loop object for each level and using only this.
         // i.e. does app really ned to know all the level structures info?
-        levels[i] = std::make_shared<ryujin::mgrit::LevelStructures<Description, 2, Number>>(comm_x, refinement_levels[i], true);
+        levels[i] = std::make_shared<ryujin::mgrit::LevelStructures<Description, 2, Number>>(comm_x, refinement_levels[i], false/*prepare data*/);
         time_loops[i] = std::make_shared<ryujin::mgrit::TimeLoopMgrit<Description,2,Number>>(comm_x, *(levels[i]), 
                                                                                              0/*initial time is irrelevant*/,
         0/*final time is irrelevant*/);
+      }
+      // parse all parameters at all levels.
+      if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0)
+        {
+          std::cout << "[INFO] Parsing parameters" << std::endl;
+        }
+      dealii::ParameterAcceptor::parse_all_parameters();
+      // now that all levels are prepared with the correct
+      for(unsigned int lvl = 0; lvl < refinement_levels.size(); lvl++)
+      {
+        if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0)
+        {
+          std::cout << "[INFO] Preparing Structures in App at level "
+              << refinement_levels[lvl] << std::endl;
+        }
+        levels[lvl]->prepare();
       }
       n_fine_dofs = levels[0]->offline_data->dof_handler().n_dofs();
       n_locally_owned_dofs = levels[0]->offline_data->n_locally_owned();
@@ -352,30 +368,14 @@ dealii::Tensor<1,2/*dim*/> calculate_drag_and_lift(const my_Vector& u, const my_
       mom.update_ghost_values();
 
 
-    for (const auto &cell :
-         offline_data->dof_handler().active_cell_iterators()) {
+    for (const auto &cell : offline_data->dof_handler().active_cell_iterators()) {
       if (cell->is_locally_owned()) {
         for (unsigned int face = 0; face < cell->n_faces(); ++face) {
           if (cell->face(face)->at_boundary() &&
-              (cell->face(face)->boundary_id() == ryujin::Boundary::slip ||
-               cell->face(face)->boundary_id() == ryujin::Boundary::object)) {
+              cell->face(face)->boundary_id() == ryujin::Boundary::object) {
             // if on circle, we do the calculation
             // first, find if the face center is on the circle
-            const auto tria_iterator = cell->face(
-                face); //->center(true);//center of the face on the manifold
-            const dealii::Point<2/*dim*/> face_center = tria_iterator->center();
-            const double distance = face_center.distance(disk_center);
 
-            //            std::cout << "face center " << face_center <<
-            //            std::endl; std::cout << "distance " << distance <<
-            //            std::endl;
-            // check if we are on circle
-            if (distance <
-                disk_radius + 1e-6) // TODO: ask W for a better way to decide if
-                                    // a face is on circle
-            {
-              //              std::cout << "face center on circle: " <<
-              //              face_center << std::endl;
               fe_face_values.reinit(cell, face);
 
               // pressure values
@@ -400,8 +400,7 @@ dealii::Tensor<1,2/*dim*/> calculate_drag_and_lift(const my_Vector& u, const my_
                 drag += forces[0];
                 lift += forces[1];
               } // loop over q points
-            }   // if face on the object (circle in the domain)
-          }     // if cell face is at boundary
+          }     // if cell face is at boundary && on the object
         }       // face loop
       }         // locally_owned cells
     }           // cell loop
@@ -776,8 +775,6 @@ my_Access(braid_App          app,
     std::cout << "Cycles done: " << mgCycle << std::endl;
   }
 
-  //calculate drag and lift of this u and output to terminal//TODO: better output this
-  //calculateDragAndLift(u, app);
   std::string fname = "./cycle" + std::to_string(mgCycle);
   if(app->print_solution)
     print_solution(u->U, app, t, 0/*level, always needs to be zero, to be fixed*/, fname);
@@ -787,7 +784,6 @@ my_Access(braid_App          app,
   dealii:Tensor<1,2> forces = calculate_drag_and_lift(*u,*app,t,2/*dim*/);
   std::cout << "cycle." + std::to_string(mgCycle) + " drag." +std::to_string(forces[0]) 
               + " lift." + std::to_string(forces[1]) + " time." +std::to_string(t) << std::endl;
-
 
   return 0;
 }
@@ -849,7 +845,7 @@ my_BufPack(braid_App           app,
            braid_Vector        u,
            void               *buffer,
            braid_BufferStatus  bstatus)
-{//TODO: test this with n_dof output
+{
   if (dealii::Utilities::MPI::this_mpi_process(app->comm_t) == 0)
   {
     std::cout << "[INFO] BufPack Called" << std::endl;
@@ -1049,20 +1045,15 @@ class MPIParameters : public dealii::ParameterAcceptor
 //todo: change this to a call to something similar to the main ryujin executable. problem_dispach??
 int main(int argc, char *argv[])
 {
-  std::cout << "here 1" << std::endl;
   //scoped MPI object, no need to call finalize at the end.
   dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);  //create objects
   MPI_Comm comm_world = MPI_COMM_WORLD;//create MPI_object
-  std::cout << "here 2" << std::endl;
   //set up app and all underlying data, initialize parameters
   MPIParameters mpi_parameters;
-  std::cout << "here 3" << std::endl;
   my_App app(comm_world);
-  std::cout << "here 4" << std::endl;
 
-  dealii::ParameterAcceptor::initialize("test.prm");
-
-  
+  std::cout << "fname: " << argv[1] << std::endl;
+  dealii::ParameterAcceptor::initialize(argv[1]);
 
   //split the object into the number of time processors, and the number of spatial processors per time chunk.
   MPI_Comm comm_x, comm_t;
