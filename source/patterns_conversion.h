@@ -51,7 +51,7 @@ struct Patterns::Tools::
   to_value(const std::string &s,
            const Patterns::PatternBase &pattern = *Convert<T>::to_pattern())
   {
-    AssertThrow(pattern.match(s), ExcNoMatch(s, pattern.description()))
+    AssertThrow(pattern.match(s), ExcNoMatch(s, pattern.description()));
 
         static const auto conversion_table =
             ConversionHelper<T>().conversion_table;
