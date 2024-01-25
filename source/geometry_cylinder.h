@@ -137,6 +137,18 @@ namespace ryujin
             continue;
           }
 
+          /*
+           * Boundary::object is equivalent to Boundary::slip, but allows us to do 
+           * computations on objects in the flow, such as drag.
+           */
+          const Point<2> cylinder_center = Point<2>(0,0);//the center of the cylinder has x=0, y=0, TODO: why is this?
+          const double cylinder_radius = 0.5*cylinder_diameter;
+
+          if((center - cylinder_center).norm_square() < cylinder_radius + 1.e-6) {
+            face->set_boundary_id(Boundary::object);
+            continue;
+          }
+
           // the rest:
           face->set_boundary_id(Boundary::slip);
         }
