@@ -55,8 +55,7 @@ namespace ryujin{
       public:
 
         LevelStructures(const MPI_Comm &comm_x,
-            const int refinement = 0,
-            const bool prepare_structures = false);
+            const int refinement = 0);
 
         void prepare();
 
@@ -111,15 +110,15 @@ namespace ryujin{
     //a global @p refinement for the underlying triangulation.
     template<typename Description, int dim, typename Number>
     LevelStructures<Description,dim, Number>::LevelStructures(const MPI_Comm& comm_x,
-                                                              const int refinement,
-                                                              const bool prepare_structures)
+                                                              const int refinement)
     : ParameterAcceptor("/LevelStructures")
     , level_comm_x(comm_x)//what constructor is used here? copy?
     , level_refinement(refinement)
     , hyperbolic_system(std::make_shared<HyperbolicSystem>("/Equation"))
     , parabolic_system(std::make_shared<ParabolicSystem>("/Equation"))
     , discretization(std::make_shared<Discretization>(comm_x,
-                                                      level_refinement))
+                                                      level_refinement,
+                                                      "/Discretization"))
     , offline_data(std::make_shared<OfflineData>(comm_x,
                                                  *discretization,
                                                  "/OfflineData"))
@@ -158,11 +157,7 @@ namespace ryujin{
                                              *hyperbolic_system,
                                              *offline_data,
                                              "/Quantities"))
-    {
-      //prepare the data structures
-      if(prepare_structures)
-        prepare();
-    }
+    {}
 
     /**
      * This function prepares all the data structure pointers.

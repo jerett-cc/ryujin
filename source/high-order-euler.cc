@@ -247,7 +247,7 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
         }
         //TODO: determine if I should just make a time loop object for each level and using only this.
         // i.e. does app really ned to know all the level structures info?
-        levels[i] = std::make_shared<ryujin::mgrit::LevelStructures<Description, 2, Number>>(comm_x, refinement_levels[i], false/*prepare data*/);
+        levels[i] = std::make_shared<ryujin::mgrit::LevelStructures<Description, 2, Number>>(comm_x, refinement_levels[i]);
         time_loops[i] = std::make_shared<ryujin::mgrit::TimeLoopMgrit<Description,2,Number>>(comm_x, *(levels[i]), 
                                                                                              0/*initial time is irrelevant*/,
                                                                                              0/*final time is irrelevant*/);
