@@ -124,10 +124,8 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
         = std::shared_ptr<ryujin::mgrit::TimeLoopMgrit<Description,2,Number>>;
 
   public:
-
     using HyperbolicSystemView =
         typename Description::HyperbolicSystem::template View<2, Number>;
-
     static constexpr unsigned int problem_dimension =
         HyperbolicSystemView::problem_dimension;
     static constexpr unsigned int n_precomputed_values =
@@ -136,95 +134,115 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
     using vector_type = ryujin::MultiComponentVector<Number, problem_dimension>;//TODO: determine if I need these typenames at all in app;
     using precomputed_type = ryujin::MultiComponentVector<Number, n_precomputed_values>;
 
-
-    MPI_Comm comm_x, comm_t; //todo: can I make this const? uninitialized communicators now.
+    const MPI_Comm comm_x, comm_t; //todo: can I make this const? uninitialized communicators now.
     std::vector<LevelType> levels; //instantiation
     std::vector<unsigned int> refinement_levels;
-
     std::vector<TimeLoopType> time_loops;
     int finest_index, coarsest_index;
     unsigned int n_fine_dofs;
     unsigned int n_locally_owned_dofs;
     bool print_solution = false;
+    int num_time;
+    double global_tstart;
+    double global_tstop;
+    braid_Int cfactor;//FIXME: decide what types here? ryujin types or braid types? what about doubles??
+    int max_iter;
 
     //a pointer to store a vector which represents the time average of all time points (after 0)
     // my_Vector* time_avg;
 
-    // _braid_App_struct(const MPI_Comm comm_x,
-    //                   const MPI_Comm comm_t)
-    _braid_App_struct(const MPI_Comm comm_world)
-    : ParameterAcceptor("/MGRIT"),
-      // comm_x(comm_x),
-      // comm_t(comm_t),
-      levels(1),
-      time_loops(1),
+    _braid_App_struct(const MPI_Comm comm_x,
+                      const MPI_Comm comm_t,
+                      const std::vector<unsigned int> a_refinement_levels)
+    // _braid_App_struct(const MPI_Comm comm_world)
+    : ParameterAcceptor("/App"),
+      comm_x(comm_x),
+      comm_t(comm_t),
+      levels(a_refinement_levels.size()),
+      refinement_levels(a_refinement_levels),
+      time_loops(a_refinement_levels.size()),
       finest_index(0)//for XBRAID, the finest level is always 0.
     {
-      refinement_levels = {5,2,1};
-      add_parameter("mgrit refinements",
-                    refinement_levels,
-                    "Vector of levels of global mesh refinement where "
-                    "each MGRIT level will work on.");
+      // refinement_levels = {5,2,1};
+      // add_parameter("mgrit refinements",
+      //               refinement_levels,
+      //               "Vector of levels of global mesh refinement where "
+      //               "each MGRIT level will work on.");
       coarsest_index = refinement_levels.size()-1;
 
       print_solution = false;
       add_parameter("print_solution",
                     print_solution,
                     "Optional to print the solution in Init and Access.");
-      // //need to set up temporary objects so that we can call ParameterAcceptor::initialize and
-      // //all subsections will have been defined. Then, we fill the correct information by calling
-      std::cout << "before levels\n";//FIXME: bug here when number of processes is large.
-      levels[0] = std::make_shared<ryujin::mgrit::LevelStructures<Description, 2, Number>>(comm_world, 0); //FIXME: does this cause a bug?
-      std::cout << "after levels, before time_loops"<< std::endl;
-      time_loops[0] = std::make_shared<ryujin::mgrit::TimeLoopMgrit<Description, 2, Number>>(comm_world, *levels[0],0,0); //Need both of these to define subesctions... annoying.
-      // //default objects. their member variables will be modified when
-      // //parameteracceptor initialize is called, then you can call prepare.
-      // //FIXME: a potential bug can be introduced when a user calls prepare()
-      // //before they call parameterhandler::initialize, how to stop this?
-      std::cout << "end default construction" << std::endl;
+      num_time = 4;
+      add_parameter("Time Bricks",
+                    num_time,
+                    "Number of time bricks total.");
+      global_tstart = 0.0;
+      add_parameter("Start Time",
+                    global_tstart);//TODO: add a description, these describe the global time domain.
+
+      global_tstop = 5.0;
+      add_parameter("Stop Time",
+                    global_tstop);
+      
+      cfactor = 2; //The default coarsening from level to level is 2, which matches that of XBRAID.
+      add_parameter("cfactor",
+                    cfactor,
+                    "The coarsening factor between time levels.");
+      max_iter = num_time;//In theory, mgrit should converge after the number of cycles equal to the number of time points it has.
+      add_parameter("max_iter", 
+                    max_iter,
+                    "The maximum number of MGRIT iterations.");
     };
 
-    // Initialize the app with the correct communicators. Then call prepare.
-    // This needs to be called after parameteracceptor is intialized. App should not be used before this is done.
-    void initialize(const MPI_Comm a_comm_x, const MPI_Comm a_comm_t)
+    // Calls ParameterAcceptor::initialize(prm_name), this will initialize all the data structures.
+    void initialize(const std::string prm_name)
     {
-      comm_x = a_comm_x;
-      comm_t = a_comm_t;
-      // Prepare all objects now that we have the proper communicators defined.
-      prepare();
-      initialized = true;//now the user can access data in app. TODO: implement a check for getter functions.
-    }
-
-  private:
-    //This function NEEDS to be called after parameter handler has been initialized
-    //otherwise user defined refinement levels are not going to be used, only the
-    //default above.
-    //TODO: create a warning or a bool that warns users who try to use unprepared app.
-    void prepare()
-    {
-      //reset the coarsest index
-      coarsest_index = refinement_levels.size()-1;
-
-      //clear the vectors
-      levels.clear();
-      time_loops.clear();
-      //resize the vectors storing level data
-      levels.resize(refinement_levels.size());
-      time_loops.resize(refinement_levels.size());
-
       //Reorder refinement levels in descending order of refinement,
       //this matches the fact that Xbraid has the finest level of MG
       //as 0. I.E. the most refined data is accessed with refinement_levels[0]
       std::sort(refinement_levels.rbegin(), refinement_levels.rend());
-
       //TODO: need to make a way to remove duplicates, or at least warn user
       //that duplicate refinement levels are inefficient.
 
+      create_mg_levels();
+
+      //now that levels are all created, we parse the parameter file.
+      dealii::ParameterAcceptor::initialize(prm_name);
+
+      //all parameters defined, we can now call all objects prepare function.
+      prepare_mg_objects();
+      initialized = true;//now the user can access data in app. TODO: implement a check for getter functions.
+    }
+
+  private:
+
+    //prepares all created objects at each level
+    void prepare_mg_objects()
+    {
+      for(unsigned int lvl = 0; lvl < refinement_levels.size(); lvl++)
+      {
+        if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0)
+        {
+          std::cout << "[INFO] Preparing Structures in App at level "
+                    << refinement_levels[lvl] << std::endl;
+        }
+        levels[lvl]->prepare();
+      }
+      //set the last variables in app.
+      n_fine_dofs = levels[0]->offline_data->dof_handler().n_dofs();
+      n_locally_owned_dofs = levels[0]->offline_data->n_locally_owned();
+    }
+
+    //declares all objects at all levels
+    void create_mg_levels()
+    {
       for(unsigned int i=0; i<refinement_levels.size(); i++)
       {
         if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0)
         {
-          std::cout << "[INFO] Declaring Structures in App at level "
+          std::cout << "[INFO] Setting Structures in App at level "
               << refinement_levels[i] << std::endl;
         }
         //TODO: determine if I should just make a time loop object for each level and using only this.
@@ -232,29 +250,11 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
         levels[i] = std::make_shared<ryujin::mgrit::LevelStructures<Description, 2, Number>>(comm_x, refinement_levels[i], false/*prepare data*/);
         time_loops[i] = std::make_shared<ryujin::mgrit::TimeLoopMgrit<Description,2,Number>>(comm_x, *(levels[i]), 
                                                                                              0/*initial time is irrelevant*/,
-        0/*final time is irrelevant*/);
+                                                                                             0/*final time is irrelevant*/);
       }
-      // parse all parameters at all levels.
-      if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0)
-        {
-          std::cout << "[INFO] Parsing parameters" << std::endl;
-        }
-      dealii::ParameterAcceptor::parse_all_parameters();
-      // now that all levels are prepared with the correct
-      for(unsigned int lvl = 0; lvl < refinement_levels.size(); lvl++)
-      {
-        if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0)
-        {
-          std::cout << "[INFO] Preparing Structures in App at level "
-              << refinement_levels[lvl] << std::endl;
-        }
-        levels[lvl]->prepare();
-      }
-      n_fine_dofs = levels[0]->offline_data->dof_handler().n_dofs();
-      n_locally_owned_dofs = levels[0]->offline_data->n_locally_owned();
     }
 
-    bool initialized = false;
+    bool initialized = false;//FIXME: unused, delete?
 
     // void set_time_averaged_pointer(my_Vector& a_time_avg) {time_avg = a_time_avg;};
 } my_App;
@@ -270,6 +270,7 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
 
 void no_nans(const my_App &app, const my_Vector &U, const std::string caller)
 {
+  UNUSED(app);
   for (unsigned int i=0; i < U.U.size(); i++)
   {
     // std::cout << "Testing nans: " << i << " isNAN: " << std::isnan(U.U[i]) <<  std::endl;
@@ -290,18 +291,14 @@ dealii::Tensor<1,2/*dim*/> calculate_drag_and_lift(const my_Vector& u, const my_
   if (dim == 2) {
     using scalar_type = dealii::LinearAlgebra::distributed::Vector<NUMBER>;
     
-    // some general variables
-    dealii::Point<2> disk_center; // center at 0,0 for every case, how to not hardcode this?
-    // FIXME: how do we calculate disk center from the information in mesh
-    // generation?
-    double disk_radius = 0.25;
+    UNUSED(t);
 
     const auto offline_data = app.levels[app.finest_index]->offline_data;
     const auto mpi_communicator = app.comm_x;
     const auto hyperbolic_system_view = app.levels[app.finest_index]->hyperbolic_system->template view<2/*dim*/, NUMBER>();
     // first, set up the finite element, the data, and the facevalues
     // const dealii::FiniteElement<2,2> fe = app.levels[app.finest_index]->offline_data->discretization().finite_element(); // the finite element
-    const int degree = app.levels[app.finest_index]->offline_data->discretization().finite_element().degree;
+    // const int degree = app.levels[app.finest_index]->offline_data->discretization().finite_element().degree;
     // dealii::QGauss<1> face_quadrature_formula = app.levels[app.finest_index]->offline_data->discretization().quadrature_1d();
     const int n_q_points = app.levels[app.finest_index]->offline_data->discretization().quadrature_1d().size();
 
@@ -310,7 +307,6 @@ dealii::Tensor<1,2/*dim*/> calculate_drag_and_lift(const my_Vector& u, const my_
     scalar_type density, pressure;
     std::vector<scalar_type> momentum(dim);
 
-    //    std::cout << "inside calc before density partition" << std::endl;
     // initialize partitions
     density.reinit(offline_data->scalar_partitioner(), mpi_communicator);
     pressure.reinit(offline_data->scalar_partitioner(), mpi_communicator);
@@ -330,16 +326,12 @@ dealii::Tensor<1,2/*dim*/> calculate_drag_and_lift(const my_Vector& u, const my_
             dealii::update_gradients | dealii::update_JxW_values |
             dealii::update_normal_vectors); // the face values
 
-    double drag = 0.;
-    double lift = 0.;
-
-
     // Create vectors that store the locally owned parts on every process
     u.U.extract_component(density, 0);        // extract density
     u.U.extract_component(pressure, dim + 1); // extract density
 
     // extract momentum, and convert to velocity
-    for (int c = 0; c < dim; c++) {
+    for (unsigned int c = 0; c < dim; c++) {
       int comp =
           c + 1; // momentum is stored in positions [1,...,dim], so add one to c
       u.U.extract_component(momentum.at(c), comp);
@@ -367,6 +359,8 @@ dealii::Tensor<1,2/*dim*/> calculate_drag_and_lift(const my_Vector& u, const my_
     for (auto mom : momentum)
       mom.update_ghost_values();
 
+    double drag = 0.;
+    double lift = 0.;
 
     for (const auto &cell : offline_data->dof_handler().active_cell_iterators()) {
       if (cell->is_locally_owned()) {
@@ -415,7 +409,8 @@ dealii::Tensor<1,2/*dim*/> calculate_drag_and_lift(const my_Vector& u, const my_
 
   } /* dim is 2, this code only works for dim=2, unfortunately.*/ else {
     Assert(false, 
-      ExcMessage("You are trying to call calculate_drag_and_lift," + " which only works for dim=2. you called with dim = " + std::to_string(dim)));
+      ExcMessage("You are trying to call calculate_drag_and_lift,"
+      " which only works for dim=2. you called with dim = " + std::to_string(dim)));
     dealii::Tensor<1,2/*dim*/> forces;
     return forces;
   }
@@ -559,7 +554,6 @@ int my_Step(braid_App        app,
 
   //interpolate between levels, put data from u (fine level) onto the u_to_step (coarse level)
   interpolate_between_levels(u_to_step, level, *u, 0, app);
-  int count = 0;
   //step the function on this level
   app->time_loops[level]->run_with_initial_data(u_to_step.U, tstop, tstart);
 
@@ -781,7 +775,7 @@ my_Access(braid_App          app,
 
   //calculate drag and lift for this solution on level 0
   //TODO: insert drag and lift calculation call.
-  dealii:Tensor<1,2> forces = calculate_drag_and_lift(*u,*app,t,2/*dim*/);
+  dealii::Tensor<1,2> forces = calculate_drag_and_lift(*u,*app,t,2/*dim*/);
   std::cout << "cycle." + std::to_string(mgCycle) + " drag." +std::to_string(forces[0]) 
               + " lift." + std::to_string(forces[1]) + " time." +std::to_string(t) << std::endl;
 
@@ -999,49 +993,6 @@ void test_braid_functions(my_App& app, braid_MPI_Comm comm_x = MPI_COMM_WORLD)
 
 }
 
-class MPIParameters : public dealii::ParameterAcceptor 
-{
-  public:
-    MPIParameters()
-    : ParameterAcceptor("MPI Parameters")
-    {
-      px = 1;
-      add_parameter("px",
-                    px,
-                    "Number of spatial processors per time brick. "
-                    "Must evenly divide allotted processes from MPI.");
-      num_time = 4;
-      add_parameter("Time Bricks",
-                    num_time,
-                    "Number of time bricks total.");
-      tstart = 0.0;
-      add_parameter("Start Time",
-                    tstart);
-
-      tstop = 5.0;
-      add_parameter("Stop Time",
-                    tstop);
-      
-      cfactor = 2; //The default coarsening from level to level is 2, which matches that of XBRAID.
-      add_parameter("cfactor",
-                    cfactor,
-                    "The coarsening factor between time levels.");
-      max_iter = num_time;//In theory, mgrit should converge after the number of cycles equal to the number of time points it has.
-      add_parameter("max_iter", 
-                    max_iter,
-                    "The maximum number of MGRIT iterations.");
-
-    };
-
-  int px = 1;//Default number of x spatial processors is 1.
-  int num_time;//Default number of coarse points is equal to 4.
-  double tstart;
-  double tstop;
-  braid_Int cfactor;
-  int max_iter;
-
-};
-
 //todo: change this to a call to something similar to the main ryujin executable. problem_dispach??
 int main(int argc, char *argv[])
 {
@@ -1049,15 +1000,20 @@ int main(int argc, char *argv[])
   dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);  //create objects
   MPI_Comm comm_world = MPI_COMM_WORLD;//create MPI_object
   //set up app and all underlying data, initialize parameters
-  MPIParameters mpi_parameters;
-  my_App app(comm_world);
+  //parse command line parameters, order should be file name, parameter file, px, then the mg hierarcy, i.e. list of refinement levels.
+  Assert(argc > 1/*program*/ + 1/*parameter file*/ + 1/*px*/ + 1/*at least one level refinement*/,
+         ExcMessage("You must provide the program with a parameter file, a number of spatial processors, "
+              "and a multigrid hierarcy. Here, the number of additional parameters needed is at least:" + std::to_string(4-argc)));
+  const std::string prm_name(argv[1]);// prm file
+  const int px = std::stoi(argv[2]);  // number of processors to use in space
+  std::vector<unsigned int> refinement_levels(argc - 3);// the vector of refinement levels are equal to the number of remaining arguments, set to argc-3, where 3 is the number of arguments needed before the mg_hierarchy
+  for(int i = 3; i < argc; i++)
+    refinement_levels[i-3] = std::stoi(argv[i]);
 
-  std::cout << "fname: " << argv[1] << std::endl;
-  dealii::ParameterAcceptor::initialize(argv[1]);
-
+  for(const auto entry: refinement_levels)
+    std::cout << entry << std::endl;
   //split the object into the number of time processors, and the number of spatial processors per time chunk.
   MPI_Comm comm_x, comm_t;
-  const int px = mpi_parameters.px; //one spatial processors to use per time brick
   std::cout << "px: " << px << std::endl;
 
   /**
@@ -1074,18 +1030,15 @@ int main(int argc, char *argv[])
                        &comm_x,
                        &comm_t);
 
-  // Now that we have set up the communicators we wish to use, we will initialize the app and feed it to XBraid, along with the other functions.
-  app.initialize(comm_x, comm_t);
-
-  // initialize the time_averaged vector to the finest level
-  // my_Vector time_averaged;
-  // reinit_to_level(&time_averaged, app, 0/*the finest level*/);
+  // now that we have the communicators, we can create the app, and initialize with the parameter file.
+  my_App app(comm_x, comm_t, refinement_levels);
+  app.initialize(prm_name);
 
   /* Initialize Braid */
   braid_Core core;
-  double tstart = mpi_parameters.tstart;
-  double tstop = mpi_parameters.tstop;
-  int ntime = mpi_parameters.num_time;//this should in general be the number of time bricks you want. You need to ensure that px * ntime = TOTAL NUMBER PROCESSORS
+  double tstart = app.global_tstart;
+  double tstop = app.global_tstop;
+  int ntime = app.num_time;//this should in general be the number of time bricks you want. You need to ensure that px * ntime = TOTAL NUMBER PROCESSORS
 
   std::cout << "Start: " << tstart << " Stop: " << tstop << " # bricks: " << ntime << std::endl;
 
@@ -1113,7 +1066,7 @@ int main(int argc, char *argv[])
   int nrelax = 1; // FIXME: add this and delete the UNUSED(nrelax) later.
   //      int       skip          = 0;
   double tol = 1e-2;
-  int max_iter = mpi_parameters.max_iter;
+  int max_iter = app.max_iter;
   //      int       min_coarse    = 10;
   // int       fmg           = test_case.fmg;
   // int       scoarsen      = 0;
@@ -1133,15 +1086,13 @@ int main(int argc, char *argv[])
   //             braid_SetSkip(core, skip);
   //      braid_SetNRelax(core, -1, nrelax);
   braid_SetAbsTol(core, tol);
-  braid_SetCFactor(core, -1, mpi_parameters.cfactor);
+  braid_SetCFactor(core, -1, app.cfactor);
   braid_SetMaxIter(core, max_iter);
   braid_SetSeqSoln(core, use_sequential);
   std::cout << "before braid_drive\n";
   braid_Drive(core);
 
-
   // Free the memory now that we are done
   braid_Destroy(core);
-
 
 }
