@@ -25,6 +25,7 @@
 #include <future>
 #include <sstream>
 
+#include <functional>
 #include <level_structures.h>
 
 namespace ryujin
@@ -97,6 +98,13 @@ namespace ryujin
      * Run the high-level time loop.
      */
     void run();
+
+    /**
+     * Run the high-level time loop, with a reference to existing data. 
+     * Optional postprocess function which needs to take the vector and the current time.
+     */
+    void run_with_initial_data(vector_type &U, const Number end_time, const Number start_time=0, 
+                               std::function<void(vector_type&/*U*/,double/*current time*/)> pp_step = std::function<void(vector_type&,double)>{});
 
   protected:
     /**
