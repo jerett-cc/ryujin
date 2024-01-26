@@ -229,6 +229,8 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
                     << refinement_levels[lvl] << std::endl;
         }
         levels[lvl]->prepare();
+        std::cout << "Level " + std::to_string(refinement_levels[lvl]) + " prepared." << std::endl;
+
       }
       //set the last variables in app.
       n_fine_dofs = levels[0]->offline_data->dof_handler().n_dofs();
@@ -251,6 +253,7 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
         time_loops[i] = std::make_shared<ryujin::mgrit::TimeLoopMgrit<Description,2,Number>>(comm_x, *(levels[i]), 
                                                                                              0/*initial time is irrelevant*/,
                                                                                              0/*final time is irrelevant*/);
+        std::cout << "Level " + std::to_string(refinement_levels[i]) + " created." << std::endl;
       }
     }
 
