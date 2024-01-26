@@ -25,6 +25,8 @@
 #include <future>
 #include <sstream>
 
+#include <level_structures.h>
+
 namespace ryujin
 {
 
@@ -86,6 +88,11 @@ namespace ryujin
     TimeLoop(const MPI_Comm &mpi_comm);
 
     /**
+     * Constructor with LevelStructures Object. 
+     */
+    TimeLoop(const MPI_Comm &mpi_comm, const mgrit::LevelStructures<Description, dim, Number> &ls);
+
+    /**
      * Run the high-level time loop.
      */
     void run();
@@ -129,6 +136,8 @@ namespace ryujin
      * @name Run time options
      */
     //@{
+    
+    void declare_parameters();
 
     std::string base_name_;
 
