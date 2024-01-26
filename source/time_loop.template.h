@@ -25,54 +25,9 @@ using namespace dealii;
 
 namespace ryujin
 {
+
   template <typename Description, int dim, typename Number>
-  TimeLoop<Description, dim, Number>::TimeLoop(const MPI_Comm &mpi_comm)
-      : ParameterAcceptor("/A - TimeLoop")
-      , mpi_communicator_(mpi_comm)
-      , hyperbolic_system_(std::make_shared<HyperbolicSystem>("/B - Equation"))
-      , parabolic_system_(std::make_shared<ParabolicSystem>("/B - Equation"))
-      , discretization_(std::make_shared<Discretization<dim>>(mpi_communicator_, "/C - Discretization"))
-      , offline_data_(std::make_shared<OfflineData<dim, Number>>(mpi_communicator_,
-                                                  *discretization_,
-                                                  "/D - OfflineData"))
-      , initial_values_(std::make_shared<InitialValues<Description, dim, Number>>(*hyperbolic_system_,
-                                                      *offline_data_,
-                                                      "/E - InitialValues"))
-      , hyperbolic_module_(std::make_shared<HyperbolicModule<Description, dim, Number>>(mpi_communicator_,
-                                                            computing_timer_,
-                                                            *offline_data_,
-                                                            *hyperbolic_system_,
-                                                            *initial_values_,
-                                                            "/F - HyperbolicModule"))
-      , parabolic_module_(std::make_shared<ParabolicModule<Description, dim, Number>>(mpi_communicator_,
-                                                          computing_timer_,
-                                                          *offline_data_,
-                                                          *hyperbolic_system_,
-                                                          *parabolic_system_,
-                                                          *initial_values_,
-                                                          "/G - ParabolicModule"))
-      , time_integrator_(std::make_shared<TimeIntegrator<Description, dim, Number>>(mpi_communicator_,
-                                                        computing_timer_,
-                                                        *offline_data_,
-                                                        *hyperbolic_module_,
-                                                        *parabolic_module_,
-                                                        "/H - TimeIntegrator"))
-      , postprocessor_(std::make_shared<Postprocessor<Description,dim,Number>>(mpi_communicator_,
-                                                      *hyperbolic_system_,
-                                                      *offline_data_,
-                                                      "/I - VTUOutput"))
-      , vtu_output_(std::make_shared<VTUOutput<Description,dim,Number>>(mpi_communicator_,
-                                              *offline_data_,
-                                              *hyperbolic_module_,
-                                              *postprocessor_,
-                                              "/I - VTUOutput"))
-      , quantities_(std::make_shared<Quantities<Description,dim,Number>>(mpi_communicator_,
-                                              *hyperbolic_system_,
-                                              *offline_data_,
-                                              "/J - Quantities"))
-      , mpi_rank_(dealii::Utilities::MPI::this_mpi_process(mpi_communicator_))
-      , n_mpi_processes_(
-            dealii::Utilities::MPI::n_mpi_processes(mpi_communicator_))
+  void TimeLoop<Description, dim, Number>::declare_parameters()
   {
     base_name_ = "cylinder";
     add_parameter("basename", base_name_, "Base name for all output files");
@@ -189,6 +144,81 @@ namespace ryujin
                   "using the umodified total accumulated CPU time.");
   }
 
+  template <typename Description, int dim, typename Number>
+  TimeLoop<Description, dim, Number>::TimeLoop(const MPI_Comm &mpi_comm)
+      : ParameterAcceptor("/A - TimeLoop")
+      , mpi_communicator_(mpi_comm)
+      , hyperbolic_system_(std::make_shared<HyperbolicSystem>("/B - Equation"))
+      , parabolic_system_(std::make_shared<ParabolicSystem>("/B - Equation"))
+      , discretization_(std::make_shared<Discretization<dim>>(mpi_communicator_, "/C - Discretization"))
+      , offline_data_(std::make_shared<OfflineData<dim, Number>>(mpi_communicator_,
+                                                  *discretization_,
+                                                  "/D - OfflineData"))
+      , initial_values_(std::make_shared<InitialValues<Description, dim, Number>>(*hyperbolic_system_,
+                                                      *offline_data_,
+                                                      "/E - InitialValues"))
+      , hyperbolic_module_(std::make_shared<HyperbolicModule<Description, dim, Number>>(mpi_communicator_,
+                                                            computing_timer_,
+                                                            *offline_data_,
+                                                            *hyperbolic_system_,
+                                                            *initial_values_,
+                                                            "/F - HyperbolicModule"))
+      , parabolic_module_(std::make_shared<ParabolicModule<Description, dim, Number>>(mpi_communicator_,
+                                                          computing_timer_,
+                                                          *offline_data_,
+                                                          *hyperbolic_system_,
+                                                          *parabolic_system_,
+                                                          *initial_values_,
+                                                          "/G - ParabolicModule"))
+      , time_integrator_(std::make_shared<TimeIntegrator<Description, dim, Number>>(mpi_communicator_,
+                                                        computing_timer_,
+                                                        *offline_data_,
+                                                        *hyperbolic_module_,
+                                                        *parabolic_module_,
+                                                        "/H - TimeIntegrator"))
+      , postprocessor_(std::make_shared<Postprocessor<Description,dim,Number>>(mpi_communicator_,
+                                                      *hyperbolic_system_,
+                                                      *offline_data_,
+                                                      "/I - VTUOutput"))
+      , vtu_output_(std::make_shared<VTUOutput<Description,dim,Number>>(mpi_communicator_,
+                                              *offline_data_,
+                                              *hyperbolic_module_,
+                                              *postprocessor_,
+                                              "/I - VTUOutput"))
+      , quantities_(std::make_shared<Quantities<Description,dim,Number>>(mpi_communicator_,
+                                              *hyperbolic_system_,
+                                              *offline_data_,
+                                              "/J - Quantities"))
+      , mpi_rank_(dealii::Utilities::MPI::this_mpi_process(mpi_communicator_))
+      , n_mpi_processes_(
+            dealii::Utilities::MPI::n_mpi_processes(mpi_communicator_))
+  {
+    declare_parameters();
+  }
+
+// FIXME: issue with too much copied code?
+  template <typename Description, int dim, typename Number>
+  TimeLoop<Description, dim, Number>::TimeLoop(const MPI_Comm &mpi_comm,
+                                               const mgrit::LevelStructures<Description,dim,Number> &ls)
+    : ParameterAcceptor("/TimeLoop")
+    , mpi_communicator_(mpi_comm)
+    , hyperbolic_system_(ls.hyperbolic_system)
+    , parabolic_system_(ls.parabolic_system)
+    , discretization_(ls.discretization)
+    , offline_data_(ls.offline_data)
+    , initial_values_(ls.initial_values)
+    , hyperbolic_module_(ls.hyperbolic_module)
+    , parabolic_module_(ls.parabolic_module)
+    , time_integrator_(ls.time_integrator)
+    , postprocessor_(ls.postprocessor)
+    , vtu_output_(ls.vtu_output)
+    , quantities_(ls.quantities)
+    , mpi_rank_(dealii::Utilities::MPI::this_mpi_process(mpi_communicator_))
+    , n_mpi_processes_(
+        dealii::Utilities::MPI::n_mpi_processes(mpi_communicator_))
+  {
+    declare_parameters();
+  }
 
   template <typename Description, int dim, typename Number>
   void TimeLoop<Description, dim, Number>::run()
