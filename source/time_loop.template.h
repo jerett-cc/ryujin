@@ -445,6 +445,72 @@ namespace ryujin
 #endif
   }
 
+  template <typename Description, int dim, typename Number>
+  void TimeLoop<Description, dim, Number>::run_with_initial_data(vector_type& U, const Number end_time, const Number start_time, std::function<void(vector_type&,double)> pp_step)
+  {
+#ifdef DEBUG_OUTPUT
+    std::cout << "TimeLoop<dim, Number>::run_with_initial_data(U,start,end,pp_func())" << std::endl;
+#endif
+
+  const bool write_output_files = enable_checkpointing_ ||
+        enable_output_full_ ||
+        enable_output_levelsets_;
+ 
+  Number t = start_time;//we will start at the initial time that this object was created with
+  unsigned int output_cycle = 0;
+
+  unsigned int cycle = 1;
+
+  /* Loop: */
+
+  for (;; ++cycle) {
+
+    /* Accumulate quantities of interest: */
+
+    if (enable_compute_quantities_) {
+      quantities_->accumulate(U, t);
+    }
+
+    /* Perform output: */
+
+    if (t >= output_cycle * output_granularity_) {
+      if (write_output_files) {
+        output(U, base_name_ + "-solution", t, output_cycle);
+        if (enable_compute_error_) {
+          const auto analytic = initial_values_->interpolate(t);
+          output(
+              analytic, base_name_ + "-analytic_solution", t, output_cycle);
+        }
+      }
+      if (enable_compute_quantities_ &&
+          (output_cycle % output_quantities_multiplier_ == 0) &&
+          (output_cycle > 0)) {
+        Scope scope(computing_timer_,
+                    "time step [X] 2 - write out quantities");
+        quantities_->write_out(U, t, output_cycle);
+      }
+      ++output_cycle;
+    }
+
+    /* Break if we have reached the final time: */
+
+    if (t >= end_time)
+      break;
+
+
+    /* Take a step: */
+    const auto tau = time_integrator_->step(U, t);
+    t += tau;
+
+    /*Optional Postprocess Step*/
+    pp_step(U,t); //FIXME: where should this be called?
+
+  } /* end of loop */
+  /* We have actually performed one cycle less. */
+  --cycle;
+  
+  }
+
 
   template <typename Description, int dim, typename Number>
   void TimeLoop<Description, dim, Number>::compute_error(
