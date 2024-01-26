@@ -104,7 +104,7 @@ namespace ryujin
      * Optional postprocess function which needs to take the vector and the current time.
      */
     void run_with_initial_data(vector_type &U, const Number end_time, const Number start_time=0, 
-                               std::function<void(vector_type&/*U*/,double/*current time*/)> pp_step = std::function<void(vector_type&,double)>{});
+                               std::function<void(const vector_type&/*U*/,double/*current time*/)> pp_step = std::function<void(const vector_type&,double)>{});
 
   protected:
     /**

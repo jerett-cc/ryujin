@@ -438,7 +438,7 @@ namespace ryujin
   }
 
   template <typename Description, int dim, typename Number>
-  void TimeLoop<Description, dim, Number>::run_with_initial_data(vector_type& U, const Number end_time, const Number start_time, std::function<void(vector_type&,double)> pp_step)
+  void TimeLoop<Description, dim, Number>::run_with_initial_data(vector_type& U, const Number end_time, const Number start_time, std::function<void(const vector_type&,double)> pp_step)
   {
 #ifdef DEBUG_OUTPUT
     std::cout << "TimeLoop<dim, Number>::run_with_initial_data(U,start,end,pp_func())" << std::endl;
