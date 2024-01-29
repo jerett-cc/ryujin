@@ -12,6 +12,7 @@
 #include "geometry_step.h"
 #include "geometry_tank.h"
 #include "geometry_wall.h"
+#include "geometry_cylinder_mgrit.h"//TODO: rename this to double cylinder.
 
 namespace ryujin
 {
@@ -43,6 +44,7 @@ namespace ryujin
       add(std::make_unique<Airfoil<dim>>(subsection));
       add(std::make_unique<Annulus<dim>>(subsection));
       add(std::make_unique<WaveTank<dim>>(subsection));
+      add(std::make_unique<Cylinder_mgrit<dim>>(subsection));
     }
   } /* namespace Geometries */
 } /* namespace ryujin */
