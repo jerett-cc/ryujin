@@ -26,7 +26,7 @@ namespace ryujin
      * @ingroup Mesh
      */
     template <int dim, int spacedim, template <int, int> class Triangulation>
-    void cylinder(Triangulation<dim, spacedim> &,
+    void cylinder_mgrit(Triangulation<dim, spacedim> &,
                   const double /*length*/,
                   const double /*height*/,
                   const double /*cylinder_position*/,
@@ -39,7 +39,7 @@ namespace ryujin
 
 #ifndef DOXYGEN
     template <template <int, int> class Triangulation>
-    void cylinder(Triangulation<2, 2> &triangulation,
+    void cylinder_mgrit(Triangulation<2, 2> &triangulation,
                   const double length,
                   const double height,
                   const double cylinder_position,
@@ -50,7 +50,7 @@ namespace ryujin
       using namespace dealii;
 
       dealii::Triangulation<dim, dim> tria1, tria2, tria3, tria4, tria5, tria6,
-          tria7;
+          tria7, tria8, tria9, tria10;
 
       GridGenerator::hyper_cube_with_cylindrical_hole(
           tria1, cylinder_diameter / 2., cylinder_diameter, 0.5, 1, false);
@@ -71,19 +71,19 @@ namespace ryujin
           tria4,
           {6, 2},
           Point<2>(cylinder_diameter, -cylinder_diameter),
-          Point<2>(length - cylinder_position, cylinder_diameter));
+          Point<2>(length - cylinder_position-height, cylinder_diameter));
 
       GridGenerator::subdivided_hyper_rectangle(
           tria5,
           {6, 1},
           Point<2>(cylinder_diameter, cylinder_diameter),
-          Point<2>(length - cylinder_position, height / 2.));
+          Point<2>(length - cylinder_position-height, height / 2.));
 
       GridGenerator::subdivided_hyper_rectangle(
           tria6,
           {6, 1},
           Point<2>(cylinder_diameter, -height / 2.),
-          Point<2>(length - cylinder_position, -cylinder_diameter));
+          Point<2>(length - cylinder_position-height, -cylinder_diameter));
 
       tria7.set_mesh_smoothing(triangulation.get_mesh_smoothing());
       GridGenerator::merge_triangulations(
@@ -137,7 +137,17 @@ namespace ryujin
             continue;
           }
 
-          //todo: add Boundary::object id section.
+          /*
+           * Boundary::object is equivalent to Boundary::slip, but allows us to do 
+           * computations on objects in the flow, such as drag.
+           */
+          const Point<2> cylinder_center = Point<2>(0,0);//the center of the cylinder has x=0, y=0, TODO: why is this?
+          const double cylinder_radius = 0.5*cylinder_diameter;
+
+          if((center - cylinder_center).norm_square() < cylinder_radius + 1.e-6) {
+            face->set_boundary_id(Boundary::object);
+            continue;
+          }
 
           // the rest:
           face->set_boundary_id(Boundary::slip);
@@ -147,7 +157,7 @@ namespace ryujin
 
 
     template <template <int, int> class Triangulation>
-    void cylinder(Triangulation<3, 3> &triangulation,
+    void cylinder_mgrit(Triangulation<3, 3> &triangulation,
                   const double length,
                   const double height,
                   const double cylinder_position,
@@ -157,7 +167,7 @@ namespace ryujin
 
       dealii::Triangulation<2, 2> tria1;
 
-      cylinder(tria1, length, height, cylinder_position, cylinder_diameter);
+      cylinder_mgrit(tria1, length, height, cylinder_position, cylinder_diameter);
 
       dealii::Triangulation<3, 3> tria2;
       tria2.set_mesh_smoothing(triangulation.get_mesh_smoothing());
@@ -228,11 +238,11 @@ namespace ryujin
      * @ingroup Mesh
      */
     template <int dim>
-    class Cylinder : public Geometry<dim>
+    class Cylinder_mgrit : public Geometry<dim>
     {
     public:
-      Cylinder(const std::string subsection)
-          : Geometry<dim>("cylinder", subsection)
+      Cylinder_mgrit(const std::string subsection)
+          : Geometry<dim>("cylinder_mgrit", subsection)
       {
         length_ = 4.;
         this->add_parameter(
@@ -256,7 +266,8 @@ namespace ryujin
       void create_triangulation(
           typename Geometry<dim>::Triangulation &triangulation) final
       {
-        GridGenerator::cylinder(triangulation,
+        std::cout << "Creating mgrit triangulation" << std::endl;
+        GridGenerator::cylinder_mgrit(triangulation,
                                 length_,
                                 height_,
                                 object_position_,
