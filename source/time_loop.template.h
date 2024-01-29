@@ -720,6 +720,12 @@ namespace ryujin
     }
   }
 
+  template <typename Description, int dim, typename Number>
+  void 
+  TimeLoop<Description, dim, Number>::output_wrapper(const vector_type &U, const std::string fname, Number t, unsigned int cycle)
+  {
+    output(U,fname,t,cycle);
+  }
 
   /*
    * Output and logging related functions:

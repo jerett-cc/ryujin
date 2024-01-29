@@ -105,6 +105,12 @@ namespace ryujin
     void run_with_initial_data(vector_type &U, const Number end_time, const Number start_time=0, 
                                std::function<void(const vector_type&/*U*/,double/*current time*/)> pp_step = std::function<void(const vector_type&,double)>{});
 
+    /**
+     * Wrapper to the output call, as I need to be able to call output in MGRIT.
+     * TODO: is this unsafe? is there another way to do this.
+     */
+    void output_wrapper(const vector_type &U, const std::string fname, Number t, unsigned int cycle);
+
   protected:
     /**
      * @name Private methods for run()
