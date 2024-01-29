@@ -59,12 +59,13 @@ int main(int argc, char *argv[]){
 
     std::vector<double> pressure_values(n_q_points);
 
-    scalar_type density, pressure;
+    scalar_type density, pressure, energy_density;
     std::vector<scalar_type> momentum(dim);
 
     // initialize partitions
     density.reinit(ls.offline_data->scalar_partitioner(), ls.level_comm_x);
     pressure.reinit(ls.offline_data->scalar_partitioner(), ls.level_comm_x);
+    energy_density.reinit(ls.offline_data->scalar_partitioner(), ls.level_comm_x);
     for (unsigned int c = 0; c < dim; c++)
       momentum.at(c).reinit(ls.offline_data->scalar_partitioner(),
                             ls.level_comm_x);
@@ -93,13 +94,13 @@ int main(int argc, char *argv[]){
     }
 
     // extract energy
-    U.extract_component(pressure, dim + 1);
+    U.extract_component(energy_density, dim + 1);
 
     // convert E to pressure
     for (unsigned int k = 0; k < ls.offline_data->n_locally_owned(); k++) {
 
       // calculate momentum norm squared
-      const double &E = pressure.local_element(k);
+      const double &E = energy_density.local_element(k);
       const double &rho = density.local_element(k);
       double m_square = 0;
       for (unsigned int d = 0; d < dim; d++)
