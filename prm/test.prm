@@ -1,15 +1,11 @@
-subsection MPI Parameters
-  set px = 2
+subsection App
+  set print_solution = true
   set Time Bricks = 4
   set Start Time = 0.0
   set Stop Time = 5.0
   set cfactor = 2 ## 2 is default
-  set max_iter = 4
+  set max_iter = 1
 end
-subsection MGRIT
-  set mgrit refinements = 1, 3, 5
-end
-
 subsection OfflineData
 end
 subsection TimeLoop
@@ -37,9 +33,15 @@ subsection Equation
   set vacuum state relaxation = 10000
 end
 subsection Discretization
-  set geometry            = cylinder
+  set geometry            = cylinder_mgrit
   set mesh distortion     = 0
   set mesh repartitioning = false
+  subsection cylinder_mgrit
+    set length = 4
+    set height = 2
+    set object position = 0.6
+    set object diameter = 0.5
+  end
 end
 subsection InitialValues
   set configuration = uniform
