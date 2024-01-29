@@ -123,7 +123,7 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
     using TimeLoopType
         = std::shared_ptr<ryujin::mgrit::TimeLoopMgrit<Description,2,Number>>;
 
-  public:
+  public://FIXME: public needs to be moved.
     using HyperbolicSystemView =
         typename Description::HyperbolicSystem::template View<2, Number>;
     static constexpr unsigned int problem_dimension =
@@ -231,6 +231,7 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
         levels[lvl]->prepare();
         std::cout << "Level " + std::to_string(refinement_levels[lvl]) + " prepared." << std::endl;
 
+        MPI_Barrier(comm_x);
       }
       //set the last variables in app.
       n_fine_dofs = levels[0]->offline_data->dof_handler().n_dofs();
