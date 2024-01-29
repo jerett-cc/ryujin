@@ -163,8 +163,8 @@ int main(int argc, char *argv[]){
     forces[1] = lift;
     
     std::string message = "t: " + std::to_string(t) + " drag: " + std::to_string(drag) + " lift: " + std::to_string(lift);
-
-    std::cout << message << std::endl;
+    if(dealii::Utilities::MPI::this_mpi_process(ls.level_comm_x) == 0)
+      std::cout << message << std::endl;
   };
 
 
