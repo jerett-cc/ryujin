@@ -152,7 +152,9 @@ namespace ryujin
 
       /* Restore polar manifold for disc: */
 
+      //first cylinder
       triangulation.set_manifold(0, PolarManifold<2>(Point<2>()));
+      //second cylinder
       triangulation.set_manifold(0, PolarManifold<2>(Point<2>(cylinder_diameter * 2. + length/4, 0.)));
 
       /* Fix up position of left boundary: */
@@ -198,8 +200,15 @@ namespace ryujin
           /*
            * Boundary::object is equivalent to Boundary::slip, but allows us to do 
            * computations on objects in the flow, such as drag.
+           * 
+           * Set the second cylinder as the object.
            */
-          //TODO: write second cylinder as object
+
+          if (std::fabs(center[0] - (cylinder_diameter * 2. + length/4)) < cylinder_diameter + 1.e-6 &&
+              std::fabs(center[1]) < height/4. - 1.e-6) {
+             face->set_boundary_id(Boundary::object);
+             continue;
+            }
 
           // the rest:
           face->set_boundary_id(Boundary::slip);
@@ -239,6 +248,9 @@ namespace ryujin
 
       triangulation.set_manifold(
           0, CylindricalManifold<3>(Tensor<1, 3>{{0., 0., 1.}}, Point<3>()));
+
+      triangulation.set_manifold(
+          1, CylindricalManifold<3>(Tensor<1, 3>{{0., 0., 1.}}, Point<3>(cylinder_diameter * 2. + length/4, 0., 0.)));
 
       /*
        * Set boundary ids:
