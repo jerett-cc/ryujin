@@ -69,33 +69,91 @@ namespace ryujin
 
       GridGenerator::subdivided_hyper_rectangle(
           tria4,
-          {6, 2},
+          {2,2},
           Point<2>(cylinder_diameter, -cylinder_diameter),
-          Point<2>(length - cylinder_position-height, cylinder_diameter));
+          Point<2>(cylinder_diameter + length/4., cylinder_diameter));
 
       GridGenerator::subdivided_hyper_rectangle(
           tria5,
-          {6, 1},
+          {2, 1},
           Point<2>(cylinder_diameter, cylinder_diameter),
-          Point<2>(length - cylinder_position-height, height / 2.));
+          Point<2>(cylinder_diameter + length / 4.,  height / 2.));
 
       GridGenerator::subdivided_hyper_rectangle(
           tria6,
-          {6, 1},
+          {2, 1},
           Point<2>(cylinder_diameter, -height / 2.),
-          Point<2>(length - cylinder_position-height, -cylinder_diameter));
+          Point<2>(cylinder_diameter + length/4., -cylinder_diameter));
 
-      tria7.set_mesh_smoothing(triangulation.get_mesh_smoothing());
+      // secondary cylinder
+      GridGenerator::hyper_cube_with_cylindrical_hole(
+          tria7, cylinder_diameter / 2., cylinder_diameter, 0.5, 1, false);//How to shift this to the correct part of the domain?
+      GridTools::transform ([&](const Point<dim> &p) -> Point<dim>
+                      {
+                        Point<dim> q = p;
+                        q[0] += cylinder_diameter * 2. + length/4;
+                        return q;
+                      },
+                      tria7);
+
+      GridGenerator::subdivided_hyper_rectangle(
+          tria8,
+          {2, 1},
+          Point<2>(cylinder_diameter + length/4., -cylinder_diameter),
+          Point<2>(cylinder_diameter + length/4. + cylinder_diameter * 2., -height / 2.));
+
+      GridGenerator::subdivided_hyper_rectangle(
+          tria9,
+          {2, 1},
+          Point<2>(cylinder_diameter + length/4., cylinder_diameter),
+          Point<2>(cylinder_diameter + length/4. + cylinder_diameter * 2., height / 2.));
+
+
+      tria10.set_mesh_smoothing(triangulation.get_mesh_smoothing());
       GridGenerator::merge_triangulations(
-          {&tria1, &tria2, &tria3, &tria4, &tria5, &tria6},
-          tria7,
+          {&tria1, &tria2, &tria3, &tria4, &tria5, &tria6, 
+           &tria7, &tria8, &tria9},
+          tria10,
           1.e-12,
           true);
-      triangulation.copy_triangulation(tria7);
+
+      //clear some triangulations for the last part of the domain.
+      tria1.clear();
+      tria2.clear();
+      tria3.clear();
+      tria4.clear();//we will store the final triangulation in this.
+
+      GridGenerator::subdivided_hyper_rectangle(
+          tria1,
+          {2,2},
+          Point<2>(cylinder_diameter + length/4. + cylinder_diameter * 2., -cylinder_diameter),
+          Point<2>(length - cylinder_position, cylinder_diameter));
+
+      GridGenerator::subdivided_hyper_rectangle(
+          tria2,
+          {2, 1},
+          Point<2>(cylinder_diameter + length/4. + cylinder_diameter * 2., cylinder_diameter),
+          Point<2>(length - cylinder_position,  height / 2.));
+
+      GridGenerator::subdivided_hyper_rectangle(
+          tria3,
+          {2, 1},
+          Point<2>(cylinder_diameter + length/4. + cylinder_diameter * 2., -height / 2.),
+          Point<2>(length - cylinder_position, -cylinder_diameter));
+
+      tria4.set_mesh_smoothing(triangulation.get_mesh_smoothing());
+      GridGenerator::merge_triangulations(
+          {&tria1, &tria2, &tria3, &tria10},
+          tria4,
+          1.e-12,
+          true);
+      
+      triangulation.copy_triangulation(tria4);
 
       /* Restore polar manifold for disc: */
 
       triangulation.set_manifold(0, PolarManifold<2>(Point<2>()));
+      triangulation.set_manifold(0, PolarManifold<2>(Point<2>(cylinder_diameter * 2. + length/4, 0.)));
 
       /* Fix up position of left boundary: */
 
@@ -141,13 +199,7 @@ namespace ryujin
            * Boundary::object is equivalent to Boundary::slip, but allows us to do 
            * computations on objects in the flow, such as drag.
            */
-          const Point<2> cylinder_center = Point<2>(0,0);//the center of the cylinder has x=0, y=0, TODO: why is this?
-          const double cylinder_radius = 0.5*cylinder_diameter;
-
-          if((center - cylinder_center).norm_square() < cylinder_radius + 1.e-6) {
-            face->set_boundary_id(Boundary::object);
-            continue;
-          }
+          //TODO: write second cylinder as object
 
           // the rest:
           face->set_boundary_id(Boundary::slip);
