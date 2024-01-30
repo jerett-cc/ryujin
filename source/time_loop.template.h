@@ -32,8 +32,6 @@ namespace ryujin
     base_name_ = "cylinder";
     add_parameter("basename", base_name_, "Base name for all output files");
 
-    t_initial_ = Number(0.);
-
     t_final_ = Number(5.);
     add_parameter("final time", t_final_, "Final time");
 
@@ -127,6 +125,11 @@ namespace ryujin
 
     resume_ = false;
     add_parameter("resume", resume_, "Resume an interrupted computation");
+
+    resume_at_time_zero_ = false;
+    add_parameter("resume at time zero",
+                  resume_at_time_zero_,
+                  "Resume from the latest checkpoint but set the time to t=0.");
 
     terminal_update_interval_ = 5;
     add_parameter("terminal update interval",
@@ -269,8 +272,15 @@ namespace ryujin
         print_info("resuming computation: loading state vector");
         U.reinit(offline_data_->vector_partitioner());
         Checkpointing::load_state_vector(
-            *offline_data_, base_name_, U, t, output_cycle, mpi_communicator_);
-        t_initial_ = t;
+            offline_data_, base_name_, U, t, output_cycle, mpi_communicator_);
+
+        if (resume_at_time_zero_) {
+          /*
+           * Reset the current time t and the output cycle count to zero:
+           */
+          t = 0.;
+          output_cycle = 0;
+        }
 
         /* Workaround: Reinitialize Quantities with correct output cycle: */
         quantities_->prepare(base_name_, output_cycle);

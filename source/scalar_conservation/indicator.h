@@ -78,9 +78,11 @@ namespace ryujin
        */
       Indicator(const HyperbolicSystem &hyperbolic_system,
                 const MultiComponentVector<ScalarNumber, n_precomputed_values>
-                    &precomputed_values)
+                    &precomputed_values,
+                const ScalarNumber evc_factor)
           : hyperbolic_system(hyperbolic_system)
           , precomputed_values(precomputed_values)
+          , evc_factor(evc_factor)
       {
       }
 
@@ -101,7 +103,7 @@ namespace ryujin
       /**
        * Return the computed alpha_i value.
        */
-      Number alpha(const Number h_i);
+      Number alpha(const Number h_i) const;
 
       //@}
 
@@ -114,6 +116,8 @@ namespace ryujin
 
       const MultiComponentVector<ScalarNumber, n_precomputed_values>
           &precomputed_values;
+
+      const ScalarNumber evc_factor;
 
       Number u_i;
       Number u_abs_max;
@@ -174,18 +178,18 @@ namespace ryujin
 
     template <int dim, typename Number>
     DEAL_II_ALWAYS_INLINE inline Number
-    Indicator<dim, Number>::alpha(const Number hd_i)
+    Indicator<dim, Number>::alpha(const Number hd_i) const
     {
       Number numerator = left - right;
       Number denominator = std::abs(left) + std::abs(right);
 
-      /* FIXME: this can be refactored into a runtime parameter... */
-      const ScalarNumber evc_alpha_0_ = ScalarNumber(1.);
       const auto quotient =
           std::abs(numerator) /
-          (denominator + std::max(hd_i * std::abs(u_abs_max),
-                                  Number(std::numeric_limits<double>::min())));
-      return std::min(Number(1.), evc_alpha_0_ * quotient);
+          (denominator +
+           std::max(hd_i * std::abs(u_abs_max),
+                    Number(100. * std::numeric_limits<ScalarNumber>::min())));
+
+      return std::min(Number(1.), evc_factor * quotient);
     }
 
   } // namespace ScalarConservation

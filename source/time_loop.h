@@ -156,7 +156,6 @@ namespace ryujin
 
     std::string base_name_;
 
-    Number t_initial_;
     Number t_final_;
     std::vector<Number> t_refinements_;
 
@@ -177,6 +176,7 @@ namespace ryujin
     bool error_normalize_;
 
     bool resume_;
+    bool resume_at_time_zero_;
 
     Number terminal_update_interval_;
     bool terminal_show_rank_throughput_;

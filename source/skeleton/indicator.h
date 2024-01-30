@@ -77,9 +77,11 @@ namespace ryujin
        */
       Indicator(const HyperbolicSystem &hyperbolic_system,
                 const MultiComponentVector<ScalarNumber, n_precomputed_values>
-                    &precomputed_values)
+                    &precomputed_values,
+                const ScalarNumber evc_factor)
           : hyperbolic_system(hyperbolic_system)
           , precomputed_values(precomputed_values)
+          , evc_factor(evc_factor)
       {
       }
 
@@ -106,7 +108,7 @@ namespace ryujin
       /**
        * Return the computed alpha_i value.
        */
-      Number alpha(const Number /*h_i*/)
+      Number alpha(const Number /*h_i*/) const
       {
         return Number(0.);
       }
@@ -122,6 +124,8 @@ namespace ryujin
 
       const MultiComponentVector<ScalarNumber, n_precomputed_values>
           &precomputed_values;
+
+      const ScalarNumber evc_factor;
       //@}
     };
   } // namespace Skeleton

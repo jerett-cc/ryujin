@@ -13,12 +13,9 @@ namespace ryujin
   {
     template <int dim, typename Number>
     std::tuple<Number, bool>
-    Limiter<dim, Number>::limit(const HyperbolicSystemView &hyperbolic_system,
-                                const Bounds &bounds,
+    Limiter<dim, Number>::limit(const Bounds &bounds,
                                 const state_type &U,
                                 const state_type &P,
-                                const ScalarNumber newton_tolerance,
-                                const unsigned int newton_max_iter,
                                 const Number t_min /* = Number(0.) */,
                                 const Number t_max /* = Number(1.) */)
     {
@@ -26,9 +23,10 @@ namespace ryujin
       Number t_r = t_max;
 
       constexpr ScalarNumber eps = std::numeric_limits<ScalarNumber>::epsilon();
-      const ScalarNumber relax_small = ScalarNumber(1. + 10. * eps);
-      const ScalarNumber relax =
-          ScalarNumber(1. + hyperbolic_system.vacuum_state_relaxation() * eps);
+      const auto small = hyperbolic_system.vacuum_state_relaxation_small();
+      const auto large = hyperbolic_system.vacuum_state_relaxation_large();
+      const ScalarNumber relax_small = ScalarNumber(1. + small * eps);
+      const ScalarNumber relax = ScalarNumber(1. + large * eps);
 
       /*
        * First limit the density rho.
@@ -70,7 +68,9 @@ namespace ryujin
         const Number denominator =
             ScalarNumber(1.) / (std::abs(rho_P) + eps * rho_max);
 
-        t_r = dealii::compare_and_apply_mask<dealii::SIMDComparison::less_than>(
+        constexpr auto lt = dealii::SIMDComparison::less_than;
+
+        t_r = dealii::compare_and_apply_mask<lt>( //
             rho_max,
             rho_U + t_r * rho_P,
             /*
@@ -82,7 +82,7 @@ namespace ryujin
             (rho_max - rho_U) * denominator,
             t_r);
 
-        t_r = dealii::compare_and_apply_mask<dealii::SIMDComparison::less_than>(
+        t_r = dealii::compare_and_apply_mask<lt>( //
             rho_U + t_r * rho_P,
             rho_min,
             /*
