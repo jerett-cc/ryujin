@@ -1023,7 +1023,7 @@ int main(int argc, char *argv[])
    * The number of time bricks is equal to NumberProcessorsOnSystem/px    //FIXME: is this true??
    */
   Assert(dealii::Utilities::MPI::n_mpi_processes(comm_world) % px == 0,
-         ExcMessage(
+         dealii::ExcMessage(
              "You are trying to divide world into a number of spatial "
              "processors per time brick that will cause MPI to stall. The "
              "variable px needs to divide the number of processors total."));
