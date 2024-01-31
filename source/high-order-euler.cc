@@ -276,7 +276,7 @@ void no_nans(const my_App &app, const my_Vector &U, const std::string caller)
   for (unsigned int i=0; i < U.U.size(); i++)
   {
     // std::cout << "Testing nans: " << i << " isNAN: " << std::isnan(U.U[i]) <<  std::endl;
-    Assert(!std::isnan(U.U[i]), ExcMessage("Nan in solution after " + caller));
+    Assert(!std::isnan(U.U[i]), dealii::ExcMessage("Nan in solution after " + caller));
   }
 }
 
@@ -411,7 +411,7 @@ dealii::Tensor<1,2/*dim*/> calculate_drag_and_lift(const my_Vector& u, const my_
 
   } /* dim is 2, this code only works for dim=2, unfortunately.*/ else {
     Assert(false, 
-      ExcMessage("You are trying to call calculate_drag_and_lift,"
+      dealii::ExcMessage("You are trying to call calculate_drag_and_lift,"
       " which only works for dim=2. you called with dim = " + std::to_string(dim)));
     dealii::Tensor<1,2/*dim*/> forces;
     return forces;
@@ -467,7 +467,7 @@ void interpolate_between_levels(my_Vector& to_v,
                                const braid_App& app)
 {
   Assert((to_v.U.size() == app->levels[to_level]->offline_data->dof_handler().n_dofs()*app->problem_dimension)
-      , ExcMessage("Trying to interpolate to a vector and level where the n_dofs do not match will not work."));
+      , dealii::ExcMessage("Trying to interpolate to a vector and level where the n_dofs do not match will not work."));
   using scalar_type = ryujin::OfflineData<2,NUMBER>::scalar_type;
   scalar_type from_component,to_component;
 
@@ -501,7 +501,7 @@ void interpolate_between_levels(my_Vector& to_v,
 
 ///This function reinits a vector to the specified level, making sure that the partition matches that of the level.
 void reinit_to_level(my_Vector* u, braid_App& app, const unsigned int level) {
-  Assert(app->levels.size()>level, ExcMessage("The level being reinitialized does not exist."));
+  Assert(app->levels.size()>level, dealii::ExcMessage("The level being reinitialized does not exist."));
   u->U.reinit_with_scalar_partitioner(
       app->levels[level]->offline_data->scalar_partitioner());
   u->U.update_ghost_values();//TODO: is this neccessary?
@@ -607,7 +607,7 @@ my_Init(braid_App     app,
 
     interpolate_between_levels(*u, app->finest_index, *temp_coarse, app->coarsest_index, app);
   }
-  //delete the temporary coarse U. 
+  //delete the temporary coarse U. f
   delete temp_coarse;
 
   //reassign pointer XBraid will use
@@ -860,11 +860,11 @@ my_BufPack(braid_App           app,
     temp_tensor = u->U.get_tensor(node);//TODO:FIXME: test linear method for speed...
     for (unsigned int component = 0; component < problem_dimension; ++component) {
       Assert(buf_size >= (node + component),
-             ExcMessage("In my_BufPack, the size of node + component is "
+             dealii::ExcMessage("In my_BufPack, the size of node + component is "
                         "greater than the buff_size (the expected size of the vector)."));
       dbuffer[problem_dimension*(node) + component + 1] = u->U.local_element(problem_dimension*node + component);
       Assert(!std::isnan(u->U.local_element(problem_dimension*node + component)),
-        ExcMessage("The vector you are trying to pack has a NaN in it at component " + std::to_string(problem_dimension*node + component)));
+        dealii::ExcMessage("The vector you are trying to pack has a NaN in it at component " + std::to_string(problem_dimension*node + component)));
     }
   }
   braid_BufferStatusSetSize(bstatus, (buf_size+1)*sizeof(NUMBER));//set the number of bytes stored in this buffer (TODO: this is off since the dbuffer[0] is a integer.)
@@ -913,7 +913,7 @@ my_BufUnpack(braid_App           app,
       // temp_tensor[component] = dbuffer[app->problem_dimension*node + component + 1];//+1 because buffer_size = n_dof + 1
       u->U.local_element(problem_dimension*node + component) = dbuffer[app->problem_dimension*node + component + 1];//test for speed.
       Assert(node + component +1 <= buf_size,
-          ExcMessage("somehow, you are exceeding the buffer size as you unpack"));
+          dealii::ExcMessage("somehow, you are exceeding the buffer size as you unpack"));
     }
     //insert tensor at node
     // u->U.write_tensor(temp_tensor, node);//TODO:FIXME: try linear method?
@@ -950,7 +950,7 @@ void test_braid_functions(my_App& app, braid_MPI_Comm comm_x = MPI_COMM_WORLD)
 
   Assert(
       std::abs(norm - norm_cloned) < 1e-6,
-      ExcMessage("The norm of V and the norm of the cloned V do not match."));
+      dealii::ExcMessage("The norm of V and the norm of the cloned V do not match."));
   std::cout << "Norm assertion passed." << std::endl;
 
   // test my_Sum
@@ -971,7 +971,7 @@ void test_braid_functions(my_App& app, braid_MPI_Comm comm_x = MPI_COMM_WORLD)
   my_Free(&app, V_cloned);
 
   // Assert((V == NULL && V_cloned == NULL),
-  //        ExcMessage("The pointers are not null after free."));
+  //        dealii::ExcMessage("The pointers are not null after free."));
 
     //tests for functions
   braid_TestAll(&app,
@@ -1004,7 +1004,7 @@ int main(int argc, char *argv[])
   //set up app and all underlying data, initialize parameters
   //parse command line parameters, order should be file name, parameter file, px, then the mg hierarcy, i.e. list of refinement levels.
   Assert(argc > 1/*program*/ + 1/*parameter file*/ + 1/*px*/ + 1/*at least one level refinement*/,
-         ExcMessage("You must provide the program with a parameter file, a number of spatial processors, "
+         dealii::ExcMessage("You must provide the program with a parameter file, a number of spatial processors, "
               "and a multigrid hierarcy. Here, the number of additional parameters needed is at least:" + std::to_string(4-argc)));
   const std::string prm_name(argv[1]);// prm file
   const int px = std::stoi(argv[2]);  // number of processors to use in space
