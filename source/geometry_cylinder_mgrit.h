@@ -30,7 +30,8 @@ namespace ryujin
                   const double /*length*/,
                   const double /*height*/,
                   const double /*cylinder_position*/,
-                  const double /*cylinder_height*/)
+                  const double /*cylinder_height*/,
+                  const double /*second_cylinder_diameter*/)
     {
       AssertThrow(false, dealii::ExcNotImplemented());
       __builtin_trap();
@@ -225,7 +226,7 @@ namespace ryujin
 
       dealii::Triangulation<2, 2> tria1;
 
-      cylinder_mgrit(tria1, length, height, cylinder_position, cylinder_diameter);
+      cylinder_mgrit(tria1, length, height, cylinder_position, cylinder_diameter, second_cylinder_diameter);
 
       dealii::Triangulation<3, 3> tria2;
       tria2.set_mesh_smoothing(triangulation.get_mesh_smoothing());
