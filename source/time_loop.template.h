@@ -456,11 +456,12 @@ namespace ryujin
     std::cout << "TimeLoop<dim, Number>::run_with_initial_data(U,start,end,pp_func())" << std::endl;
 #endif
 
-  const bool write_output_files = enable_checkpointing_ ||
+  const bool write_output_files = (enable_checkpointing_ ||
         enable_output_full_ ||
-        enable_output_levelsets_;
+        enable_output_levelsets_) &&
+        mgrit_specified_print;// If the user specifies other printing option, we default to that choice.
  
-  Number t = start_time;//we will start at the initial time that this object was created with
+  Number t = start_time;
   unsigned int output_cycle = 0;
 
   unsigned int cycle = 1;
