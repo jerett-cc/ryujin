@@ -169,7 +169,7 @@ int main(int argc, char *argv[]){
 
 
   //now that we have the data, we call the run function
-  tl.run_with_initial_data(U,tstop, tstart, calculate_drag_and_lift);
+  tl.run_with_initial_data(U,tstop, tstart, true/*print solution*/, calculate_drag_and_lift);
 
   std::cout << "Num cells with this coarse discretization: " << ls.discretization->triangulation().n_global_active_cells();
   return 1;

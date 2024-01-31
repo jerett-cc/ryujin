@@ -559,7 +559,7 @@ int my_Step(braid_App        app,
   //interpolate between levels, put data from u (fine level) onto the u_to_step (coarse level)
   interpolate_between_levels(u_to_step, level, *u, 0, app);
   //step the function on this level
-  app->time_loops[level]->run_with_initial_data(u_to_step.U, tstop, tstart);
+  app->time_loops[level]->run_with_initial_data(u_to_step.U, tstop, tstart, false/*print every step of this simulation*/);
 
   //interpolate this back to the fine level
   interpolate_between_levels(*u,0,u_to_step,level, app);
