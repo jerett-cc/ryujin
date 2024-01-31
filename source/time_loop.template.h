@@ -272,7 +272,7 @@ namespace ryujin
         print_info("resuming computation: loading state vector");
         U.reinit(offline_data_->vector_partitioner());
         Checkpointing::load_state_vector(
-            offline_data_, base_name_, U, t, output_cycle, mpi_communicator_);
+            *offline_data_, base_name_, U, t, output_cycle, mpi_communicator_);
 
         if (resume_at_time_zero_) {
           /*
