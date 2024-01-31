@@ -43,7 +43,8 @@ namespace ryujin
                   const double length,
                   const double height,
                   const double cylinder_position,
-                  const double cylinder_diameter)
+                  const double cylinder_diameter,
+                  const double second_cylinder_diameter)
     {
       constexpr int dim = 2;
 
@@ -87,7 +88,7 @@ namespace ryujin
 
       // secondary cylinder
       GridGenerator::hyper_cube_with_cylindrical_hole(
-          tria7, cylinder_diameter / 2., cylinder_diameter, 0.5, 1, false);
+          tria7, second_cylinder_diameter / 2., cylinder_diameter, 0.5, 1, false);
       Tensor<1,dim> shift({cylinder_diameter * 2. + length/4., 0.});//shift center of the second cylinder to correct part of the domain.
       GridTools::shift(shift, tria7);
 
@@ -217,7 +218,8 @@ namespace ryujin
                   const double length,
                   const double height,
                   const double cylinder_position,
-                  const double cylinder_diameter)
+                  const double cylinder_diameter,
+                  const double second_cylinder_diameter)
     {
       using namespace dealii;
 
@@ -320,6 +322,10 @@ namespace ryujin
         this->add_parameter("object diameter",
                             object_diameter_,
                             "diameter of immersed cylinder");
+        second_object_diameter_ = object_diameter_;
+        this->add_parameter("second object diameter",
+                            second_object_diameter_,
+                            "diameter of the second, downwind object");
       }
 
       void create_triangulation(
@@ -330,7 +336,8 @@ namespace ryujin
                                 length_,
                                 height_,
                                 object_position_,
-                                object_diameter_);
+                                object_diameter_,
+                                second_object_diameter_);
       }
 
     private:
@@ -338,6 +345,7 @@ namespace ryujin
       double height_;
       double object_position_;
       double object_diameter_;
+      double second_object_diameter_;
     };
   } /* namespace Geometries */
 } /* namespace ryujin */
