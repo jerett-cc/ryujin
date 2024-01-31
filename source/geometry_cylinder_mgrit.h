@@ -147,13 +147,6 @@ namespace ryujin
       
       triangulation.copy_triangulation(tria4);
 
-      /* Restore polar manifold for disc: */
-
-      //first cylinder
-      triangulation.set_manifold(0, PolarManifold<2>(Point<2>()));
-      //second cylinder
-      triangulation.set_manifold(0, PolarManifold<2>(Point<2>(cylinder_diameter * 2. + length/4, 0.)));
-
       /* Fix up position of left boundary: */
 
       for (auto cell : triangulation.active_cell_iterators())
@@ -211,6 +204,16 @@ namespace ryujin
           face->set_boundary_id(Boundary::slip);
         }
       }
+      /* Set manifold ID on the second cylinder to 1.*/
+
+      triangulation.set_all_manifold_ids_on_boundary(Boundary::object,1/*new manifold id*/);
+
+      /* Restore polar manifold for discs: */
+
+      //first cylinder
+      triangulation.set_manifold(0, PolarManifold<2>(Point<2>()));
+      //second cylinder, centered at x=cylinder_diameter * 2. + length/4., y=0
+      triangulation.set_manifold(1, PolarManifold<2>(Point<2>(cylinder_diameter * 2. + length/4., 0.)));
     }
 
 
