@@ -40,8 +40,8 @@
 #include "time_integrator.h"
 #include "vtu_output.h"
 #include "convenience_macros.h"
-#include "time_loop_mgrit.h"
-#include "time_loop_mgrit.template.h"
+// #include "time_loop_mgrit.h"//TODO: remove
+// #include "time_loop_mgrit.template.h"//TODO: remove
 
 //deal.II includes
 #include <deal.II/base/parameter_acceptor.h>
@@ -121,7 +121,7 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
     using LevelType
         = std::shared_ptr<ryujin::mgrit::LevelStructures<Description, 2, Number>>;
     using TimeLoopType
-        = std::shared_ptr<ryujin::mgrit::TimeLoopMgrit<Description,2,Number>>;
+        = std::shared_ptr<ryujin::TimeLoop<Description,2,Number>>;
 
   public://FIXME: public needs to be moved.
     using HyperbolicSystemView =
@@ -251,9 +251,7 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
         //TODO: determine if I should just make a time loop object for each level and using only this.
         // i.e. does app really ned to know all the level structures info?
         levels[i] = std::make_shared<ryujin::mgrit::LevelStructures<Description, 2, Number>>(comm_x, refinement_levels[i]);
-        time_loops[i] = std::make_shared<ryujin::mgrit::TimeLoopMgrit<Description,2,Number>>(comm_x, *(levels[i]), 
-                                                                                             0/*initial time is irrelevant*/,
-                                                                                             0/*final time is irrelevant*/);
+        time_loops[i] = std::make_shared<ryujin::TimeLoop<Description,2,Number>>(comm_x, *(levels[i]));
         std::cout << "Level " + std::to_string(refinement_levels[i]) + " created." << std::endl;
       }
     }
@@ -436,7 +434,7 @@ void print_solution(ryujin::MultiComponentVector<double, 4> &v,
 {
   std::cout << "printing solution" << std::endl;
   const auto time_loop = app->time_loops[level];
-  time_loop->output(v, fname + std::to_string(t), t /*current time*/, 1/*cycle*/);
+  time_loop->output_wrapper(v, fname + std::to_string(t), t /*current time*/, 1/*cycle*/);
 }
 
 /**Temporary function to print out cells that interpolate between levels will call.*/
