@@ -88,13 +88,16 @@ namespace ryujin
       // secondary cylinder
       GridGenerator::hyper_cube_with_cylindrical_hole(
           tria7, cylinder_diameter / 2., cylinder_diameter, 0.5, 1, false);//How to shift this to the correct part of the domain?
-      GridTools::transform ([&](const Point<dim> &p) -> Point<dim>
-                      {
-                        Point<dim> q = p;
-                        q[0] += cylinder_diameter * 2. + length/4;
-                        return q;
-                      },
-                      tria7);
+      Tensor<1,dim> shift({cylinder_diameter * 2. + length/4., 0.});
+
+      // GridTools::transform ([&](const Point<dim> &p) -> Point<dim>
+      //                 {
+      //                   Point<dim> q = p;
+      //                   q[0] += cylinder_diameter * 2. + length/4.;
+      //                   return q;
+      //                 },
+      //                 tria7);
+      GridTools::shift(shift, tria7);
 
       GridGenerator::subdivided_hyper_rectangle(
           tria8,
