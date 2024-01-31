@@ -11,7 +11,7 @@ subsection TimeLoop
   set final time                    = 5
   set output checkpoint multiplier  = 1
   set output full multiplier        = 1
-  set output granularity            = 0.01
+  set output granularity            = 0.1
   set output levelsets multiplier   = 1
   set output quantities multiplier  = 1
   set refinement timepoints         = 
@@ -20,11 +20,12 @@ subsection TimeLoop
   set terminal update interval      = 5
 end
 subsection Equation
-  ##set dimension               = 2
-  ##set equation                = euler
-  set gamma                   = 1.4
-  set reference density       = 1
-  set vacuum state relaxation = 10000
+  ##set dimension                   = 2
+  ##set equation                    = euler
+  set gamma                         = 1.4
+  set reference density             = 1
+  set vacuum state relaxation small = 100
+  set vacuum state relaxation large = 10000
 end
 subsection Discretization
   set geometry            = cylinder_mgrit
@@ -58,6 +59,13 @@ subsection Discretization
     set length          = 4
     set object diameter = 0.5
     set object position = 0.6
+  end
+  subsection cylinder_mgrit
+    set height                 = 2
+    set length                 = 4
+    set object diameter        = 0.5
+    set object position        = 0.6
+    set second object diameter = 0.3 #default is to match object diameter.
   end
   subsection rectangular domain
     set boundary condition bottom = dirichlet
@@ -138,11 +146,11 @@ subsection InitialValues
     set primitive state = 1.4, 0, 1
   end
   subsection smooth wave
-    set left number        = 0.1
+    #irrelevant in most recent version of ryujin set left number        = 0.1
     set mach number        = 1
     set reference density  = 1
     set reference pressure = 1
-    set right number       = 0.3
+    #irrelevant in most recent version of ryujin  set right number       = 0.3
   end
   subsection three state contrast
     set left region length     = 0.1
