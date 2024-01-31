@@ -15,32 +15,89 @@ subsection TimeLoop
   set enable compute quantities     = false
   set enable output full            = true
   set enable output levelsets       = false
-  set error normalize               = false
+  set error normalize               = true
   set error quantities              = rho, m_1, m_2, E
+  set final time                    = 5
   set output checkpoint multiplier  = 1
   set output full multiplier        = 1
-  set output granularity            = 1
+  set output granularity            = 0.1
   set output levelsets multiplier   = 1
   set output quantities multiplier  = 1
   set refinement timepoints         = 
   set resume                        = false
-  set terminal show rank throughput = false
+  set terminal show rank throughput = true
   set terminal update interval      = 5
 end
 subsection Equation
-  set gamma                   = 1.4
-  set reference density       = 1
-  set vacuum state relaxation = 10000
+  ##set dimension                   = 2
+  ##set equation                    = euler
+  set gamma                         = 1.4
+  set reference density             = 1
+  set vacuum state relaxation small = 100
+  set vacuum state relaxation large = 10000
 end
 subsection Discretization
   set geometry            = cylinder_mgrit
   set mesh distortion     = 0
+  ##set mesh refinement     = 5
   set mesh repartitioning = false
-  subsection cylinder_mgrit
-    set length = 4
-    set height = 2
-    set object position = 0.6
+  subsection airfoil
+    set airfoil center                      = -0.5, 0
+    set airfoil length                      = 2
+    set airfoil type                        = NASA SC(2) 0714
+    set anisotropic pre refinement airfoil  = 1
+    set anisotropic pre refinement trailing = 3
+    set grading epsilon                     = 0.02
+    set grading epsilon trailing            = 0.01
+    set grading exponent                    = 5.5
+    set height                              = 6
+    set psi center                          = 0.05, 0
+    set psi ratio                           = 0.3
+    set psi samples                         = 100
+    set subdivisions z                      = 2
+    set width                               = 1
+  end
+  subsection annulus
+    set coverage angle = 45
+    set inner radius   = 0.6
+    set length         = 2
+    set outer radius   = 0.7
+  end
+  subsection cylinder
+    set height          = 2
+    set length          = 4
     set object diameter = 0.5
+    set object position = 0.6
+  end
+  subsection cylinder_mgrit
+    set height                 = 2
+    set length                 = 4
+    set object diameter        = 0.5
+    set object position        = 0.6
+    set second object diameter = 0.3 #default is to match object diameter.
+  end
+  subsection rectangular domain
+    set boundary condition bottom = dirichlet
+    set boundary condition left   = dirichlet
+    set boundary condition right  = dirichlet
+    set boundary condition top    = dirichlet
+    set grading pull back         = x;y
+    set grading push forward      = x;y
+    set position bottom left      = 0, 0
+    set position top right        = 20, 20
+    set subdivisions x            = 1
+    set subdivisions y            = 1
+  end
+  subsection step
+    set height        = 1
+    set length        = 3
+    set step height   = 0.2
+    set step position = 0.6
+  end
+  subsection wall
+    set height        = 1
+    set length        = 3.2
+    set wall position = 0.166667
   end
 end
 subsection InitialValues
@@ -52,6 +109,64 @@ subsection InitialValues
     set jet width               = 0.05
     set primitive ambient right = 5, 0, 0.4127
     set primitive jet state     = 5, 30, 0.4127
+  end
+  subsection becker solution
+    set density left            = 1
+    set mu                      = 0.01
+    set velocity galilean frame = 0.2
+    set velocity left           = 1
+    set velocity right          = 0.259259
+  end
+  subsection contrast
+    set primitive state left  = 1.4, 0, 1
+    set primitive state right = 1.4, 0, 1
+  end
+  subsection four state contrast
+    set primitive state bottom left  = 1.4, 0, 0, 1
+    set primitive state bottom right = 1.4, 0, 0, 1
+    set primitive state top left     = 1.4, 0, 0, 1
+    set primitive state top right    = 1.4, 0, 0, 1
+  end
+  subsection function
+    set density expression            = 1.4
+    set energy expression             = 8.8
+    set momentum expression           = 4.2
+    set pressure expression           = 1.0
+    set use primitive state functions = true
+    set velocity expression           = 3.0
+  end
+  subsection isentropic vortex
+    set beta        = 5
+    set mach number = 2
+  end
+  subsection radial contrast
+    set primitive state inner = 1.4, 0, 1
+    set primitive state outer = 1.4, 0, 1
+    set radius                = 0.5
+  end
+  subsection ramp up
+    set primitive state final   = 1.4, 3, 1
+    set primitive state initial = 1.4, 0, 1
+    set time final              = 1
+    set time initial            = 0
+  end
+  subsection shock front
+    set mach number     = 2
+    set primitive state = 1.4, 0, 1
+  end
+  subsection smooth wave
+    #irrelevant in most recent version of ryujin set left number        = 0.1
+    set mach number        = 1
+    set reference density  = 1
+    set reference pressure = 1
+    #irrelevant in most recent version of ryujin  set right number       = 0.3
+  end
+  subsection three state contrast
+    set left region length     = 0.1
+    set middle region length   = 0.8
+    set primitive state left   = 1.4, 0, 1
+    set primitive state middle = 1.4, 0, 1
+    set primitive state right  = 1.4, 0, 1
   end
   subsection uniform
     set primitive state = 1.4, 3, 1
@@ -65,8 +180,8 @@ subsection HyperbolicModule
   set limiter relaxation factor     = 1
 end
 subsection TimeIntegrator
-  set cfl max               = 0.15  #0.9
-  set cfl min               = 0.15  #0.45
+  set cfl max               = 0.9
+  set cfl min               = 0.45
   set cfl recovery strategy = bang bang control
   set time stepping scheme  = erk 33
 end
