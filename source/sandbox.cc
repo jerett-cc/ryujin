@@ -27,7 +27,8 @@ int main(int argc, char *argv[]){
 
   ryujin::mgrit::LevelStructures<typename ryujin::Euler::Description, 2, double> ls(comm_world, refinement);
   ryujin::TimeLoop<typename ryujin::Euler::Description, 2, double> tl(comm_world, ls);
-  dealii::ParameterAcceptor::initialize("sandbox.prm");
+  std::cout << "Initializing with prm = " + prm_name << std::endl;
+  dealii::ParameterAcceptor::initialize(prm_name);
 
   ls.prepare();
 
