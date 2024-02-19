@@ -772,7 +772,9 @@ my_Access(braid_App          app,
   }
 
   std::string fname = "./cycle" + std::to_string(mgCycle);
-  if(app->print_solution)
+  if(app->print_solution && (std::abs(t-0)< 1e-6 ||std::abs(t-1.25) < 1e-6 
+			     || std::abs(t-2.5) < 1e-6 || std::abs(t-3.75) < 1e-6
+			     || std::abs(t-5.0) < 1e-6)){//FIXME: this only prints for the [0,5] time interval. Make this more general.
     print_solution(u->U, app, t, 0/*level, always needs to be zero, to be fixed*/, fname);
 
   //calculate drag and lift for this solution on level 0
@@ -780,6 +782,7 @@ my_Access(braid_App          app,
   dealii::Tensor<1,2> forces = calculate_drag_and_lift(*u,*app,t,2/*dim*/);
   std::cout << "cycle." + std::to_string(mgCycle) + " drag." +std::to_string(forces[0]) 
               + " lift." + std::to_string(forces[1]) + " time." +std::to_string(t) << std::endl;
+  }
 
   return 0;
 }
