@@ -147,6 +147,7 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
     double global_tstop;
     braid_Int cfactor;//FIXME: decide what types here? ryujin types or braid types? what about doubles??
     int max_iter;
+    bool use_fmg;
 
     //a pointer to store a vector which represents the time average of all time points (after 0)
     // my_Vector* time_avg;
@@ -194,6 +195,10 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
       add_parameter("max_iter", 
                     max_iter,
                     "The maximum number of MGRIT iterations.");
+      use_fmg = false;
+      add_parameter("use fmg",
+		    use_fmg,
+		    "If set to true, this uses F-cycles.");
     };
 
     // Calls ParameterAcceptor::initialize(prm_name), this will initialize all the data structures.
@@ -231,7 +236,7 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
         levels[lvl]->prepare();
         std::cout << "Level " + std::to_string(refinement_levels[lvl]) + " prepared." << std::endl;
 
-        MPI_Barrier(comm_x);
+        MPI_Barrier(MPI_COMM_WORLD);
       }
       //set the last variables in app.
       n_fine_dofs = levels[0]->offline_data->dof_handler().n_dofs();
@@ -1083,7 +1088,7 @@ int main(int argc, char *argv[])
   int use_sequential = 0; //same as XBRAID default, initial guess is from user defined init.
 
   UNUSED(nrelax);
-
+  std::cout << "Parameters for Braid: max_iter= " + std::to_string(max_iter) << std::endl;
   braid_SetPrintLevel(core, print_level);
   braid_SetAccessLevel(core, access_level);
   braid_SetMaxLevels(core, max_levels);
