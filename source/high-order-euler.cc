@@ -148,6 +148,7 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
     braid_Int cfactor;//FIXME: decide what types here? ryujin types or braid types? what about doubles??
     int max_iter;
     bool use_fmg;
+    int n_relax;
 
     //a pointer to store a vector which represents the time average of all time points (after 0)
     // my_Vector* time_avg;
@@ -197,8 +198,11 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
                     "The maximum number of MGRIT iterations.");
       use_fmg = false;
       add_parameter("use fmg",
-		    use_fmg,
-		    "If set to true, this uses F-cycles.");
+		                use_fmg,
+		                "If set to true, this uses F-cycles.");
+      add_parameter("n relax",
+                    n_relax,
+                    "Number of relaxation steps: 1 is FC, 2 is FCF, 3 is FCFCF, etc.")
     };
 
     // Calls ParameterAcceptor::initialize(prm_name), this will initialize all the data structures.
@@ -1073,12 +1077,11 @@ int main(int argc, char *argv[])
   /* Define XBraid parameters
    * See -help message for descriptions */
   unsigned int max_levels = app.refinement_levels.size(); // fixme, cthis is later cast to an int.
-  int nrelax = 1; // FIXME: add this and delete the UNUSED(nrelax) later.
+  int nrelax = 1; // Default is 1 in XBraid which is FC relaxation(TODO: verify this.), 1 is FCF relaxation, 2 is FCFCF relaxation.
   //      int       skip          = 0;
   double tol = 1e-2;
   int max_iter = app.max_iter;
-  //      int       min_coarse    = 10;
-  // int       fmg           = test_case.fmg;
+  // int       min_coarse    = 10;
   // int       scoarsen      = 0;
   // int       res           = 0;
   // int       wrapper_tests = 0;
@@ -1087,17 +1090,16 @@ int main(int argc, char *argv[])
   int access_level = 2;
   int use_sequential = 0; //same as XBRAID default, initial guess is from user defined init.
 
-  UNUSED(nrelax);
   std::cout << "Parameters for Braid: max_iter= " + std::to_string(max_iter) << std::endl;
   braid_SetPrintLevel(core, print_level);
   braid_SetAccessLevel(core, access_level);
   braid_SetMaxLevels(core, max_levels);
   //             braid_SetMinCoarse( core, min_coarse );
   //             braid_SetSkip(core, skip);
-  //      braid_SetNRelax(core, -1, nrelax);
+  braid_SetNRelax(core, -1, app.nrelax);
   braid_SetAbsTol(core, tol);
   braid_SetCFactor(core, -1, app.cfactor);
-  braid_SetMaxIter(core, max_iter);
+  braid_SetMaxIter(core, app.max_iter);
   braid_SetSeqSoln(core, use_sequential);
   std::cout << "before braid_drive\n";
   braid_Drive(core);
