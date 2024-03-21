@@ -198,9 +198,9 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
                     max_iter,
                     "The maximum number of MGRIT iterations.");
       use_fmg = false;
-      add_parameter("use fmg",
+      add_parameter("use_fmg",
 		                use_fmg,
-		                "If set to true, this uses F-cycles.");
+		                "If set to true, this uses F-cycles.");//TODO: use this in main()
       add_parameter("n relax",
                     n_relax,
                     "Number of relaxation steps: 1 is FC, 2 is FCF, 3 is FCFCF, etc.")
