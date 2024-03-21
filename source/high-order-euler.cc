@@ -149,6 +149,7 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
     int max_iter;
     bool use_fmg;
     int n_relax;
+    unsigned int n_cycles = 0;
 
     //a pointer to store a vector which represents the time average of all time points (after 0)
     // my_Vector* time_avg;
@@ -439,11 +440,18 @@ void print_solution(ryujin::MultiComponentVector<double, 4> &v,
                     const braid_App &app,
                     const double t = 0,
                     const unsigned int level = 0,
-                    const std::string fname = "./test-output")
+                    const std::string fname = "./test-output",
+                    const bool time_in_fname = true,
+                    const unsigned int cycle = 0)
 {
   std::cout << "printing solution" << std::endl;
   const auto time_loop = app->time_loops[level];
-  time_loop->output_wrapper(v, fname + std::to_string(t), t /*current time*/, 1/*cycle*/);
+  if (time_in_fname)
+  {
+    time_loop->output_wrapper(v, fname + std::to_string(t), t /*current time*/, 0/*cycle*/);
+  } else {
+    time_loop->output_wrapper(v, fname, t/*current time*/, cycle/*cycle*/);
+  }
 }
 
 /**Temporary function to print out cells that interpolate between levels will call.*/
@@ -791,7 +799,8 @@ my_Access(braid_App          app,
   dealii::Tensor<1,2> forces = calculate_drag_and_lift(*u,*app,t,2/*dim*/);
   std::cout << "cycle." + std::to_string(mgCycle) + " drag." +std::to_string(forces[0]) 
               + " lift." + std::to_string(forces[1]) + " time." +std::to_string(t) << std::endl;
-  }
+  
+  app->n_cycles = mgCycle;
 
   return 0;
 }
