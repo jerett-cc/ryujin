@@ -1116,7 +1116,7 @@ int main(int argc, char *argv[])
   // int       scoarsen      = 0;
   // int       res           = 0;
   // int       wrapper_tests = 0;
-  int print_level = 2;
+  int print_level = 3;
   /*access_level=1 only calls my_access at end of simulation*/
   int access_level = 2;
   int use_sequential = 0; //same as XBRAID default, initial guess is from user defined init.
@@ -1125,6 +1125,8 @@ int main(int argc, char *argv[])
   braid_SetPrintLevel(core, print_level);
   braid_SetAccessLevel(core, access_level);
   braid_SetMaxLevels(core, max_levels);
+  braid_SetPrintFile(core, "braid_debug.txt");
+  braid_SetPrintLevel(core, print_level);
   //             braid_SetMinCoarse( core, min_coarse );
   //             braid_SetSkip(core, skip);
   braid_SetNRelax(core, -1, app.n_relax);
