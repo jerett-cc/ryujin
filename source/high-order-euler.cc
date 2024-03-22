@@ -203,7 +203,7 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
 		                "If set to true, this uses F-cycles.");//TODO: use this in main()
       add_parameter("n relax",
                     n_relax,
-                    "Number of relaxation steps: 1 is FC, 2 is FCF, 3 is FCFCF, etc.")
+                    "Number of relaxation steps: 1 is FC, 2 is FCF, 3 is FCFCF, etc.");
     };
 
     // Calls ParameterAcceptor::initialize(prm_name), this will initialize all the data structures.
@@ -1105,7 +1105,7 @@ int main(int argc, char *argv[])
   braid_SetMaxLevels(core, max_levels);
   //             braid_SetMinCoarse( core, min_coarse );
   //             braid_SetSkip(core, skip);
-  braid_SetNRelax(core, -1, app.nrelax);
+  braid_SetNRelax(core, -1, app.n_relax);
   braid_SetAbsTol(core, tol);
   braid_SetCFactor(core, -1, app.cfactor);
   braid_SetMaxIter(core, app.max_iter);
