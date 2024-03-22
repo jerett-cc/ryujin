@@ -218,7 +218,7 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
     }
 
     /// This function takes a level and a time start point and tells you which brick you are on as an integer on this level.
-    /// How is the performance of this algorithm? SHould we precompute ans store with a faster data structure like a hash?
+    /// How is the performance of this algorithm? Should we precompute ans store with a faster data structure like a hash?
     unsigned int level_brick(const unsigned int level, const Number t_start)
     {
       //determine number of slabs on this level
@@ -236,6 +236,9 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
         if(std::abs( delta_t * static_cast<Number>(i)-t_start) < 1e-6)//FIXME: in principle, we do not know that we should check 1e-6 away, since brick size could be smaller than this.
         {
           return i;
+        } else {
+          //how should this exit if the brick does not exist?
+          return 0;
         }
       }
     }
