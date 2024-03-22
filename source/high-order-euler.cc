@@ -564,6 +564,8 @@ int my_Step(braid_App        app,
       + "total step call number " +std::to_string(num_step_calls) << std::endl;
   }
 
+  std::string fname = "IcOnLevel_" + std::to_string(level)+ "on_interval_[" +std::to_string(tstart)+ "_"+std::to_string(tstop)+ "]";
+
   //translate the fine level u coming in to the coarse level
   //this uses a function from DEALII interpolate to different mesh
 
@@ -573,11 +575,16 @@ int my_Step(braid_App        app,
 
   //interpolate between levels, put data from u (fine level) onto the u_to_step (coarse level)
   interpolate_between_levels(u_to_step, level, *u, 0, app);
+  print_solution(u_to_step.U, app, tstart/*this is a big problem, not knowing what time we are summing at*/, level/*level, always needs to be zero, to be fixed*/, fname, false, app->n_cycles);
+
   //step the function on this level
   app->time_loops[level]->run_with_initial_data(u_to_step.U, tstop, tstart, false/*print every step of this simulation*/);
 
   //interpolate this back to the fine level
   interpolate_between_levels(*u,0,u_to_step,level, app);
+
+  std::string fname_post = "FcOnLevel_" + std::to_string(level)+ "on_interval_[" +std::to_string(tstart)+ "_"+std::to_string(tstop)+ "]";
+  print_solution(u->U, app, tstop/*this is a big problem, not knowing what time we are summing at*/, level/*level, always needs to be zero, to be fixed*/, fname_post, false, app->n_cycles);
   num_step_calls++;
   //done.
   return 0;
