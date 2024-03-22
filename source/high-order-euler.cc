@@ -715,14 +715,28 @@ my_Sum(braid_App app,
        double beta,
        braid_Vector y)
 {
-  UNUSED(app);
+
+  // keep track of the number of times this has been called
+  static int sum_count = 0;
 
   if (dealii::Utilities::MPI::this_mpi_process(app->comm_t) == 0)
   {
     std::cout << "[INFO] Summing XBraid vectors" << std::endl;
+    std::cout << alpha << "x + " << beta << "y" << std::endl;
   }
 
+  std::string x_fname = "./" + std::to_string(alpha) + "x";
+  std::string y_fname = "./" + std::to_string(beta)  + "y";
+
+  // print_solution(x->U, app, 0/*this is a big problem, not knowing what time we are summing at*/, 0/*level, always needs to be zero, to be fixed*/, x_fname, false, sum_count);
+  // print_solution(y->U, app, 0/*this is a big problem, not knowing what time we are summing at*/, 0/*level, always needs to be zero, to be fixed*/, y_fname, false, sum_count);
+
+
   y->U.sadd(beta, alpha, x->U);
+  std::string fname = "./sum_";
+  // print_solution(y->U, app, 0/*this is a big problem, not nowing what time we are summing at*/, 0/*level, always needs to be zero, to be fixed*/, fname, false, sum_count);
+
+  sum_count++;
 
   return 0;
 }
