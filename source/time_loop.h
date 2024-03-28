@@ -145,6 +145,10 @@ namespace ryujin
                                 unsigned int output_cycle,
                                 bool write_to_logfile = false,
                                 bool final_time = false);
+
+  public:
+    void change_base_name(const std::string new_name)
+    {base_name_ = new_name;};
     //@}
 
   private:
