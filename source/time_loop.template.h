@@ -504,7 +504,6 @@ namespace ryujin
     if (t >= end_time)
       break;
 
-
     /* Take a step: */
     const auto tau = time_integrator_->step(U, t);
     t += tau;
