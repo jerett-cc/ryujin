@@ -478,7 +478,7 @@ namespace ryujin
 
     /* Perform output: */
 
-    if (t >= output_cycle * output_granularity_) {
+    if (t - start_time >= output_cycle * output_granularity_) {
       if (write_output_files) {
         output(U, base_name_ + "-solution", t, output_cycle);
         if (enable_compute_error_) {
