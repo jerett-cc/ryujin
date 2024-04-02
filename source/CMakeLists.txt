@@ -137,19 +137,6 @@ set_target_properties(high-order-euler PROPERTIES
 install(TARGETS high-order-euler DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 #
-# Add sandbox executable
-#
-
-add_executable(sandbox sandbox.cc)
-deal_ii_setup_target(sandbox)
-target_link_libraries(sandbox obj_common obj_mgrit ${OBJECT_TARGETS} ${EXTERNAL_TARGETS})
-set_target_properties(sandbox PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/run"
-  )
-  
-install(TARGETS sandbox DESTINATION ${CMAKE_INSTALL_BINDIR})
-
-#
 # Add executables in projects folder.
 #
 file(GLOB _ccfiles RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} CONFIGURE_DEPENDS ./projects/*.cc)
