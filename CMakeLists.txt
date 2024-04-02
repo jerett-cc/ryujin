@@ -70,6 +70,10 @@ FIND_LIBRARY(BRAID_LIBRARY
   PATH_SUFFIXES lib64 lib
   )
 
+if(NOT BRAID_LIBRARY)
+  message(FATAL_ERROR "Braid not found at ${BRAID_DIR}, this project depends XBraid.")
+endif()
+
 MESSAGE(STATUS "Braid include directory: ${BRAID_INCLUDE_DIR}")
 MESSAGE(STATUS "Braid library:           ${BRAID_LIBRARY}")
 MESSAGE(STATUS "Dealii library: 	 ${DEAL_II_DIR}")
