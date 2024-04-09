@@ -511,36 +511,36 @@ void interpolate_between_levels(my_Vector& to_v,
   if(to_level < from_level) {
     for(unsigned int comp=0; comp<problem_dimension; comp++)
     {
-      // extract component
-      from_v.U.extract_component(from_component, comp);
+      // // extract component
+      // from_v.U.extract_component(from_component, comp);
       // interpolate this into the to_component
       dealii::VectorTools::interpolate_to_finer_mesh(
           from_dof_handler,
-          from_component,
+          from_v.U,
           to_dof_handler,
           dealii::AffineConstraints<scalar_type::value_type>(
             to_dof_handler.locally_owned_dofs(),
             dealii::DoFTools::extract_locally_relevant_dofs(to_dof_handler)),
-            to_component);
+          to_v.U);
       // place component
-      to_v.U.insert_component(to_component, comp);
+      // to_v.U.insert_component(to_component, comp);
     }
   } else {
     for(unsigned int comp=0; comp<problem_dimension; comp++)
     {
-      // extract component
-      from_v.U.extract_component(from_component, comp);
+      // // extract component
+      // from_v.U.extract_component(from_component, comp);
       // interpolate this into the to_component
       dealii::VectorTools::interpolate_to_coarser_mesh(
           from_dof_handler,
-          from_component,
+          from_v.U,
           to_dof_handler,
           dealii::AffineConstraints<scalar_type::value_type>(
             to_dof_handler.locally_owned_dofs(),
             dealii::DoFTools::extract_locally_relevant_dofs(to_dof_handler)),
-          to_component);
-      // place component
-      to_v.U.insert_component(to_component, comp);
+          to_v.U);
+      // // place component
+      // to_v.U.insert_component(to_component, comp);
     }
   }
   to_v.U.update_ghost_values();
@@ -610,7 +610,7 @@ int my_Step(braid_App        app,
   //step the function on this level
   if(std::abs(tstart - 1.25) < 1e-6 && level==1){//for debugging TODO remove?
     std::cout << "level: " << level << " at t_start: " << tstart << " is printing every step.";
-    app->time_loops[level]->change_base_name("step_"+std::to_string(num_step_calls) + "cylinder-");
+    // app->time_loops[level]->change_base_name("step_"+std::to_string(num_step_calls) + "cylinder-");
     app->time_loops[level]->run_with_initial_data(u_to_step.U, tstop, tstart, true/*print every step of this simulation*/);
   } else {
     app->time_loops[level]->run_with_initial_data(u_to_step.U, tstop, tstart, false/*print every step of this simulation*/);
