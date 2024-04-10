@@ -7,7 +7,11 @@ configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/compile_time_options.h.in
   ${CMAKE_CURRENT_BINARY_DIR}/compile_time_options.h
   )
-
+  
+configure_file(
+  compile_time_options.h.in
+  compile_time_options.h
+  )
 #
 # Common and equation-independent source files and target:
 #
@@ -48,6 +52,12 @@ set_property(SOURCE time_loop.cc APPEND PROPERTY COMPILE_DEFINITIONS
   RYUJIN_GIT_REVISION="${GIT_REVISION}"
   RYUJIN_GIT_SHORTREV="${GIT_SHORTREV}"
   )
+  
+set_property(SOURCE time_loop_mgrit.cc APPEND PROPERTY COMPILE_DEFINITIONS
+  RYUJIN_VERSION="${RYUJIN_VERSION}"
+  RYUJIN_GIT_REVISION="${GIT_REVISION}"
+  RYUJIN_GIT_SHORTREV="${GIT_SHORTREV}"
+  )
 
 #
 # Equation-specific source files and compilation targets:
@@ -82,15 +92,64 @@ foreach(_file ${_files})
 endforeach()
 
 #
+# MGRIT dependencies/library
+#
+SET(MGRIT_DEPENDENT_SOURCE_FILES
+  time_loop_mgrit.cc
+  )
+
+add_library(obj_mgrit OBJECT ${MGRIT_DEPENDENT_SOURCE_FILES})
+target_include_directories(obj_mgrit PUBLIC
+  ${CMAKE_BINARY_DIR}/source/euler/
+  ${CMAKE_BINARY_DIR}/source/
+  ${CMAKE_CURRENT_SOURCE_DIR}
+  )
+  deal_ii_setup_target(obj_mgrit)
+
+target_link_libraries(obj_mgrit ${EXTERNAL_TARGETS} obj_euler)
+
+#list(APPEND OBJECT_TARGETS obj_mgrit)
+
+#
 # The executable
 #
 
 add_executable(ryujin main.cc)
 deal_ii_setup_target(ryujin)
 target_link_libraries(ryujin obj_common ${OBJECT_TARGETS} ${EXTERNAL_TARGETS})
-
 set_target_properties(ryujin PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/run"
   )
 
 install(TARGETS ryujin DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+#
+#Add Xbraid library and also set up my executable
+#
+
+add_executable(high-order-euler high-order-euler.cc)
+deal_ii_setup_target(high-order-euler)
+target_link_libraries(high-order-euler obj_common obj_mgrit ${OBJECT_TARGETS} ${EXTERNAL_TARGETS})
+set_target_properties(high-order-euler PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/run"
+  )
+
+install(TARGETS high-order-euler DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+#
+# Add executables in projects folder.
+#
+file(GLOB _ccfiles RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} CONFIGURE_DEPENDS ./projects/*.cc)
+foreach(_ccfile ${_ccfiles})
+  MESSAGE(STATUS "Project file: ${_ccfile}")
+  get_filename_component(_fname "${_ccfile}" NAME_WLE)
+  MESSAGE(STATUS "   Name: ${_fname}")
+  add_executable(${_fname} ${_ccfile})
+  deal_ii_setup_target(${_fname})
+  target_link_libraries(${_fname} obj_common obj_mgrit ${OBJECT_TARGETS} ${EXTERNAL_TARGETS})
+  set_target_properties(${_fname} PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/run"
+  )
+  
+  install(TARGETS ${_fname} DESTINATION ${CMAKE_INSTALL_BINDIR})
+endforeach()

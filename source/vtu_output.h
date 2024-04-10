@@ -136,9 +136,9 @@ namespace ryujin
     bool use_mpi_io_;
 
     std::vector<std::string> manifolds_;
-
+  public:
     std::vector<std::string> vtu_output_quantities_;
-
+  private:
     //@}
     /**
      * @name Internal data

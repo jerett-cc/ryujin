@@ -43,6 +43,45 @@ if(NOT DEAL_II_WITH_MPI OR NOT DEAL_II_WITH_P4EST)
     )
 endif()
 
+#
+# Find braid
+#
+
+# Find braid details
+IF(NOT "$ENV{BRAID_DIR}" STREQUAL "")
+    SET(BRAID_DIR "$ENV{BRAID_DIR}" CACHE INTERNAL "Copied BRAID_DIR from environment variable")
+ENDIF()
+
+IF("${CMAKE_FIND_LIBRARY_PREFIXES}" STREQUAL "")
+    SET(CMAKE_FIND_LIBRARY_PREFIXES "lib")
+ENDIF()
+
+FIND_PATH(BRAID_INCLUDE_DIR
+  NAMES braid.h
+  HINTS ${BRAID_DIR}
+  PATH_SUFFIXES include
+  )
+
+FIND_LIBRARY(BRAID_LIBRARY
+  NAMES libbraid.a
+  HINTS ${BRAID_DIR}
+  PATH_SUFFIXES lib64 lib
+  )
+
+if(NOT BRAID_LIBRARY)
+  message(FATAL_ERROR "Braid not found at ${BRAID_DIR}, this project depends XBraid.")
+endif()
+
+MESSAGE(STATUS "Braid include directory: ${BRAID_INCLUDE_DIR}")
+MESSAGE(STATUS "Braid library:           ${BRAID_LIBRARY}")
+MESSAGE(STATUS "Dealii library: 	 ${DEAL_II_DIR}")
+# Include the braid paths and libraries
+INCLUDE_DIRECTORIES(${BRAID_INCLUDE_DIR})
+
+
+#
+# Declare project target and code language
+#
 project(ryujin CXX)
 
 #
@@ -150,6 +189,9 @@ if(WITH_VALGRIND)
   list(APPEND EXTERNAL_TARGETS "Valgrind::Valgrind")
 endif()
 
+#append braid
+list(APPEND EXTERNAL_TARGETS ${BRAID_LIBRARY})
+
 #
 # Set up the rest:
 #
@@ -157,6 +199,7 @@ endif()
 include(GNUInstallDirs)
 
 add_subdirectory(source)
+
 
 install(FILES COPYING.md README.md
   DESTINATION ${CMAKE_INSTALL_DOCDIR}
