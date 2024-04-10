@@ -610,7 +610,6 @@ int my_Step(braid_App        app,
   //step the function on this level
   if(std::abs(tstart - 1.25) < 1e-6 && level==1){//for debugging TODO remove?
     std::cout << "level: " << level << " at t_start: " << tstart << " is printing every step.";
-    app->time_loops[level]->change_base_name("step_"+std::to_string(num_step_calls) + "cylinder-");
     app->time_loops[level]->run_with_initial_data(u_to_step.U, tstop, tstart, true/*print every step of this simulation*/);
   } else {
     app->time_loops[level]->run_with_initial_data(u_to_step.U, tstop, tstart, false/*print every step of this simulation*/);
