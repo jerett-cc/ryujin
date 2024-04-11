@@ -518,10 +518,8 @@ void interpolate_between_levels(my_Vector& to_v,
           from_dof_handler,
           from_component,
           to_dof_handler,
-          dealii::AffineConstraints<scalar_type::value_type>(
-            to_dof_handler.locally_owned_dofs(),
-            dealii::DoFTools::extract_locally_relevant_dofs(to_dof_handler)),
-            to_component);
+          to_constraints,
+          to_component);
       // place component
       to_v.U.insert_component(to_component, comp);
     }
@@ -535,9 +533,7 @@ void interpolate_between_levels(my_Vector& to_v,
           from_dof_handler,
           from_component,
           to_dof_handler,
-          dealii::AffineConstraints<scalar_type::value_type>(
-            to_dof_handler.locally_owned_dofs(),
-            dealii::DoFTools::extract_locally_relevant_dofs(to_dof_handler)),
+          to_constraints,
           to_component);
       // place component
       to_v.U.insert_component(to_component, comp);
