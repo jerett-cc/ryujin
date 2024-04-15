@@ -84,8 +84,8 @@ protected:
 public:
   //Constructor takes communicators and a vector representing how much refinement is needed at each level. 
   //Also defines the number of levels.
-  MyApp(const MPI_Comm comm_x = MPI_COMM_WORLD,
-        const MPI_Comm comm_t = MPI_COMM_WORLD,
+  MyApp(const MPI_Comm comm_x,
+        const MPI_Comm comm_t,
         const std::vector<unsigned int> a_refinement_levels);
 
   /** @brief Apply the time stepping routine to the input vector @a u
