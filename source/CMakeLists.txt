@@ -103,6 +103,8 @@ endforeach()
 #
 SET(MGRIT_DEPENDENT_SOURCE_FILES
   time_loop_mgrit.cc
+  my_app.cc
+  mgrit_functions.cc
   )
 
 add_library(obj_mgrit OBJECT ${MGRIT_DEPENDENT_SOURCE_FILES})

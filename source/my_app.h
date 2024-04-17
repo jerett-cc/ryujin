@@ -1,9 +1,13 @@
+#pragma once
 #include <vector>
 #include <string>
 #include <memory>
 
 //ryujin includes
+#include <compile_time_options.h>
 #include "euler/description.h"
+#include "time_loop.h"
+
 
 //MPI
 #include <deal.II/base/mpi.h>
@@ -42,142 +46,207 @@
 /**
  * \brief Struct that contains a ryujin::TimeLoop::vector_type of size problem_dimension*n_dofs.
  */
+namespace mgrit{
+  class MyVector
+  {
+  public:
+    // Vector type
+    ryujin::TimeLoop<ryujin::Euler::Description, 2, NUMBER>::vector_type U;
 
-class MyVector
-{
-public:
-  // Vector type
-  ryujin::TimeLoop<ryujin::Euler::Description, 2, NUMBER>::vector_type U;
+    // Constructor
+    MyVector() {};
 
-  // Constructor
-  MyVector();
+    // Destructor
+    ~MyVector() {};
+  };
 
-  // Destructor
-  ~MyVector();
-};
+  /**
+   * \brief Cpp wrapper for all of the required functions and data.
+   */
+  class MyApp : public BraidApp, public dealii::ParameterAcceptor
+  {
 
-/**
- * \brief Cpp wrapper for all of the required functions and data.
-*/
-class MyApp : public BraidApp, public dealii::ParameterAcceptor
-{
+    using Description = ryujin::Euler::Description;
+    using Number = NUMBER;
+    using LevelType =
+        std::shared_ptr<ryujin::mgrit::LevelStructures<Description, 2, Number>>;
+    using TimeLoopType =
+        std::shared_ptr<ryujin::TimeLoop<Description, 2, Number>>;
+    using HyperbolicSystemView =
+        typename Description::HyperbolicSystem::template View<2, Number>;
+    static constexpr unsigned int problem_dimension =
+        HyperbolicSystemView::problem_dimension;
+    static constexpr unsigned int n_precomputed_values =
+        HyperbolicSystemView::n_precomputed_values;
+    using scalar_type = ryujin::OfflineData<2, Number>::scalar_type;
+    using vector_type =
+        ryujin::MultiComponentVector<Number,
+                                     problem_dimension>; // TODO: determine if I
+                                                         // need these typenames
+                                                         // at all in app;
+    using precomputed_type =
+        ryujin::MultiComponentVector<Number, n_precomputed_values>;
 
-  using Description = ryujin::Euler::Description;
-  using Number = NUMBER;
-  using LevelType
-       = std::shared_ptr<ryujin::mgrit::LevelStructures<Description, 2, Number>>;
-  using TimeLoopType
-       = std::shared_ptr<ryujin::TimeLoop<Description,2,Number>>;
-  using HyperbolicSystemView =
-      typename Description::HyperbolicSystem::template View<2, Number>;
-  static constexpr unsigned int problem_dimension =
-      HyperbolicSystemView::problem_dimension;
-  static constexpr unsigned int n_precomputed_values =
-      HyperbolicSystemView::n_precomputed_values;
-  using scalar_type = ryujin::OfflineData<2, Number>::scalar_type;
-  using vector_type = ryujin::MultiComponentVector<Number, problem_dimension>;//TODO: determine if I need these typenames at all in app;
-  using precomputed_type = ryujin::MultiComponentVector<Number, n_precomputed_values>;
+  protected:
+    // BraidApp defines comm_t_, t_start_, tstop_, ntime_ the rest need to be
+    // defined below.
 
-protected:
-  //BraidApp defines comm_t_, t_start_, tstop_, ntime_ the rest need to be defined below.
+  public:
+    /// @brief Constructor.
+    /// @param comm_x Spatial communicator to be used by ryujin.
+    /// @param comm_t Temporal Communicator to be used by braid.
+    /// @param a_refinement_levels A vector of number of global refinements. eg.
+    /// {1 2 4} defines three temporal grids where the spatial mesh has been
+    /// refined 4 times on the finest, 2 times on the middle, and once at
+    MyApp(const MPI_Comm comm_x,
+          const MPI_Comm comm_t,
+          const std::vector<unsigned int> a_refinement_levels);
 
-public:
-  //Constructor takes communicators and a vector representing how much refinement is needed at each level. 
-  //Also defines the number of levels.
-  MyApp(const MPI_Comm comm_x,
-        const MPI_Comm comm_t,
-        const std::vector<unsigned int> a_refinement_levels);
+    /// @brief Destructor.
+    virtual ~MyApp();
 
-  /** @brief Apply the time stepping routine to the input vector @a u
-       corresponding to time @a tstart, and return in the same vector @a u the
-       computed result for time @a tstop. The values of @a tstart and @a tstop
-       can be obtained from @a pstatus.
+    /// @brief Initializes all data with the parameters from the specified file.
+    /// @param prm_file
+    void initialize(const std::string prm_file);
+    // TODO: write access functions for things like levels[level],
+    // timeloops[level]
 
-       @param[in,out] u Input: approximate solution at time @a tstart.
-                         Output: computed solution at time @a tstop.
-       @param[in] ustop Previous approximate solution at @a tstop?
-       @param[in] fstop Additional source at time @a tstop. May be set to NULL,
-                         indicating no additional source.
-  */
+    /// @brief Reinitializes a vector to the level we wish. This changes the
+    /// datastructures that are associated to @ u.
+    /// @param u
+    /// @param level
+    void reinit_to_level(MyVector *u, const unsigned int level);
 
-  /// Initialize with prm file.
-  void initialize(const std::string prm_file);
-  // TODO: write access functions for things like levels[level],
-  // timeloops[level]
+    /// @brief Interpolates a vector to a vector which may live on a different
+    /// spatial mesh.
+    /// @param to_v The vector to which we are interpolating.
+    /// @param to_level The level this vector lives at.
+    /// @param from_v The vector we wish to interpolate from.
+    /// @param from_level Its level.
+    void interpolate_between_levels(vector_type &to_v,
+                                    const unsigned int to_level,
+                                    const vector_type &from_v,
+                                    const unsigned int from_level);
 
-private:
-  /// Creates all objects ryujin needs to run.
-  void create_mg_levels();
-  /// Calls prepare on all objects ryujin needs to run.
-  void prepare_mg_objects();
+    /// @brief Tests that density, Entropy, Pressure are all physical. Exits the
+    /// program if not.
+    /// @tparam v_type The vector type.
+    /// @tparam dim The spatial dimension.
+    /// @param u The vector to test.
+    /// @param level the level at which the vector lives.
+    /// @param where A string that tells where in the code this test is being
+    /// done.
+    template <int dim> // TODO: does this need to be templated?
+    void test_physicality(const vector_type u,
+                          const unsigned int level,
+                          std::string where = "");
 
-public: // Braid Required Routines
+    template <int dim>
+    dealii::Tensor<1, dim> calculate_drag_and_lift(const MyVector &u,
+                                                   const braid_Real t);
 
-  virtual braid_Int Step(braid_Vector u,
-                         braid_Vector ustop,
-                         braid_Vector fstop,
-                         BraidStepStatus &pstatus);
+    /// @brief Prints vector v at time t.
+    /// @param v The vector to print.
+    /// @param t The time.
+    /// @param level The level at which this vector lives.
+    /// @param fname Filenams to print.
+    /// @param time_in_fname Do we include the time in the fname.
+    /// @param cycle The Multigrid Cycle in which the vector is in.
+    void print_solution(vector_type &v,
+                        const double t = 0,
+                        const unsigned int level = 0,
+                        const std::string fname = "./test-output",
+                        const bool time_in_fname = true,
+                        const unsigned int cycle = 0);
 
-  /** @brief Compute the residual at time @a tstop, given the approximate
-      solutions at @a tstart and @a tstop. The values of @a tstart and @a tstop
-      can be obtained from @a pstatus.
+  private:
+    /// Creates all objects ryujin needs to run.
+    void create_mg_levels();
+    /// Calls prepare on all objects ryujin needs to run.
+    void prepare_mg_objects();
 
-      @param[in]     u Input: approximate solution at time @a tstop.
-      @param[in,out] r Input: approximate solution at time @a tstart.
-                        Output: residual at time @a tstop.
-  */
-  virtual braid_Int
-  Residual(braid_Vector u, braid_Vector r, BraidStepStatus &pstatus);
+  public: // Braid Required Routines
+          /** @brief Apply the time stepping routine to the input vector @a u
+               corresponding to time @a tstart, and return in the same vector @a u the
+               computed result for time @a tstop. The values of @a tstart and @a tstop
+               can be obtained from @a pstatus.
+      
+               @param[in,out] u Input: approximate solution at time @a tstart.
+                                 Output: computed solution at time @a tstop.
+               @param[in] ustop Previous approximate solution at @a tstop?
+               @param[in] fstop Additional source at time @a tstop. May be set to
+             NULL,       indicating no additional source.
+          */
+    braid_Int Step(braid_Vector u,
+                   braid_Vector ustop,
+                   braid_Vector fstop,
+                   BraidStepStatus &pstatus) override;
 
-  /// Allocate a new vector in @a *v_ptr, which is a deep copy of @a u.
-  virtual braid_Int Clone(braid_Vector u, braid_Vector *v_ptr);
+    /** @brief Compute the residual at time @a tstop, given the approximate
+        solutions at @a tstart and @a tstop. The values of @a tstart and @a
+       tstop can be obtained from @a pstatus.
 
-  /** @brief Allocate a new vector in @a *u_ptr and initialize it with an
-      initial guess appropriate for time @a t. If @a t is the starting time,
-      this method should set @a *u_ptr to the initial value vector of the ODE
-      problem. */
-  virtual braid_Int Init(braid_Real t, braid_Vector *u_ptr);
+        @param[in]     u Input: approximate solution at time @a tstop.
+        @param[in,out] r Input: approximate solution at time @a tstart.
+                          Output: residual at time @a tstop.
+    */
+    braid_Int
+    Residual(braid_Vector u, braid_Vector r, BraidStepStatus &pstatus) override;
+
+    /// Allocate a new vector in @a *v_ptr, which is a deep copy of @a u.
+    braid_Int Clone(braid_Vector u, braid_Vector *v_ptr) override;
+
+    /** @brief Allocate a new vector in @a *u_ptr and initialize it with an
+        initial guess appropriate for time @a t. If @a t is the starting time,
+        this method should set @a *u_ptr to the initial value vector of the ODE
+        problem. */
+    braid_Int Init(braid_Real t, braid_Vector *u_ptr) override;
 
 
-  /// De-allocate the vector @a u.
-  virtual braid_Int Free(braid_Vector u);
+    /// De-allocate the vector @a u.
+    braid_Int Free(braid_Vector u) override;
 
-  /// Perform the operation: @a y = @a alpha * @a x + @a beta * @a y.
-  virtual braid_Int
-  Sum(braid_Real alpha, braid_Vector x, braid_Real beta, braid_Vector y);
+    /// Perform the operation: @a y = @a alpha * @a x + @a beta * @a y.
+    braid_Int Sum(braid_Real alpha,
+                  braid_Vector x,
+                  braid_Real beta,
+                  braid_Vector y) override;
 
-  /// Compute in @a *norm_ptr an appropriate spatial norm of @a u.
-  virtual braid_Int SpatialNorm(braid_Vector u, braid_Real *norm_ptr);
+    /// Compute in @a *norm_ptr an appropriate spatial norm of @a u.
+    braid_Int SpatialNorm(braid_Vector u, braid_Real *norm_ptr) override;
 
-  /// @see braid_PtFcnAccess.
-  virtual braid_Int Access(braid_Vector u, BraidAccessStatus &astatus);
+    /// @see braid_PtFcnAccess.
+    braid_Int Access(braid_Vector u, BraidAccessStatus &astatus) override;
 
-  /// @see braid_PtFcnBufSize.
-  virtual braid_Int BufSize(braid_Int *size_ptr, BraidBufferStatus &bstatus);
+    /// @see braid_PtFcnBufSize.
+    braid_Int BufSize(braid_Int *size_ptr, BraidBufferStatus &bstatus) override;
 
-  /// @see braid_PtFcnBufPack.
-  virtual braid_Int
-  BufPack(braid_Vector u, void *buffer, BraidBufferStatus &bstatus);
+    /// @see braid_PtFcnBufPack.
+    braid_Int
+    BufPack(braid_Vector u, void *buffer, BraidBufferStatus &bstatus) override;
 
-  /// @see braid_PtFcnBufUnpack.
-  virtual braid_Int
-  BufUnpack(void *buffer, braid_Vector *u_ptr, BraidBufferStatus &bstatus);
+    /// @see braid_PtFcnBufUnpack.
+    braid_Int BufUnpack(void *buffer,
+                        braid_Vector *u_ptr,
+                        BraidBufferStatus &bstatus) override;
 
-public: // Public Data
-
-  const MPI_Comm comm_x; //todo: can I make this const? uninitialized communicators now.
-  std::vector<LevelType> levels; //instantiation
-  std::vector<unsigned int> refinement_levels;
-  std::vector<TimeLoopType> time_loops;
-  braid_Int finest_index, coarsest_index;
-  unsigned int n_fine_dofs;
-  unsigned int n_locally_owned_dofs;
-  bool print_solution = false;
-  braid_Int num_time;
-  braid_Int cfactor;//FIXME: decide what types here? ryujin types or braid types? what about doubles??
-  braid_Int max_iter;
-  bool use_fmg;
-  braid_Int n_relax;
-  unsigned int n_cycles = 0;
-  braid_Int access_level;
-};
+  public: // Public Data
+    const MPI_Comm
+        comm_x; // todo: can I make this const? uninitialized communicators now.
+    std::vector<LevelType> levels; // instantiation
+    std::vector<unsigned int> refinement_levels;
+    std::vector<TimeLoopType> time_loops;
+    braid_Int finest_index, coarsest_index;
+    unsigned int n_fine_dofs;
+    unsigned int n_locally_owned_dofs;
+    bool print_solution_bool = false;
+    braid_Int num_time;
+    braid_Int cfactor; // FIXME: decide what types here? ryujin types or braid
+                       // types? what about doubles??
+    braid_Int max_iter;
+    bool use_fmg;
+    braid_Int n_relax;
+    unsigned int n_cycles = 0;
+    braid_Int access_level;
+  };
+}// Namespace mgrit
