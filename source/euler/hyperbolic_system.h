@@ -787,8 +787,9 @@ namespace ryujin
       const Number rho_inverse = ScalarNumber(1.) / density(U);
       const auto m = momentum(U);
       const Number E = total_energy(U);
-      const Number p = E - ScalarNumber(0.5) * m.norm_square() * rho_inverse;
-      return std::max(p, zero);//Do not let pressure below zero.
+      const Number rho_e = E - ScalarNumber(0.5) * m.norm_square() * rho_inverse;
+      // return std::max(rho_e, zero);//Do not let pressure below zero.
+      return rho_e;
     }
 
 
