@@ -1253,7 +1253,7 @@ namespace ryujin
       if (id == Boundary::dirichlet) {
         result = get_dirichlet_data();
 
-      } else if (id == Boundary::slip || id == Boundary::object) {
+      } else if (id == Boundary::slip) {
         auto m = momentum(U);
         m -= 1. * (m * normal) * normal;
         for (unsigned int k = 0; k < dim; ++k)
@@ -1464,6 +1464,5 @@ namespace ryujin
         result[1 + d] = M[d];
       return result;
     }
-
   } // namespace EulerAEOS
 } // namespace ryujin
