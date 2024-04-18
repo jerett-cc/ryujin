@@ -271,6 +271,7 @@ namespace ryujin
         U.reinit(offline_data_->vector_partitioner());
         Checkpointing::load_state_vector(
             *offline_data_, base_name_, U, t, output_cycle, mpi_communicator_);
+        output(U, base_name_ + "-solution", t, -1);
 
         if (resume_at_time_zero_) {
           /*
