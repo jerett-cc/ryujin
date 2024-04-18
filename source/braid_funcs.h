@@ -14,6 +14,7 @@
 #include <utility>
 
 //ryujin includes
+#include "checkpointing.h"
 #include "hyperbolic_module.h"
 #include "offline_data.h"
 #include "geometry_cylinder.h"
@@ -141,6 +142,7 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
     bool use_fmg;
     int n_relax;
     unsigned int n_cycles = 0;
+    braid_Int access_level;
 
     //a pointer to store a vector which represents the time average of all time points (after 0)
     // my_Vector* time_avg;
@@ -192,9 +194,16 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
       add_parameter("use_fmg",
 		                use_fmg,
 		                "If set to true, this uses F-cycles.");//TODO: use this in main()
+      n_relax = 1;
       add_parameter("n relax",
                     n_relax,
                     "Number of relaxation steps: 1 is FC, 2 is FCF, 3 is FCFCF, etc.");
+      access_level = 1; //This prints access only at the end of the simulation.
+      add_parameter("access_level",
+                    access_level,
+                    "The level of checking that access will do. 1 is at the end of the whole simulation, "
+                    "2 is every cycle, 3 is each interpolation and restriction and every function.");
+      
     };
 
     // Calls ParameterAcceptor::initialize(prm_name), this will initialize all the data structures.
@@ -219,6 +228,7 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
 
     /// This function takes a level and a time start point and tells you which brick you are on as an integer on this level.
     /// How is the performance of this algorithm? Should we precompute ans store with a faster data structure like a hash?
+    /// TODO: remove this, it is broken and does not work.
     unsigned int level_brick(const unsigned int level, const Number t_start)
     {
       //determine number of slabs on this level
@@ -289,7 +299,7 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
 } my_App;
 
 /**
- * @brief Asserts that no value in the solution vector is nan. 
+ * @brief Asserts that no value in the solution vector is nan. This seems broken. 
  * 
  *  This should not be used on large vectors as it loops through all elements.
  * 
@@ -297,14 +307,19 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
  * @param U - The vector to test
 */
 
-void no_nans(const my_App &app, const my_Vector &U, const std::string caller)
+bool has_nans(const my_Vector &U)
 {
-  UNUSED(app);
   for (unsigned int i=0; i < U.U.size(); i++)
   {
-    // std::cout << "Testing nans: " << i << " isNAN: " << std::isnan(U.U[i]) <<  std::endl;
-    Assert(!std::isnan(U.U[i]), dealii::ExcMessage("Nan in solution after " + caller));
+    if(std::isnan(U.U[i]))
+    {
+      return true;
+    } else {
+      continue;
+    }
+
   }
+  return false;
 }
 
 /**
@@ -530,7 +545,6 @@ void interpolate_between_levels(my_Vector& to_v,
     to_v.U.insert_component(to_component, comp);
   }
   to_v.U.update_ghost_values();
-  // no_nans(*app, to_v, "interpolateBetweenLevels");//remove
 }
 
 ///This function reinits a vector to the specified level, making sure that the partition matches that of the level.
@@ -539,6 +553,46 @@ void reinit_to_level(my_Vector* u, braid_App& app, const unsigned int level) {
   u->U.reinit_with_scalar_partitioner(
       app->levels[level]->offline_data->scalar_partitioner());
   u->U.update_ghost_values();//TODO: is this neccessary?
+}
+
+template<typename v_type, int dim>
+void test_physicality(const v_type u, const braid_App app, const unsigned int level, std::string where = "") {
+
+  std::cout << "Testing Physicality in location " + where << std::endl;
+  const auto hs_view_level = app->levels[level]->hyperbolic_system->template view<dim, NUMBER>();
+
+  // Check if the initial condition is admissible as a fluid state. It must have positive density, entropy, and energy.
+  for (unsigned int i = 0;
+       i < app->levels[level]->offline_data->n_locally_owned();
+       i++) {
+    const bool is_admissible = hs_view_level.is_admissible(u->U.template get_tensor(i));
+    Assert(is_admissible,
+           dealii::ExcMessage("The state at index i=" + std::to_string(i) +
+                              "is not admissible."));
+    if (!is_admissible) {
+      std::cout << "The state at index i=" + std::to_string(i) +
+                       "is not admissible.\n"
+                << "State: " << u->U.template get_tensor(i) << std::endl;
+    }
+
+    const bool pressure_no_nans =
+        (hs_view_level.pressure(u->U.template get_tensor(i)) ==
+         hs_view_level.pressure(u->U.template get_tensor(i)));
+    Assert(pressure_no_nans,
+           dealii::ExcMessage("Pressure has a nan in one of the `lanes' at i= " +
+                              std::to_string(i)));
+    if (!pressure_no_nans)
+    {
+      std::cout << "Pressure is: "
+                << hs_view_level.pressure(u->U.template get_tensor(i))
+                << std::endl;
+    }
+
+    if(!pressure_no_nans || !is_admissible)
+    {
+      exit(EXIT_FAILURE);
+    }
+  }
 }
 
 /**
@@ -566,11 +620,7 @@ int my_Step(braid_App        app,
   //grab the MG level for this step
   int level;
   braid_StepStatusGetLevel(status, &level);
-
-  //use a macro to get rid of some unused variables to avoid -Wall messages
-  UNUSED(ustop);
-  UNUSED(fstop);
-  //grab the start time and end time
+  // grab the start time and end time
   double tstart;
   double tstop;
   braid_StepStatusGetTstartTstop(status, &tstart, &tstop);
@@ -581,7 +631,16 @@ int my_Step(braid_App        app,
       + "total step call number " +std::to_string(num_step_calls) << std::endl;
   }
 
-  std::string fname = "IcOnLevel_" + std::to_string(level)+ "on_interval_[" +std::to_string(tstart)+ "_"+std::to_string(tstop)+ "]";
+  std::string fname = "step" + std::to_string(num_step_calls)+ "_cycle" + std::to_string(app->n_cycles)+ "_level_" + std::to_string(level)
+      +"_interval_[" +std::to_string(tstart)+ "_"+std::to_string(tstop)+ "]";
+#ifdef CHECK_BOUNDS
+  // Test that the incoming vector is physical at the fine level.
+  test_physicality<braid_Vector, 2>(u, app, 0, "before interpolation.");
+#endif
+
+  //use a macro to get rid of some unused variables to avoid -Wall messages
+  UNUSED(ustop);
+  UNUSED(fstop);
 
   //translate the fine level u coming in to the coarse level
   //this uses a function from DEALII interpolate to different mesh
@@ -592,16 +651,47 @@ int my_Step(braid_App        app,
 
   //interpolate between levels, put data from u (fine level) onto the u_to_step (coarse level)
   interpolate_between_levels(u_to_step, level, *u, 0, app);
-  print_solution(u_to_step.U, app, tstart/*this is a big problem, not knowing what time we are summing at*/, level/*level, always needs to be zero, to be fixed*/, fname, false, app->n_cycles);
 
+#ifdef CHECK_BOUNDS
+  // Test physicality of interpolated vector.
+  test_physicality<my_Vector*, 2>(&u_to_step, app, level, "before step.");
+#endif
+
+  if(app->print_solution)
+    print_solution(u_to_step.U, app, tstart/*this is a big problem, not knowing what time we are summing at*/, level/*level, always needs to be zero, to be fixed*/, fname, false, app->n_cycles);
+
+  if(level == 1 && std::abs(tstart - 3.125) < 1e-6 && std::abs(tstop - 3.4375) < 1e-6 && num_step_calls==132)
+    ryujin::Checkpointing::write_checkpoint(
+            *(app->levels[level]->offline_data), fname, u_to_step.U, tstart, num_step_calls, app->comm_x);
   //step the function on this level
+  app->time_loops[level]->change_base_name(fname);
   app->time_loops[level]->run_with_initial_data(u_to_step.U, tstop, tstart, false/*print every step of this simulation*/);
 
+#ifdef CHECK_BOUNDS
+  // Test physicality of vector after it has been stepped.
+  test_physicality<my_Vector*, 2>(&u_to_step, app, level, "after step.");
+#endif
+
+  double norm = u_to_step.U.l1_norm();
+
+  if(!dealii::numbers::is_finite(norm)){
+    // ryujin::Checkpointing::write_checkpoint(
+    //         *(app->levels[level]->offline_data), fname, u_to_step.U, tstop, num_step_calls, app->comm_x);
+    std::cout << "nan in file " << fname << std::endl;
+    std::cout << "Norm was " << norm << std::endl; 
+    // exit(EXIT_FAILURE);
+  }
   //interpolate this back to the fine level
   interpolate_between_levels(*u,0,u_to_step,level, app);
 
+#ifdef CHECK_BOUNDS
+  // Test physicality of interpolated vector on fine level, after the step.
+  test_physicality<braid_Vector,2>(u, app, 0, "after step, after interpolation.");
+#endif
+
   std::string fname_post = "FcOnLevel_" + std::to_string(level)+ "on_interval_[" +std::to_string(tstart)+ "_"+std::to_string(tstop)+ "]";
-  print_solution(u->U, app, tstop/*this is a big problem, not knowing what time we are summing at*/, level/*level, always needs to be zero, to be fixed*/, fname_post, false, app->n_cycles);
+  if(app->print_solution)
+    print_solution(u->U, app, tstop, 0/*level, always needs to be zero, to be fixed*/, fname_post, false, app->n_cycles);
 
   num_step_calls++;
   //done.
@@ -685,8 +775,6 @@ my_Clone(braid_App     app,
 
   *v_ptr = v;
 
-  // no_nans(*app, *v, "clone");//remove
-
   return 0;
 }
 
@@ -737,6 +825,11 @@ my_Sum(braid_App app,
 
   // keep track of the number of times this has been called
   static int sum_count = 0;
+#ifdef CHECK_BOUNDS
+  // Test that the incoming vectors are physical at the fine level.
+  // test_physicality<braid_Vector, 2>(x, app, 0, "my_Sum: incoming x.");
+  // test_physicality<braid_Vector, 2>(y, app, 0, "my_Sum: incoming y.");
+#endif
 
   if (dealii::Utilities::MPI::this_mpi_process(app->comm_t) == 0)
   {
@@ -744,16 +837,20 @@ my_Sum(braid_App app,
     std::cout << alpha << "x + " << beta << "y" << std::endl;
   }
 
-  std::string x_fname = "./" + std::to_string(alpha) + "x";
-  std::string y_fname = "./" + std::to_string(beta)  + "y";
-
+  // std::string x_fname = "./" + std::to_string(alpha) + "x";
+  // std::string y_fname = "./" + std::to_string(beta)  + "y";
   // print_solution(x->U, app, 0/*this is a big problem, not knowing what time we are summing at*/, 0/*level, always needs to be zero, to be fixed*/, x_fname, false, sum_count);
   // print_solution(y->U, app, 0/*this is a big problem, not knowing what time we are summing at*/, 0/*level, always needs to be zero, to be fixed*/, y_fname, false, sum_count);
 
 
   y->U.sadd(beta, alpha, x->U);
-  std::string fname = "./sum_";
+  // std::string fname = "./sum_";
   // print_solution(y->U, app, 0/*this is a big problem, not nowing what time we are summing at*/, 0/*level, always needs to be zero, to be fixed*/, fname, false, sum_count);
+// #ifdef CHECK_BOUNDS
+  // Test that the outgoing vector is physical at the fine level, but only for the prolongation step.
+  if(0 < alpha && 0 < beta)
+    test_physicality<braid_Vector, 2>(y, app, 0, "my_Sum: y after summing.");
+// #endif
 
   sum_count++;
 
@@ -817,11 +914,14 @@ my_Access(braid_App          app,
     std::cout << "[INFO] Access Called" << std::endl;
   }
   static int mgCycle = 0;
+  braid_Int caller_id;
   double t = 0;
 
   //state what iteration we are on, and what time t we are at.
   braid_AccessStatusGetIter(astatus, &mgCycle);
   braid_AccessStatusGetT(astatus, &t);
+  braid_AccessStatusGetCallingFunction(astatus, &caller_id);
+
 
   if (dealii::Utilities::MPI::this_mpi_process(app->comm_t) == 0)
   {
@@ -829,11 +929,19 @@ my_Access(braid_App          app,
   }
 
   std::string fname = "./cycle" + std::to_string(mgCycle);
+  if(caller_id && caller_id == braid_ASCaller_FInterp)
+  {
+    fname = fname + "caller_FInterp_";
+#ifdef CHECK_BOUNDS
+    test_physicality<braid_Vector, 2>(u, app, 0, "my_Access: u when caller is FInterp.");
+#endif
+  }
+
   if(app->print_solution && (std::abs(t-0)< 1e-6 ||std::abs(t-1.25) < 1e-6 
 			     || std::abs(t-2.5) < 1e-6 || std::abs(t-3.75) < 1e-6
 			     || std::abs(t-5.0) < 1e-6))
-    {//FIXME: this only prints for the [0,5] time interval. Make this more general.
-    print_solution(u->U, app, t, 0/*level, always needs to be zero, to be fixed*/, fname);
+    {//FIXME: this only prints for the [0,5] time interval at specific points. Make this more general.
+      print_solution(u->U, app, t, 0/*level, always needs to be zero, to be fixed*/, fname);
     }
   //calculate drag and lift for this solution on level 0
   //TODO: insert drag and lift calculation call.
@@ -973,15 +1081,22 @@ my_BufUnpack(braid_App           app,
     for(unsigned int component = 0; component < app->problem_dimension; ++component)
     {
       // temp_tensor[component] = dbuffer[app->problem_dimension*node + component + 1];//+1 because buffer_size = n_dof + 1
-      u->U.local_element(problem_dimension*node + component) = dbuffer[app->problem_dimension*node + component + 1];//test for speed.
-      Assert(node + component +1 <= buf_size,
-          dealii::ExcMessage("somehow, you are exceeding the buffer size as you unpack"));
+      u->U.local_element(problem_dimension*node + component) = dbuffer[problem_dimension*node + component + 1];//test for speed.
+      Assert((problem_dimension*node + component +1 <= buf_size),
+          dealii::ExcMessage("Somehow, you are exceeding the buffer size as you unpack." 
+            " here, buf_size is " + std::to_string(buf_size) + ", and the place you are trying to access is " 
+            + std::to_string(problem_dimension*node + component + 1)));
     }
     //insert tensor at node
     // u->U.write_tensor(temp_tensor, node);//TODO:FIXME: try linear method?
   }
 
-  *u_ptr = u;//modify the u_ptr does this create a memory leak as we just point this pointer somewhere else?
+  *(u_ptr) = u;//modify the u_ptr does this create a memory leak as we just point this pointer somewhere else?
+
+#ifdef CHECK_BOUNDS
+  // Test that the outgoing vector is physical at the fine level.
+  test_physicality<braid_Vector, 2>(u, app, 0, "my_Sum: incoming x.");
+#endif
 
   return 0;
 }
