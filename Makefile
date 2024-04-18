@@ -11,6 +11,7 @@ default: all
 SOURCEDIR:=$(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
 BUILDDIR:=build
 
+
 ifeq (, $(shell which ninja))
   GENERATOR:="Unix Makefiles"
   MAKE_COMMAND:=make
@@ -42,12 +43,12 @@ $(BUILDDIR)/$(MAKE_FILE):
 debug:
 	@mkdir -p $(BUILDDIR)
 	@cd $(BUILDDIR) && cmake -DCMAKE_BUILD_TYPE=Debug -G$(GENERATOR) $(SOURCEDIR)
-	@cd $(BUILDDIR) && $(MAKE_COMMAND)
+	@cd $(BUILDDIR) && $(MAKE_COMMAND) -j4
 
 release:
 	@mkdir -p $(BUILDDIR)
 	@cd $(BUILDDIR) && cmake -DCMAKE_BUILD_TYPE=Release -G$(GENERATOR) $(SOURCEDIR)
-	@cd $(BUILDDIR) && $(MAKE_COMMAND)
+	@cd $(BUILDDIR) && $(MAKE_COMMAND) -j4
 
 Makefile:
 	
