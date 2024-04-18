@@ -326,20 +326,22 @@ namespace mgrit{
     // this uses a function from DEALII interpolate to different mesh
 
     // new, coarse vector
-    MyVector u_to_step;
-    reinit_to_level(&u_to_step, level);
+    MyVector *u_to_step = new (MyVector);
+    reinit_to_level(u_to_step, level);
+
+    std::cout << "norm of initialized u_to_step: " << u_to_step->U.l2_norm() << std::endl;
 
     // interpolainterpolate_between_levels(te between levels, put data from u (fine level) onto the
     // u_to_step (coarse level)
-    interpolate_between_levels(u_to_step.U, level, u_->U, 0);
+    interpolate_between_levels(u_to_step->U, level, u_->U, 0);
 
 #ifdef CHECK_BOUNDS
     // Test physicality of interpolated vector.
-    test_physicality<2>(u_to_step.U, level, "before step.");
+    test_physicality<2>(u_to_step->U, level, "before step.");
 #endif
 
     if (print_solution_bool)
-      print_solution(u_to_step.U,
+      print_solution(u_to_step->U,
                      lvl_tstart,
                      level,
                      fname,
@@ -351,35 +353,35 @@ namespace mgrit{
       ryujin::Checkpointing::write_checkpoint(
           *(levels[level]->offline_data),
           fname,
-          u_to_step.U,
+          u_to_step->U,
           lvl_tstart,
           num_step_calls,
           comm_x);
     // step the function on this level
     time_loops[level]->change_base_name(fname);
     time_loops[level]->run_with_initial_data(
-        u_to_step.U,
+        u_to_step->U,
         lvl_tstop,
         lvl_tstart,
         false /*print every step of this simulation*/);
 
 #ifdef CHECK_BOUNDS
     // Test physicality of vector after it has been stepped.
-    test_physicality<2>(u_to_step.U, level, "after step.");
+    test_physicality<2>(u_to_step->U, level, "after step.");
 #endif
 
-    double norm = u_to_step.U.l1_norm();
+    double norm = u_to_step->U.l1_norm();
 
     if (!dealii::numbers::is_finite(norm)) {
       // ryujin::Checkpointing::write_checkpoint(
-      //         *(levels[level]->offline_data), fname, u_to_step.U, lvl_tstop,
+      //         *(levels[level]->offline_data), fname, u_to_step->U, lvl_tstop,
       //         num_step_calls, comm_x);
       std::cout << "nan in file " << fname << std::endl;
       std::cout << "Norm was " << norm << std::endl;
       // exit(EXIT_FAILURE);
     }
     // interpolate this back to the fine level
-    interpolate_between_levels(u_->U, 0, u_to_step.U, level);
+    interpolate_between_levels(u_->U, 0, u_to_step->U, level);
 
 #ifdef CHECK_BOUNDS
     // Test physicality of interpolated vector on fine level, after the step.
@@ -400,6 +402,8 @@ namespace mgrit{
 
     num_step_calls++;
     // done.
+
+    delete u_to_step;
     return 0;
   }
 
@@ -474,16 +478,14 @@ namespace mgrit{
     // delete the temporary coarse U. f
     delete temp_coarse;
 
-    if(!(u->U.l1_norm() > 0))
+    // FIXME: the whole cpp interface as awkward use of pointers for the vector objects.
+    if( !(u->U.l1_norm()) ){
+      std::cout << "Norm of u_ptr is not one." << std::endl;
       exit(EXIT_FAILURE);
+    }
 
     // reassign pointer XBraid will use
     *u_ptr = (braid_Vector)u;
-    // FIXME: the whole cpp interface as awkward use of pointers for the vector objects.
-    if(!(reinterpret_cast<MyVector*>(u_ptr)->U.l1_norm())){
-      std::cout << "Norm is not one." << std::endl;
-      exit(EXIT_FAILURE);
-    }
     return 0;
   }
 
