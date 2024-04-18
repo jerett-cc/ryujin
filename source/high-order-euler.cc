@@ -106,7 +106,7 @@ int main(int argc, char *argv[])
   // int       wrapper_tests = 0;
   int print_level = 3;
   /*access_level=1 only calls my_access at end of simulation*/
-  int access_level = 2;
+  int access_level = app.access_level;
   int use_sequential = 0; //same as XBRAID default, initial guess is from user defined init.
 
   std::cout << "Parameters for Braid: max_iter= " + std::to_string(max_iter) << std::endl;
