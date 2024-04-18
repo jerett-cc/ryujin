@@ -96,7 +96,7 @@ namespace ryujin
     /**
      * Run the high-level time loop.
      */
-    void run();
+    void run(const Number t_start = 0.);
 
     /**
      * Run the high-level time loop, with a reference to existing data. 

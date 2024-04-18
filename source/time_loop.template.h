@@ -222,7 +222,7 @@ namespace ryujin
   }
 
   template <typename Description, int dim, typename Number>
-  void TimeLoop<Description, dim, Number>::run()
+  void TimeLoop<Description, dim, Number>::run(const Number t_start)
   {
 #ifdef DEBUG_OUTPUT
     std::cout << "TimeLoop<dim, Number>::run()" << std::endl;
@@ -238,7 +238,7 @@ namespace ryujin
 
     print_parameters(logfile_);
 
-    Number t = 0.;
+    Number t = t_start;
     unsigned int output_cycle = 0;
     vector_type U;
 
