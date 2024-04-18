@@ -1,6 +1,6 @@
 ##
-## SPDX-License-Identifier: MIT
-## Copyright (C) 2020 - 2023 by the ryujin authors
+## SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+## Copyright (C) 2020 - 2024 by the ryujin authors
 ##
 
 #
@@ -15,7 +15,9 @@ if("${_source}" STREQUAL "${_build}")
     "operation would globber important files. You need to configure in a "
     "separate build directory. It is easiest to simply invoke $ make, which "
     "will configure ryujin in the directory ./build.\n"
-    "You will need to clean up ./CMakeCache.txt and ./CMakeFiles by hand."
+    "You will need to clean up ./CMakeCache.txt and ./CMakeFiles by hand, "
+    "or by running $ make cleanup_insource which will delete these files "
+    "and directories for you"
     )
 endif()
 
@@ -80,6 +82,11 @@ if("${WITH_EOSPAC}" STREQUAL "")
 endif()
 option(WITH_EOSPAC "Add support for the EOSPAC suite" ${EOSPAC_FOUND})
 
+if("${WITH_GDAL}" STREQUAL "")
+  find_package(GDAL QUIET)
+endif()
+option(WITH_GDAL "Compile and link against the gdal library" ${GDAL_FOUND})
+
 #
 # Set up compiler flags:
 #
@@ -130,19 +137,24 @@ set(CMAKE_EXE_LINKER_FLAGS "")
 
 set(EXTERNAL_TARGETS)
 
-if(WITH_OPENMP)
-  find_package(OpenMP REQUIRED)
-  list(APPEND EXTERNAL_TARGETS "OpenMP::OpenMP_CXX")
-endif()
-
 if(WITH_EOSPAC)
   find_package(EOSPAC REQUIRED)
   list(APPEND EXTERNAL_TARGETS "Eospac::Eospac6")
 endif()
 
+if(WITH_GDAL)
+  find_package(GDAL REQUIRED)
+  list(APPEND EXTERNAL_TARGETS "GDAL::GDAL")
+endif()
+
 if(WITH_LIKWID)
   find_package(LIKWID REQUIRED)
   list(APPEND EXTERNAL_TARGETS "Likwid::Likwid")
+endif()
+
+if(WITH_OPENMP)
+  find_package(OpenMP REQUIRED)
+  list(APPEND EXTERNAL_TARGETS "OpenMP::OpenMP_CXX")
 endif()
 
 if(WITH_VALGRIND)

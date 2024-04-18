@@ -1,6 +1,6 @@
 //
-// SPDX-License-Identifier: MIT
-// Copyright (C) 2020 - 2023 by the ryujin authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Copyright (C) 2023 - 2024 by the ryujin authors
 //
 
 #pragma once
@@ -16,6 +16,25 @@ namespace ryujin
 {
   namespace Skeleton
   {
+    template <typename ScalarNumber = double>
+    class LimiterParameters : public dealii::ParameterAcceptor
+    {
+    public:
+      LimiterParameters(const std::string &subsection = "/Limiter")
+          : ParameterAcceptor(subsection)
+      {
+        iterations_ = 2;
+        add_parameter(
+            "iterations", iterations_, "Number of limiter iterations");
+      }
+
+      ACCESSOR_READ_ONLY(iterations);
+
+    private:
+      unsigned int iterations_;
+    };
+
+
     /**
      * The convex limiter.
      *
@@ -26,31 +45,35 @@ namespace ryujin
     {
     public:
       /**
-       * @copydoc HyperbolicSystem::View
+       * @copydoc HyperbolicSystemView
        */
-      using HyperbolicSystemView = HyperbolicSystem::View<dim, Number>;
+      using View = HyperbolicSystemView<dim, Number>;
 
       /**
-       * @copydoc HyperbolicSystem::View::state_type
+       * @copydoc HyperbolicSystemView::state_type
        */
-      using state_type = typename HyperbolicSystemView::state_type;
+      using state_type = typename View::state_type;
 
       /**
-       * @copydoc HyperbolicSystem::View::n_precomputed_values
+       * @copydoc HyperbolicSystemView::n_precomputed_values
        */
       static constexpr unsigned int n_precomputed_values =
-          HyperbolicSystemView::n_precomputed_values;
+          View::n_precomputed_values;
 
       /**
-       * @copydoc HyperbolicSystem::View::flux_contribution_type
+       * @copydoc HyperbolicSystemView::flux_contribution_type
        */
-      using flux_contribution_type =
-          typename HyperbolicSystemView::flux_contribution_type;
+      using flux_contribution_type = typename View::flux_contribution_type;
 
       /**
-       * @copydoc HyperbolicSystem::View::ScalarNumber
+       * @copydoc HyperbolicSystemView::ScalarNumber
        */
       using ScalarNumber = typename get_value_type<Number>::type;
+
+      /**
+       * @copydoc LimiterParameters
+       */
+      using Parameters = LimiterParameters<ScalarNumber>;
 
       /**
        * @name Stencil-based computation of bounds
@@ -85,16 +108,12 @@ namespace ryujin
        * Constructor taking a HyperbolicSystem instance as argument
        */
       Limiter(const HyperbolicSystem &hyperbolic_system,
+              const Parameters &parameters,
               const MultiComponentVector<ScalarNumber, n_precomputed_values>
-                  &precomputed_values,
-              const ScalarNumber relaxation_factor,
-              const ScalarNumber newton_tolerance,
-              const unsigned int newton_max_iter)
+                  &precomputed_values)
           : hyperbolic_system(hyperbolic_system)
+          , parameters(parameters)
           , precomputed_values(precomputed_values)
-          , relaxation_factor(relaxation_factor)
-          , newton_tolerance(newton_tolerance)
-          , newton_max_iter(newton_max_iter)
       {
       }
 
@@ -163,7 +182,7 @@ namespace ryujin
        * invariant domain.
        */
       static bool
-      is_in_invariant_domain(const HyperbolicSystemView & /*hyperbolic_system*/,
+      is_in_invariant_domain(const HyperbolicSystem & /*hyperbolic_system*/,
                              const Bounds & /*bounds*/,
                              const state_type & /*U*/)
       {
@@ -174,14 +193,12 @@ namespace ryujin
       //@}
       /** @name Arguments and internal fields */
       //@{
-      const HyperbolicSystemView hyperbolic_system;
+
+      const HyperbolicSystem &hyperbolic_system;
+      const Parameters &parameters;
 
       const MultiComponentVector<ScalarNumber, n_precomputed_values>
           &precomputed_values;
-
-      ScalarNumber relaxation_factor;
-      ScalarNumber newton_tolerance;
-      unsigned int newton_max_iter;
 
       Bounds bounds_;
       //@}

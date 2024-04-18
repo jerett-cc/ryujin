@@ -1,6 +1,6 @@
 //
-// SPDX-License-Identifier: MIT
-// Copyright (C) 2020 - 2023 by the ryujin authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Copyright (C) 2023 - 2024 by the ryujin authors
 //
 
 #pragma once
@@ -29,9 +29,9 @@ namespace ryujin
     {
     public:
       using HyperbolicSystem = typename Description::HyperbolicSystem;
-      using HyperbolicSystemView =
-          typename HyperbolicSystem::template View<dim, Number>;
-      using state_type = typename HyperbolicSystemView::state_type;
+      using View =
+          typename Description::template HyperbolicSystemView<dim, Number>;
+      using state_type = typename View::state_type;
 
       ThreeStateContrast(const HyperbolicSystem &hyperbolic_system,
                          const std::string &subsection)
@@ -40,9 +40,9 @@ namespace ryujin
           , hyperbolic_system_(hyperbolic_system)
       {
 
-        primitive_left_[0] = 1.4;
+        primitive_left_[0] = 1.;
         primitive_left_[1] = 0.;
-        primitive_left_[2] = 1.;
+        primitive_left_[2] = 1.e3;
         this->add_parameter(
             "primitive state left",
             primitive_left_,
@@ -53,9 +53,9 @@ namespace ryujin
                             left_length_,
                             "The length of the left region");
 
-        primitive_middle_[0] = 1.4;
+        primitive_middle_[0] = 1.;
         primitive_middle_[1] = 0.;
-        primitive_middle_[2] = 1.;
+        primitive_middle_[2] = 1.e-2;
         this->add_parameter(
             "primitive state middle",
             primitive_middle_,
@@ -66,20 +66,19 @@ namespace ryujin
                             middle_length_,
                             "The length of the middle region");
 
-        primitive_right_[0] = 1.4;
+        primitive_right_[0] = 1.;
         primitive_right_[1] = 0.;
-        primitive_right_[2] = 1.;
+        primitive_right_[2] = 1.e2;
         this->add_parameter(
             "primitive state right",
             primitive_right_,
             "Initial 1d primitive state (rho, u, p) on the right");
 
         const auto convert_states = [&]() {
-          state_left_ = hyperbolic_system_.from_initial_state(primitive_left_);
-          state_middle_ =
-              hyperbolic_system_.from_initial_state(primitive_middle_);
-          state_right_ =
-              hyperbolic_system_.from_initial_state(primitive_right_);
+          const auto view = hyperbolic_system_.template view<dim, Number>();
+          state_left_ = view.from_initial_state(primitive_left_);
+          state_middle_ = view.from_initial_state(primitive_middle_);
+          state_right_ = view.from_initial_state(primitive_right_);
         };
         this->parse_parameters_call_back.connect(convert_states);
         convert_states();
@@ -93,7 +92,7 @@ namespace ryujin
       }
 
     private:
-      const HyperbolicSystemView hyperbolic_system_;
+      const HyperbolicSystem &hyperbolic_system_;
 
       Number left_length_;
       Number middle_length_;

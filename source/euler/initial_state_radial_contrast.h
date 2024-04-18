@@ -1,6 +1,6 @@
 //
-// SPDX-License-Identifier: MIT
-// Copyright (C) 2020 - 2023 by the ryujin authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Copyright (C) 2022 - 2024 by the ryujin authors
 //
 
 #pragma once
@@ -30,9 +30,9 @@ namespace ryujin
     {
     public:
       using HyperbolicSystem = typename Description::HyperbolicSystem;
-      using HyperbolicSystemView =
-          typename HyperbolicSystem::template View<dim, Number>;
-      using state_type = typename HyperbolicSystemView::state_type;
+      using View =
+          typename Description::template HyperbolicSystemView<dim, Number>;
+      using state_type = typename View::state_type;
 
       RadialContrast(const HyperbolicSystem &hyperbolic_system,
                      const std::string &subsection)
@@ -60,10 +60,9 @@ namespace ryujin
         this->add_parameter("radius", radius_, "Radius of radial area");
 
         const auto convert_states = [&]() {
-          state_inner_ =
-              hyperbolic_system_.from_initial_state(primitive_inner_);
-          state_outer_ =
-              hyperbolic_system_.from_initial_state(primitive_outer_);
+          const auto view = hyperbolic_system_.template view<dim, Number>();
+          state_inner_ = view.from_initial_state(primitive_inner_);
+          state_outer_ = view.from_initial_state(primitive_outer_);
         };
         this->parse_parameters_call_back.connect(convert_states);
         convert_states();
@@ -76,7 +75,7 @@ namespace ryujin
       }
 
     private:
-      const HyperbolicSystemView hyperbolic_system_;
+      const HyperbolicSystem &hyperbolic_system_;
 
       dealii::Tensor<1, 3, Number> primitive_inner_;
       dealii::Tensor<1, 3, Number> primitive_outer_;

@@ -1,6 +1,6 @@
 //
-// SPDX-License-Identifier: MIT
-// Copyright (C) 2020 - 2023 by the ryujin authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Copyright (C) 2020 - 2024 by the ryujin authors
 //
 
 #pragma once
@@ -12,12 +12,21 @@
 #include <deal.II/base/point.h>
 #include <deal.II/base/tensor.h>
 
-#include <functional>
-
 namespace ryujin
 {
   namespace EulerAEOS
   {
+    template <typename ScalarNumber = double>
+    class RiemannSolverParameters : public dealii::ParameterAcceptor
+    {
+    public:
+      RiemannSolverParameters(const std::string &subsection = "/RiemannSolver")
+          : ParameterAcceptor(subsection)
+      {
+      }
+    };
+
+
     /**
      * A fast approximative solver for the 1D Riemann problem. The solver
      * ensures that the estimate \f$\lambda_{\text{max}}\f$ that is returned
@@ -32,15 +41,14 @@ namespace ryujin
     {
     public:
       /**
-       * @copydoc HyperbolicSystem::View
+       * @copydoc HyperbolicSystemView
        */
-      using HyperbolicSystemView = HyperbolicSystem::View<dim, Number>;
+      using View = HyperbolicSystemView<dim, Number>;
 
       /**
-       * @copydoc HyperbolicSystem::View::problem_dimension
+       * @copydoc HyperbolicSystemView::problem_dimension
        */
-      static constexpr unsigned int problem_dimension =
-          HyperbolicSystemView::problem_dimension;
+      static constexpr unsigned int problem_dimension = View::problem_dimension;
 
       /**
        * Number of components in a primitive state, we store \f$[\rho, v,
@@ -55,26 +63,30 @@ namespace ryujin
       using primitive_type = std::array<Number, riemann_data_size>;
 
       /**
-       * @copydoc HyperbolicSystem::View::state_type
+       * @copydoc HyperbolicSystemView::state_type
        */
-      using state_type = typename HyperbolicSystemView::state_type;
+      using state_type = typename View::state_type;
 
       /**
-       * @copydoc HyperbolicSystem::View::n_precomputed_values
+       * @copydoc HyperbolicSystemView::n_precomputed_values
        */
       static constexpr unsigned int n_precomputed_values =
-          HyperbolicSystemView::n_precomputed_values;
+          View::n_precomputed_values;
 
       /**
-       * @copydoc HyperbolicSystem::View::precomputed_state_type
+       * @copydoc HyperbolicSystemView::precomputed_state_type
        */
-      using precomputed_state_type =
-          typename HyperbolicSystemView::precomputed_state_type;
+      using precomputed_state_type = typename View::precomputed_state_type;
 
       /**
-       * @copydoc HyperbolicSystem::View::ScalarNumber
+       * @copydoc HyperbolicSystemView::ScalarNumber
        */
-      using ScalarNumber = typename HyperbolicSystemView::ScalarNumber;
+      using ScalarNumber = typename View::ScalarNumber;
+
+      /**
+       * @copydoc RiemannSolverParameters
+       */
+      using Parameters = RiemannSolverParameters<ScalarNumber>;
 
       /**
        * @name Compute wavespeed estimates
@@ -86,9 +98,11 @@ namespace ryujin
        */
       RiemannSolver(
           const HyperbolicSystem &hyperbolic_system,
+          const Parameters &parameters,
           const MultiComponentVector<ScalarNumber, n_precomputed_values>
               &precomputed_values)
           : hyperbolic_system(hyperbolic_system)
+          , parameters(parameters)
           , precomputed_values(precomputed_values)
       {
       }
@@ -240,6 +254,7 @@ namespace ryujin
                             const primitive_type &riemann_data_j,
                             const Number p_star) const;
 
+
       /**
        * For a given (2+dim dimensional) state vector <code>U</code>, and a
        * (normalized) "direction" n_ij, first compute the corresponding
@@ -253,82 +268,12 @@ namespace ryujin
                               const dealii::Tensor<1, dim, Number> &n_ij) const;
 
     private:
-      const HyperbolicSystemView hyperbolic_system;
+      const HyperbolicSystem &hyperbolic_system;
+      const Parameters &parameters;
 
       const MultiComponentVector<ScalarNumber, n_precomputed_values>
           &precomputed_values;
       //@}
     };
-
-
-    /*
-     * -------------------------------------------------------------------------
-     * Inline definitions
-     * -------------------------------------------------------------------------
-     */
-
-
-    template <int dim, typename Number>
-    DEAL_II_ALWAYS_INLINE inline auto
-    RiemannSolver<dim, Number>::riemann_data_from_state(
-        const state_type &U,
-        const Number &p,
-        const dealii::Tensor<1, dim, Number> &n_ij) const -> primitive_type
-    {
-      const auto rho = hyperbolic_system.density(U);
-      const auto rho_inverse = ScalarNumber(1.0) / rho;
-
-      const auto m = hyperbolic_system.momentum(U);
-      const auto proj_m = n_ij * m;
-
-      const auto gamma = hyperbolic_system.surrogate_gamma(U, p);
-
-      const auto interpolation_b = hyperbolic_system.eos_interpolation_b();
-      const auto x = Number(1.) - interpolation_b * rho;
-      const auto a = std::sqrt(gamma * p / (rho * x));
-
-#ifdef CHECK_BOUNDS
-      AssertThrowSIMD(
-          Number(p),
-          [](auto val) { return val > ScalarNumber(0.); },
-          dealii::ExcMessage("Internal error: p <= 0."));
-
-      AssertThrowSIMD(
-          x,
-          [](auto val) { return val > ScalarNumber(0.); },
-          dealii::ExcMessage("Internal error: 1. - b * rho <= 0."));
-
-      AssertThrowSIMD(
-          gamma,
-          [](auto val) { return val > ScalarNumber(1.); },
-          dealii::ExcMessage("Internal error: gamma <= 1."));
-#endif
-
-      return {{rho, proj_m * rho_inverse, p, gamma, a}};
-    }
-
-
-    template <int dim, typename Number>
-    DEAL_II_ALWAYS_INLINE inline Number RiemannSolver<dim, Number>::compute(
-        const state_type &U_i,
-        const state_type &U_j,
-        const unsigned int i,
-        const unsigned int *js,
-        const dealii::Tensor<1, dim, Number> &n_ij) const
-    {
-      const auto &[p_i, unused_i, s_i, eta_i] =
-          precomputed_values
-              .template get_tensor<Number, precomputed_state_type>(i);
-
-      const auto &[p_j, unused_j, s_j, eta_j] =
-          precomputed_values
-              .template get_tensor<Number, precomputed_state_type>(js);
-
-      const auto riemann_data_i = riemann_data_from_state(U_i, p_i, n_ij);
-      const auto riemann_data_j = riemann_data_from_state(U_j, p_j, n_ij);
-
-      return compute(riemann_data_i, riemann_data_j);
-    }
-
   } // namespace EulerAEOS
 } /* namespace ryujin */

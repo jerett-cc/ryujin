@@ -22,30 +22,34 @@ void test(const std::string &expression)
   std::cout << std::scientific;
 
   HyperbolicSystem hyperbolic_system;
+  typename RiemannSolver<dim, Number>::Parameters riemann_solver_parameters;
+
   const auto view = hyperbolic_system.view<dim, Number>();
 
   {
     std::stringstream parameters;
     parameters << "subsection HyperbolicSystem\n"
                << "set flux = " << expression << "\n"
-               << "set riemann solver greedy wavespeed = true\n"
-               << "set riemann solver averaged entropy = true\n"
+               << "end\n"
+               << "subsection RiemannSolver\n"
+               << "set use greedy wavespeed = true\n"
+               << "set use averaged entropy = true\n"
                << "end\n"
                << std::endl;
     ParameterAcceptor::initialize(parameters);
   }
 
-  using HyperbolicSystemView = typename HyperbolicSystem::View<dim, Number>;
-  using state_type = typename HyperbolicSystemView::state_type;
-  using precomputed_state_type =
-      typename HyperbolicSystemView::precomputed_state_type;
+  using View = HyperbolicSystemView<dim, Number>;
+  using state_type = typename View::state_type;
+  using precomputed_state_type = typename View::precomputed_state_type;
   static constexpr unsigned int n_precomputed_values =
-      HyperbolicSystem::View<dim, Number>::n_precomputed_values;
+      View::n_precomputed_values;
   using precomputed_type = MultiComponentVector<Number, n_precomputed_values>;
 
   precomputed_type dummy;
 
-  RiemannSolver<dim, Number> riemann_solver(hyperbolic_system, dummy);
+  RiemannSolver<dim> riemann_solver(
+      hyperbolic_system, riemann_solver_parameters, dummy);
 
   std::cout << "\n\ndim = " << dim << std::endl;
   std::cout << "f(u)={" + expression + "}" << std::endl;

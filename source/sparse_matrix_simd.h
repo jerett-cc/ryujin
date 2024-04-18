@@ -1,6 +1,6 @@
 //
-// SPDX-License-Identifier: MIT
-// Copyright (C) 2020 - 2023 by the ryujin authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Copyright (C) 2020 - 2024 by the ryujin authors
 //
 
 #pragma once
@@ -14,6 +14,24 @@
 
 namespace ryujin
 {
+  namespace
+  {
+    /**
+     * Internally used: A small helper to determine the appropriate type
+     * for
+     */
+    template <typename Number, int n_components>
+    struct EntryType {
+      using type = dealii::Tensor<1, n_components, Number>;
+    };
+
+    template <typename Number>
+    struct EntryType<Number, 1> {
+      using type = Number;
+    };
+  } // namespace
+
+
   template <typename Number,
             int n_components = 1,
             int simd_length = dealii::VectorizedArray<Number>::size()>
@@ -96,9 +114,28 @@ namespace ryujin
     dealii::AlignedVector<unsigned int> column_indices;
     dealii::AlignedVector<unsigned int> indices_transposed;
 
-    dealii::AlignedVector<std::size_t> indices_to_be_sent;
+    /**
+     * Array listing all (locally owned) entries as a pair {row,
+     * position_within_column}, potentially duplicated, and arranged
+     * consecutively by send targets.
+     */
+    std::vector<std::pair<unsigned int, unsigned int>> entries_to_be_sent;
+
+    /**
+     * All send targets stored as a pair consisting of an MPI rank (first
+     * entry) and a corresponding index range into entries_to_be_sent given
+     * by the half open range [send_targets[p-1].second, send_targets[p])
+     */
     std::vector<std::pair<unsigned int, unsigned int>> send_targets;
+
+    /**
+     * All receive targets stored as a pair consisting of an MPI rank (first
+     * entry) and a corresponding index range into the (serial) data()
+     * array given by the half open range [receive_targets[p-1].second,
+     * receive_targets[p])
+     */
     std::vector<std::pair<unsigned int, unsigned int>> receive_targets;
+
     MPI_Comm mpi_communicator;
 
     template <typename, int, int>
@@ -135,11 +172,21 @@ namespace ryujin
 
     using VectorizedArray = dealii::VectorizedArray<Number, simd_length>;
 
+    /**
+     * The return type of get_entry and get_transposed_entry: If
+     * `n_components` is equal to one then `EntryType` reduces to `Number2`,
+     * otherwise the type is set to
+     * `dealii::tensor<1, n_components, Number2>`
+     */
+    template <typename Number2>
+    using EntryType = typename ryujin::EntryType<Number2, n_components>::type;
+
     /* Get scalar or tensor-valued entry: */
 
     /**
-     * return the (scalar) entry indexed by @p row and
-     * @p position_within_column.
+     * Return the entry indexed by @p row and @p position_within_column.
+     * The return type will either be scalar if `n_components` is equal to
+     * 1, or a tensor if `n_components` is greater than 1.
      *
      * @note If the template argument @a Number2
      * is a vetorized array a specialized, faster access will be performed.
@@ -147,12 +194,15 @@ namespace ryujin
      * [0, n_internal_dofs) and must be divisible by simd_length.
      */
     template <typename Number2 = Number>
-    Number2 get_entry(const unsigned int row,
-                      const unsigned int position_within_column) const;
+    EntryType<Number2>
+    get_entry(const unsigned int row,
+              const unsigned int position_within_column) const;
 
     /**
-     * return the tensor-valued entry indexed by @p row and
-     * @p position_within_column.
+     * Return the tensor-valued entry indexed by @p row and
+     * @p position_within_column. This function performs the same operation
+     * as get_entry() except that it always returns the entry as a tensor
+     * (even if it is effectively a scalar entry).
      *
      * @note If the template argument @a Number2
      * is a vetorized array a specialized, faster access will be performed.
@@ -167,8 +217,10 @@ namespace ryujin
     /* Get transposed scalar or tensor-valued entry: */
 
     /**
-     * return the transposed (scalar) entry indexed by @p row and
-     * @p position_within_column.
+     * Return the transposed entry indexed by @p row and
+     * @p position_within_column. The return type will either be scalar
+     * if `n_components` is equal to 1, or a tensor if `n_components` is
+     * greater than 1.
      *
      * @note If the template argument @a Number2
      * is a vetorized array a specialized, faster access will be performed.
@@ -176,13 +228,15 @@ namespace ryujin
      * [0, n_internal_dofs) and must be divisible by simd_length.
      */
     template <typename Number2 = Number>
-    Number2
+    EntryType<Number2>
     get_transposed_entry(const unsigned int row,
                          const unsigned int position_within_column) const;
 
     /**
-     * return the transposed tensor-valued entry indexed by @p row and
-     * @a position_within_column.
+     * Return the transposed tensor-valued entry indexed by @p row and
+     * @a position_within_column. This function performs the same operation
+     * as get_entry() except that it always returns the entry as a tensor
+     * (even if it is effectively a scalar entry).
      *
      * @note If the template argument @a Number2
      * is a vetorized array a specialized, faster access will be performed.
@@ -204,6 +258,9 @@ namespace ryujin
      * is a vetorized array a specialized, faster access will be performed.
      * In this case the index @p row must be within the interval
      * [0, n_internal_dofs) and must be divisible by simd_length.
+     *
+     * @note This function is only available if `n_components` is equal to
+     * 1.
      */
     template <typename Number2 = Number>
     void write_entry(const Number2 entry,
@@ -221,10 +278,10 @@ namespace ryujin
      * [0, n_internal_dofs) and must be divisible by simd_length.
      */
     template <typename Number2 = Number>
-    void write_tensor(const dealii::Tensor<1, n_components, Number2> &entry,
-                      const unsigned int row,
-                      const unsigned int position_within_column,
-                      const bool do_streaming_store = false);
+    void write_entry(const dealii::Tensor<1, n_components, Number2> &entry,
+                     const unsigned int row,
+                     const unsigned int position_within_column,
+                     const bool do_streaming_store = false);
 
     /* Synchronize over MPI ranks: */
 
@@ -308,11 +365,16 @@ namespace ryujin
 
   template <typename Number, int n_components, int simd_length>
   template <typename Number2>
-  DEAL_II_ALWAYS_INLINE inline Number2
+  DEAL_II_ALWAYS_INLINE inline auto
   SparseMatrixSIMD<Number, n_components, simd_length>::get_entry(
       const unsigned int row, const unsigned int position_within_column) const
+      -> EntryType<Number2>
   {
-    return get_tensor<Number2>(row, position_within_column)[0];
+    const auto result = get_tensor<Number2>(row, position_within_column);
+    if constexpr (n_components == 1)
+      return result[0];
+    else
+      return result;
   }
 
 
@@ -383,11 +445,17 @@ namespace ryujin
 
   template <typename Number, int n_components, int simd_length>
   template <typename Number2>
-  DEAL_II_ALWAYS_INLINE inline Number2
+  DEAL_II_ALWAYS_INLINE inline auto
   SparseMatrixSIMD<Number, n_components, simd_length>::get_transposed_entry(
       const unsigned int row, const unsigned int position_within_column) const
+      -> EntryType<Number2>
   {
-    return get_transposed_tensor<Number2>(row, position_within_column)[0];
+    const auto result =
+        get_transposed_tensor<Number2>(row, position_within_column);
+    if constexpr (n_components == 1)
+      return result[0];
+    else
+      return result;
   }
 
 
@@ -490,6 +558,10 @@ namespace ryujin
       const unsigned int position_within_column,
       const bool do_streaming_store)
   {
+    static_assert(
+        n_components == 1,
+        "Attempted to write a scalar value into a tensor-valued matrix entry");
+
     Assert(sparsity != nullptr, dealii::ExcNotInitialized());
     AssertIndexRange(row, sparsity->row_starts.size() - 1);
     AssertIndexRange(position_within_column, sparsity->row_length(row));
@@ -497,7 +569,7 @@ namespace ryujin
     dealii::Tensor<1, n_components, Number2> result;
     result[0] = entry;
 
-    write_tensor<Number2>(
+    write_entry<Number2>(
         result, row, position_within_column, do_streaming_store);
   }
 
@@ -505,7 +577,7 @@ namespace ryujin
   template <typename Number, int n_components, int simd_length>
   template <typename Number2>
   DEAL_II_ALWAYS_INLINE inline void
-  SparseMatrixSIMD<Number, n_components, simd_length>::write_tensor(
+  SparseMatrixSIMD<Number, n_components, simd_length>::write_entry(
       const dealii::Tensor<1, n_components, Number2> &entry,
       const unsigned int row,
       const unsigned int position_within_column,
@@ -584,11 +656,18 @@ namespace ryujin
                dealii::Utilities::MPI::internal::Tags::partitioner_export_end,
            dealii::ExcInternalError());
 
-    const std::size_t n_indices = sparsity->indices_to_be_sent.size();
+    const std::size_t n_indices = sparsity->entries_to_be_sent.size();
     exchange_buffer.resize_fast(n_components * n_indices);
 
     requests.resize(sparsity->receive_targets.size() +
                     sparsity->send_targets.size());
+
+    /*
+     * Set up MPI receive requests. We will always receive data for indices
+     * in the range [n_locally_owned_, n_locally_relevant_), thus the DATA
+     * is stored in non-vectorized CSR format.
+     */
+
     {
       const auto &targets = sparsity->receive_targets;
       for (unsigned int p = 0; p < targets.size(); ++p) {
@@ -608,10 +687,44 @@ namespace ryujin
       }
     }
 
-    for (std::size_t c = 0; c < n_indices; ++c)
-      for (unsigned int comp = 0; comp < n_components; ++comp)
-        exchange_buffer[n_components * c + comp] =
-            data[n_components * sparsity->indices_to_be_sent[c] + comp];
+    /*
+     * Copy all entries that we plan to send over to the exchange buffer.
+     * Here, we have to be careful with indices falling into the "locally
+     * internal" range that are stored in an array-of-struct-of-array type.
+     */
+
+    for (std::size_t c = 0; c < n_indices; ++c) {
+
+      const auto &[row, position_within_column] =
+          sparsity->entries_to_be_sent[c];
+
+      Assert(row < sparsity->n_locally_owned_dofs, dealii::ExcInternalError());
+
+      if (row < sparsity->n_internal_dofs) {
+        // go through vectorized part
+        const unsigned int simd_row = row / simd_length;
+        const unsigned int simd_offset = row % simd_length;
+        for (unsigned int d = 0; d < n_components; ++d)
+          exchange_buffer[n_components * c + d] =
+              data[(sparsity->row_starts[simd_row] +
+                    position_within_column * simd_length) *
+                       n_components +
+                   d * simd_length + simd_offset];
+      } else {
+        // go through standard part
+        for (unsigned int d = 0; d < n_components; ++d)
+          exchange_buffer[n_components * c + d] =
+              data[(sparsity->row_starts[row] + position_within_column) *
+                       n_components +
+                   d];
+      }
+    }
+
+    /*
+     * Set up MPI send requests. We have copied everything we intend to
+     * send to the exchange_buffer compatible with the CSR storage format
+     * of the receiving MPI rank.
+     */
 
     {
       const auto &targets = sparsity->send_targets;

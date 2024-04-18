@@ -1,6 +1,6 @@
 //
-// SPDX-License-Identifier: MIT
-// Copyright (C) 2020 - 2023 by the ryujin authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Copyright (C) 2020 - 2024 by the ryujin authors
 //
 
 #pragma once
@@ -16,6 +16,51 @@ namespace ryujin
 {
   namespace Euler
   {
+    template <typename ScalarNumber = double>
+    class LimiterParameters : public dealii::ParameterAcceptor
+    {
+    public:
+      LimiterParameters(const std::string &subsection = "/Limiter")
+          : ParameterAcceptor(subsection)
+      {
+        iterations_ = 2;
+        add_parameter(
+            "iterations", iterations_, "Number of limiter iterations");
+
+        if constexpr (std::is_same<ScalarNumber, double>::value)
+          newton_tolerance_ = 1.e-10;
+        else
+          newton_tolerance_ = 1.e-4;
+        add_parameter("newton tolerance",
+                      newton_tolerance_,
+                      "Tolerance for the quadratic newton stopping criterion");
+
+        newton_max_iterations_ = 2;
+        add_parameter("newton max iterations",
+                      newton_max_iterations_,
+                      "Maximal number of quadratic newton iterations performed "
+                      "during limiting");
+
+        relaxation_factor_ = ScalarNumber(1.);
+        add_parameter("relaxation factor",
+                      relaxation_factor_,
+                      "Factor for scaling the relaxation window with r_i = "
+                      "factor * (m_i/|Omega|)^(1.5/d).");
+      }
+
+      ACCESSOR_READ_ONLY(iterations);
+      ACCESSOR_READ_ONLY(newton_tolerance);
+      ACCESSOR_READ_ONLY(newton_max_iterations);
+      ACCESSOR_READ_ONLY(relaxation_factor);
+
+    private:
+      unsigned int iterations_;
+      ScalarNumber newton_tolerance_;
+      unsigned int newton_max_iterations_;
+      ScalarNumber relaxation_factor_;
+    };
+
+
     /**
      * The convex limiter.
      *
@@ -51,43 +96,45 @@ namespace ryujin
     {
     public:
       /**
-       * @copydoc HyperbolicSystem::View
+       * @copydoc HyperbolicSystemView
        */
-      using HyperbolicSystemView = HyperbolicSystem::View<dim, Number>;
+      using View = HyperbolicSystemView<dim, Number>;
 
       /**
-       * @copydoc HyperbolicSystem::View::problem_dimension
+       * @copydoc HyperbolicSystemView::problem_dimension
        */
-      static constexpr unsigned int problem_dimension =
-          HyperbolicSystemView::problem_dimension;
+      static constexpr unsigned int problem_dimension = View::problem_dimension;
 
       /**
-       * @copydoc HyperbolicSystem::View::state_type
+       * @copydoc HyperbolicSystemView::state_type
        */
-      using state_type = typename HyperbolicSystemView::state_type;
+      using state_type = typename View::state_type;
 
       /**
-       * @copydoc HyperbolicSystem::View::n_precomputed_values
+       * @copydoc HyperbolicSystemView::n_precomputed_values
        */
       static constexpr unsigned int n_precomputed_values =
-          HyperbolicSystemView::n_precomputed_values;
+          View::n_precomputed_values;
 
       /**
-       * @copydoc HyperbolicSystem::View::precomputed_state_type
+       * @copydoc HyperbolicSystemView::precomputed_state_type
        */
-      using precomputed_state_type =
-          typename HyperbolicSystemView::precomputed_state_type;
+      using precomputed_state_type = typename View::precomputed_state_type;
 
       /**
-       * @copydoc HyperbolicSystem::View::flux_contribution_type
+       * @copydoc HyperbolicSystemView::flux_contribution_type
        */
-      using flux_contribution_type =
-          typename HyperbolicSystemView::flux_contribution_type;
+      using flux_contribution_type = typename View::flux_contribution_type;
 
       /**
-       * @copydoc HyperbolicSystem::View::ScalarNumber
+       * @copydoc HyperbolicSystemView::ScalarNumber
        */
-      using ScalarNumber = typename HyperbolicSystemView::ScalarNumber;
+      using ScalarNumber = typename View::ScalarNumber;
+
+      /**
+       * @copydoc LimiterParameters
+       */
+      using Parameters = LimiterParameters<ScalarNumber>;
 
       /**
        * @name Stencil-based computation of bounds
@@ -122,16 +169,12 @@ namespace ryujin
        * Constructor taking a HyperbolicSystem instance as argument
        */
       Limiter(const HyperbolicSystem &hyperbolic_system,
+              const Parameters &parameters,
               const MultiComponentVector<ScalarNumber, n_precomputed_values>
-                  &precomputed_values,
-              const ScalarNumber relaxation_factor,
-              const ScalarNumber newton_tolerance,
-              const unsigned int newton_max_iter)
+                  &precomputed_values)
           : hyperbolic_system(hyperbolic_system)
+          , parameters(parameters)
           , precomputed_values(precomputed_values)
-          , relaxation_factor(relaxation_factor)
-          , newton_tolerance(newton_tolerance)
-          , newton_max_iter(newton_max_iter)
       {
       }
 
@@ -193,7 +236,7 @@ namespace ryujin
        * invariant domain.
        */
       static bool
-      is_in_invariant_domain(const HyperbolicSystemView &hyperbolic_system,
+      is_in_invariant_domain(const HyperbolicSystem &hyperbolic_system,
                              const Bounds &bounds,
                              const state_type &U);
 
@@ -202,14 +245,11 @@ namespace ryujin
       /** @name Arguments and internal fields */
       //@{
 
-      const HyperbolicSystemView hyperbolic_system;
+      const HyperbolicSystem &hyperbolic_system;
+      const Parameters &parameters;
 
       const MultiComponentVector<ScalarNumber, n_precomputed_values>
           &precomputed_values;
-
-      const ScalarNumber relaxation_factor;
-      const ScalarNumber newton_tolerance;
-      const unsigned int newton_max_iter;
 
       state_type U_i;
 
@@ -258,14 +298,15 @@ namespace ryujin
         const dealii::Tensor<1, dim, Number> &scaled_c_ij,
         const Number beta_ij)
     {
-      /* Bounds: */
+      const auto view = hyperbolic_system.view<dim, Number>();
 
+      /* Bounds: */
       auto &[rho_min, rho_max, s_min] = bounds_;
 
-      const auto rho_i = hyperbolic_system.density(U_i);
-      const auto m_i = hyperbolic_system.momentum(U_i);
-      const auto rho_j = hyperbolic_system.density(U_j);
-      const auto m_j = hyperbolic_system.momentum(U_j);
+      const auto rho_i = view.density(U_i);
+      const auto m_i = view.momentum(U_i);
+      const auto rho_j = view.density(U_j);
+      const auto m_j = view.momentum(U_j);
       const auto rho_ij_bar =
           ScalarNumber(0.5) * (rho_i + rho_j + (m_i - m_j) * scaled_c_ij);
       rho_min = std::min(rho_min, rho_ij_bar);
@@ -282,7 +323,7 @@ namespace ryujin
       rho_relaxation_denominator += std::abs(beta_ij);
 
       const Number s_interp =
-          hyperbolic_system.specific_entropy((U_i + U_j) * ScalarNumber(.5));
+          view.specific_entropy((U_i + U_j) * ScalarNumber(.5));
       s_interp_max = std::max(s_interp_max, s_interp);
     }
 
@@ -301,7 +342,7 @@ namespace ryujin
         r_i = dealii::Utilities::fixed_power<3>(std::sqrt(r_i)); // in 2D: ^ 3/4
       else if constexpr (dim == 1)                               //
         r_i = dealii::Utilities::fixed_power<3>(r_i);            // in 1D: ^ 3/2
-      r_i *= relaxation_factor;
+      r_i *= parameters.relaxation_factor();
 
       constexpr ScalarNumber eps = std::numeric_limits<ScalarNumber>::epsilon();
       const Number rho_relaxation =
@@ -323,7 +364,7 @@ namespace ryujin
     template <int dim, typename Number>
     DEAL_II_ALWAYS_INLINE inline bool
     Limiter<dim, Number>::is_in_invariant_domain(
-        const HyperbolicSystemView & /*hyperbolic_system*/,
+        const HyperbolicSystem & /*hyperbolic_system*/,
         const Bounds & /*bounds*/,
         const state_type & /*U*/)
     {

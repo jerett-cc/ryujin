@@ -1,18 +1,34 @@
 //
-// SPDX-License-Identifier: MIT or BSD-3-Clause
+// SPDX-License-Identifier: Apache-2.0
 // [LANL Copyright Statement]
-// Copyright (C) 2020 - 2023 by the ryujin authors
-// Copyright (C) 2023 - 2023 by Triad National Security, LLC
+// Copyright (C) 2023 - 2024 by the ryujin authors
+// Copyright (C) 2023 - 2024 by Triad National Security, LLC
 //
 
 #pragma once
 
 #include "hyperbolic_system.h"
 
+#include <simd.h>
+
+#include <deal.II/base/point.h>
+#include <deal.II/base/tensor.h>
+
 namespace ryujin
 {
   namespace ShallowWater
   {
+    template <typename ScalarNumber = double>
+    class RiemannSolverParameters : public dealii::ParameterAcceptor
+    {
+    public:
+      RiemannSolverParameters(const std::string &subsection = "/RiemannSolver")
+          : ParameterAcceptor(subsection)
+      {
+      }
+    };
+
+
     /**
      * A fast approximative solver for the associated 1D Riemann problem.
      * The solver has to ensure that the estimate
@@ -26,15 +42,14 @@ namespace ryujin
     {
     public:
       /**
-       * @copydoc HyperbolicSystem::View
+       * @copydoc HyperbolicSystemView
        */
-      using HyperbolicSystemView = HyperbolicSystem::View<dim, Number>;
+      using View = HyperbolicSystemView<dim, Number>;
 
       /**
-       * @copydoc HyperbolicSystem::View::problem_dimension
+       * @copydoc HyperbolicSystemView::problem_dimension
        */
-      static constexpr unsigned int problem_dimension =
-          HyperbolicSystemView::problem_dimension;
+      static constexpr unsigned int problem_dimension = View::problem_dimension;
 
       /**
        * Number of components in a primitive state, we store \f$[\rho, v,
@@ -49,20 +64,25 @@ namespace ryujin
       using primitive_type = std::array<Number, riemann_data_size>;
 
       /**
-       * @copydoc HyperbolicSystem::View::state_type
+       * @copydoc HyperbolicSystemView::state_type
        */
-      using state_type = typename HyperbolicSystemView::state_type;
+      using state_type = typename View::state_type;
 
       /**
-       * @copydoc HyperbolicSystem::View::n_precomputed_values
+       * @copydoc HyperbolicSystemView::n_precomputed_values
        */
       static constexpr unsigned int n_precomputed_values =
-          HyperbolicSystemView::n_precomputed_values;
+          View::n_precomputed_values;
 
       /**
-       * @copydoc HyperbolicSystem::View::ScalarNumber
+       * @copydoc HyperbolicSystemView::ScalarNumber
        */
-      using ScalarNumber = typename HyperbolicSystemView::ScalarNumber;
+      using ScalarNumber = typename View::ScalarNumber;
+
+      /**
+       * @copydoc RiemannSolverParameters
+       */
+      using Parameters = RiemannSolverParameters<ScalarNumber>;
 
       /**
        * @name Compute wavespeed estimates
@@ -74,13 +94,14 @@ namespace ryujin
        */
       RiemannSolver(
           const HyperbolicSystem &hyperbolic_system,
+          const Parameters &parameters,
           const MultiComponentVector<ScalarNumber, n_precomputed_values>
               &precomputed_values)
           : hyperbolic_system(hyperbolic_system)
+          , parameters(parameters)
           , precomputed_values(precomputed_values)
       {
       }
-
 
       /**
        * For two given 1D primitive states riemann_data_i and riemann_data_j,
@@ -89,7 +110,6 @@ namespace ryujin
        */
       Number compute(const primitive_type &riemann_data_i,
                      const primitive_type &riemann_data_j) const;
-
 
       /**
        * For two given states U_i a U_j and a (normalized) "direction" n_ij
@@ -135,55 +155,12 @@ namespace ryujin
                               const dealii::Tensor<1, dim, Number> &n_ij) const;
 
     private:
-      //@}
-      /**
-       * @name Internal functions used in the Riemann solver
-       */
-      //@{
+      const HyperbolicSystem &hyperbolic_system;
+      const Parameters &parameters;
 
-      const HyperbolicSystemView hyperbolic_system;
       const MultiComponentVector<ScalarNumber, n_precomputed_values>
           &precomputed_values;
-
       //@}
     };
-
-
-    /*
-     * -------------------------------------------------------------------------
-     * Inline definitions
-     * -------------------------------------------------------------------------
-     */
-
-
-    template <int dim, typename Number>
-    DEAL_II_ALWAYS_INLINE inline auto
-    RiemannSolver<dim, Number>::riemann_data_from_state(
-        const state_type &U, const dealii::Tensor<1, dim, Number> &n_ij) const
-        -> primitive_type
-    {
-      const Number h = hyperbolic_system.water_depth_sharp(U);
-      const Number gravity = hyperbolic_system.gravity();
-
-      const auto vel = hyperbolic_system.momentum(U) / h;
-      const auto proj_vel = n_ij * vel;
-      const auto a = std::sqrt(h * gravity);
-
-      return {{h, proj_vel, a}};
-    }
-
-
-    template <int dim, typename Number>
-    Number RiemannSolver<dim, Number>::compute(
-        const state_type &U_i,
-        const state_type &U_j,
-        const unsigned int /*i*/,
-        const unsigned int * /*js*/,
-        const dealii::Tensor<1, dim, Number> &n_ij) const
-    {
-      const auto riemann_data_i = riemann_data_from_state(U_i, n_ij);
-      const auto riemann_data_j = riemann_data_from_state(U_j, n_ij);
-      return compute(riemann_data_i, riemann_data_j);
-    }
   } // namespace ShallowWater
 } // namespace ryujin

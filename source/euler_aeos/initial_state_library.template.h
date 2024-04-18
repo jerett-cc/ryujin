@@ -1,6 +1,6 @@
 //
-// SPDX-License-Identifier: MIT
-// Copyright (C) 2020 - 2023 by the ryujin authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Copyright (C) 2023 - 2024 by the ryujin authors
 //
 
 #pragma once
@@ -20,8 +20,8 @@ namespace ryujin
   public:
     using HyperbolicSystem = typename Description::HyperbolicSystem;
 
-    using HyperbolicSystemView =
-        typename HyperbolicSystem::template View<dim, Number>;
+    using View =
+        typename Description::template HyperbolicSystemView<dim, Number>;
 
     using initial_state_list_type =
         std::set<std::unique_ptr<InitialState<Description, dim, Number>>>;

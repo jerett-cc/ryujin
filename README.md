@@ -15,13 +15,13 @@ maintains important physical invariants and is guaranteed to be stable
 without the use of ad-hoc tuning parameters.
 
 Ryujin is freely available under the terms of the
-[MIT license](https://spdx.org/licenses/MIT.html). Part of the source
-code is dual licensed under the MIT and the
-[BSD 3-clause license](https://spdx.org/licenses/BSD-3-Clause.html).
-Third-party dependencies and header libraries are covered by different open
-source licenses. For details consult [COPYING.md](COPYING.md).
-Contributions to the ryujin source code are governed by the [Developer
-Certificate of Origin version 1.1](https://developercertificate.org/); see
+[Apache License 2.0](https://spdx.org/licenses/Apache-2.0.html)
+with [LLVM Exception](https://spdx.org/licenses/LLVM-exception.html).
+Part of the contributed source code, third-party dependencies and header
+libraries are covered by different open source licenses. For details
+consult [COPYING.md](COPYING.md). Contributions to the ryujin source code
+are governed by the [Developer Certificate of Origin version
+1.1](https://developercertificate.org/); see
 [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 
@@ -54,8 +54,8 @@ Resources
 ---------
 
  - [Website](https://conservation-laws.org/)
- - [Installation instructions](https://conservation-laws.org/ryujin/doxygen/Installation.html)
- - [Usage instructions](https://conservation-laws.org/ryujin/doxygen/Usage.html)
+ - [Installation instructions](./INSTALLATION.md)
+ - [Usage instructions](./USAGE.md)
  - [Doxygen documentation](https://conservation-laws.org/ryujin/doxygen)
 
 Videos
@@ -123,3 +123,13 @@ Developers
  - Matthias Maier ([@tamiko](https://github.com/tamiko)), Texas A&M University, TX, USA
  - Ignacio Tomas ([@nachosaurus](https://github.com/nachosaurus)), Texas Tech University, TX, USA
  - Eric Tovar ([@ejtovar](https://github.com/ejtovar)), Los Alamos National Laboratory, USA
+
+Contributors
+------------
+
+ - Taylor Boylan ([@tmboylan](https://github.com/tmboylan))
+ - Bennett Clayton ([@bgclayto](https://github.com/bgclayto))
+ - Seth Gerberding ([@Gerbeset](https://github.com/Gerbeset)), Texas A&M University, TX, USA
+ - David Pecoraro ([@ChrisPec27](https://github.com/ChrisPec27)), Texas A&M University, TX, USA
+ - Madison Sheridan ([@Helblindi](https://github.com/Helblindi)), Texas A&M University, TX, USA
+

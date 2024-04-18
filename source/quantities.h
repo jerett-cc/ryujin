@@ -1,6 +1,6 @@
 //
-// SPDX-License-Identifier: MIT
-// Copyright (C) 2020 - 2023 by the ryujin authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Copyright (C) 2020 - 2024 by the ryujin authors
 //
 
 #pragma once
@@ -36,27 +36,25 @@ namespace ryujin
     using HyperbolicSystem = typename Description::HyperbolicSystem;
 
     /**
-     * @copydoc HyperbolicSystem::View
+     * @copydoc HyperbolicSystemView
      */
-    using HyperbolicSystemView =
-        typename Description::HyperbolicSystem::template View<dim, Number>;
+    using View =
+        typename Description::template HyperbolicSystemView<dim, Number>;
 
     /**
-     * @copydoc HyperbolicSystem::View::problem_dimension
+     * @copydoc HyperbolicSystemView::problem_dimension
      */
-    static constexpr unsigned int problem_dimension =
-        HyperbolicSystemView::problem_dimension;
+    static constexpr unsigned int problem_dimension = View::problem_dimension;
 
     /**
-     * @copydoc HyperbolicSystem::View::state_type
+     * @copydoc HyperbolicSystemView::state_type
      */
-    using state_type = typename HyperbolicSystemView::state_type;
+    using state_type = typename View::state_type;
 
     /**
-     * @copydoc HyperbolicSystem::View::primitive_state_type
+     * @copydoc HyperbolicSystemView::primitive_state_type
      */
-    using primitive_state_type =
-        typename HyperbolicSystemView::primitive_state_type;
+    using primitive_state_type = typename View::primitive_state_type;
 
     /**
      * Typedef for a MultiComponentVector storing the state U.

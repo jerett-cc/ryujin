@@ -1,6 +1,6 @@
 //
-// SPDX-License-Identifier: MIT
-// Copyright (C) 2020 by the ryujin authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Copyright (C) 2020 - 2023 by the ryujin authors
 //
 
 #pragma once
@@ -22,6 +22,7 @@
 /* External packages: */
 
 #cmakedefine WITH_EOSPAC
+#cmakedefine WITH_GDAL
 #cmakedefine WITH_LIKWID
 #cmakedefine WITH_OPENMP
 #cmakedefine WITH_VALGRIND

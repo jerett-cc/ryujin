@@ -21,10 +21,7 @@ int main()
   constexpr int dim = 1;
 
   HyperbolicSystem hyperbolic_system;
-
-  const double relaxation_factor = 1.;
-  const double newton_tolerance = 1.e-10;
-  const unsigned int newton_max_iter = 2;
+  Limiter<dim, double>::Parameters limiter_parameters;
 
   const auto set_covolume = [&](const double covolume) {
     /*
@@ -42,21 +39,17 @@ int main()
     ParameterAcceptor::initialize(parameters);
   };
 
-  using state_type = HyperbolicSystem::View<dim, double>::state_type;
+  using state_type = HyperbolicSystemView<dim, double>::state_type;
 
   using bounds_type = Limiter<dim, double>::Bounds;
 
   static constexpr unsigned int n_precomputed_values =
-      HyperbolicSystem::View<dim, double>::n_precomputed_values;
+      HyperbolicSystemView<dim, double>::n_precomputed_values;
 
   using precomputed_type = MultiComponentVector<double, n_precomputed_values>;
   precomputed_type dummy;
 
-  Limiter<dim, double> limiter(hyperbolic_system,
-                               dummy,
-                               relaxation_factor,
-                               newton_tolerance,
-                               newton_max_iter);
+  Limiter<dim, double> limiter(hyperbolic_system, limiter_parameters, dummy);
 
   const auto view = hyperbolic_system.template view<dim, double>();
 

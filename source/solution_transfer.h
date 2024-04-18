@@ -1,6 +1,6 @@
 //
-// SPDX-License-Identifier: MIT
-// Copyright (C) 2020 - 2023 by the ryujin authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Copyright (C) 2020 - 2024 by the ryujin authors
 //
 
 #pragma once
@@ -33,21 +33,20 @@ namespace ryujin
     using HyperbolicSystem = typename Description::HyperbolicSystem;
 
     /**
-     * @copydoc HyperbolicSystem::View
+     * @copydoc HyperbolicSystemView
      */
-    using HyperbolicSystemView =
-        typename Description::HyperbolicSystem::template View<dim, Number>;
+    using View =
+        typename Description::template HyperbolicSystemView<dim, Number>;
 
     /**
      * @copydoc HyperbolicSystem::problem_dimension
      */
-    static constexpr unsigned int problem_dimension =
-        HyperbolicSystemView::problem_dimension;
+    static constexpr unsigned int problem_dimension = View::problem_dimension;
 
     /**
      * @copydoc HyperbolicSystem::state_type
      */
-    using state_type = typename HyperbolicSystemView::state_type;
+    using state_type = typename View::state_type;
 
     /**
      * @copydoc OfflineData::scalar_type
@@ -87,21 +86,15 @@ namespace ryujin
       for (auto &it : state_)
         it.reinit(scalar_partitioner);
 
-      const unsigned int n_owned = offline_data_->n_locally_owned();
+      /*
+       * FIXME: we need to copy over to an auxiliary  state_ vector because
+       * dealii::SolutionTransfer cannot work on our MultiComponentVector
+       */
 
-      /* copy over the primitive state: */
-
-      for (unsigned int i = 0; i < n_owned; ++i) {
-        const auto U_i = U.get_tensor(i);
-        const auto primitive_state = hyperbolic_system_.to_primitive_state(U_i);
-
-        for (unsigned int k = 0; k < problem_dimension; ++k)
-          state_[k].local_element(i) = primitive_state[k];
-      }
-
-      for (auto &it : state_) {
-        affine_constraints.distribute(it);
-        it.update_ghost_values();
+      for (unsigned int k = 0; k < problem_dimension; ++k) {
+        U.extract_component(state_[k], k);
+        affine_constraints.distribute(state_[k]);
+        state_[k].update_ghost_values();
       }
 
       std::vector<const scalar_type *> ptr_state;
@@ -138,19 +131,13 @@ namespace ryujin
                      [](auto &it) { return &it; });
       solution_transfer_.interpolate(ptr_interpolated_state);
 
-      const unsigned int n_owned = offline_data_->n_locally_owned();
+      /*
+       * Read back from interpolated_state_ vector:
+       */
 
-      /* copy over primitive_state: */
-
-      for (unsigned int i = 0; i < n_owned; ++i) {
-        state_type U_i;
-        for (unsigned int k = 0; k < problem_dimension; ++k)
-          U_i[k] = interpolated_state_[k].local_element(i);
-        U_i = hyperbolic_system_.from_primitive_state(U_i);
-
-        U.write_tensor(U_i, i);
+      for (unsigned int k = 0; k < problem_dimension; ++k) {
+        U.insert_component(interpolated_state_[k], k);
       }
-
       U.update_ghost_values();
     }
 
@@ -161,7 +148,7 @@ namespace ryujin
      */
     //@{
     dealii::SmartPointer<const OfflineData<dim, Number>> offline_data_;
-    const HyperbolicSystemView hyperbolic_system_;
+    const HyperbolicSystem &hyperbolic_system_;
 
     dealii::parallel::distributed::SolutionTransfer<dim, scalar_type>
         solution_transfer_;

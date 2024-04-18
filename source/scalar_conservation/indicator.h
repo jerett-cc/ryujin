@@ -1,6 +1,6 @@
 //
-// SPDX-License-Identifier: MIT
-// Copyright (C) 2020 - 2023 by the ryujin authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Copyright (C) 2023 - 2024 by the ryujin authors
 //
 
 #pragma once
@@ -10,6 +10,7 @@
 #include <multicomponent_vector.h>
 #include <simd.h>
 
+#include <deal.II/base/parameter_acceptor.h>
 #include <deal.II/base/vectorization.h>
 
 
@@ -17,6 +18,26 @@ namespace ryujin
 {
   namespace ScalarConservation
   {
+    template <typename ScalarNumber = double>
+    class IndicatorParameters : public dealii::ParameterAcceptor
+    {
+    public:
+      IndicatorParameters(const std::string &subsection = "/Indicator")
+          : ParameterAcceptor(subsection)
+      {
+        evc_factor_ = ScalarNumber(1.);
+        add_parameter("evc factor",
+                      evc_factor_,
+                      "Factor for scaling the entropy viscocity commuator");
+      }
+
+      ACCESSOR_READ_ONLY(evc_factor);
+
+    private:
+      ScalarNumber evc_factor_;
+    };
+
+
     /**
      * An suitable indicator strategy that is used to form the preliminary
      * high-order update.
@@ -28,31 +49,35 @@ namespace ryujin
     {
     public:
       /**
-       * @copydoc HyperbolicSystem::View
+       * @copydoc HyperbolicSystemView
        */
-      using HyperbolicSystemView = HyperbolicSystem::View<dim, Number>;
+      using View = HyperbolicSystemView<dim, Number>;
 
       /**
        * @copydoc HyperbolicSystem::n_precomputed_values
        */
       static constexpr unsigned int n_precomputed_values =
-          HyperbolicSystemView::n_precomputed_values;
+          View::n_precomputed_values;
 
       /**
-       * @copydoc HyperbolicSystem::View::precomputed_state_type
+       * @copydoc HyperbolicSystemView::precomputed_state_type
        */
-      using precomputed_state_type =
-          typename HyperbolicSystemView::precomputed_state_type;
+      using precomputed_state_type = typename View::precomputed_state_type;
 
       /**
        * @copydoc HyperbolicSystem::state_type
        */
-      using state_type = typename HyperbolicSystemView::state_type;
+      using state_type = typename View::state_type;
 
       /**
        * @copydoc HyperbolicSystem::ScalarNumber
        */
       using ScalarNumber = typename get_value_type<Number>::type;
+
+      /**
+       * @copydoc IndicatorParameters
+       */
+      using Parameters = IndicatorParameters<ScalarNumber>;
 
       /**
        * @name Stencil-based computation of indicators
@@ -77,12 +102,12 @@ namespace ryujin
        * Constructor taking a HyperbolicSystem instance as argument
        */
       Indicator(const HyperbolicSystem &hyperbolic_system,
+                const Parameters &parameters,
                 const MultiComponentVector<ScalarNumber, n_precomputed_values>
-                    &precomputed_values,
-                const ScalarNumber evc_factor)
+                    &precomputed_values)
           : hyperbolic_system(hyperbolic_system)
+          , parameters(parameters)
           , precomputed_values(precomputed_values)
-          , evc_factor(evc_factor)
       {
       }
 
@@ -112,12 +137,12 @@ namespace ryujin
        * @name
        */
       //@{
-      const HyperbolicSystemView hyperbolic_system;
+
+      const HyperbolicSystem &hyperbolic_system;
+      const Parameters &parameters;
 
       const MultiComponentVector<ScalarNumber, n_precomputed_values>
           &precomputed_values;
-
-      const ScalarNumber evc_factor;
 
       Number u_i;
       Number u_abs_max;
@@ -139,15 +164,17 @@ namespace ryujin
     DEAL_II_ALWAYS_INLINE inline void
     Indicator<dim, Number>::reset(const unsigned int i, const state_type &U_i)
     {
+      /* entropy viscosity commutator: */
+
+      const auto view = hyperbolic_system.view<dim, Number>();
+
       const auto prec_i =
           precomputed_values
               .template get_tensor<Number, precomputed_state_type>(i);
 
-      /* entropy viscosity commutator: */
-
-      u_i = hyperbolic_system.state(U_i);
+      u_i = view.state(U_i);
       u_abs_max = std::abs(u_i);
-      f_i = hyperbolic_system.construct_flux_tensor(prec_i);
+      f_i = view.construct_flux_tensor(prec_i);
       left = 0.;
       right = 0.;
     }
@@ -159,17 +186,18 @@ namespace ryujin
         const state_type &U_j,
         const dealii::Tensor<1, dim, Number> &c_ij)
     {
+      /* entropy viscosity commutator: */
+
+      const auto view = hyperbolic_system.view<dim, Number>();
+
       const auto prec_j =
           precomputed_values
               .template get_tensor<Number, precomputed_state_type>(js);
 
-      /* entropy viscosity commutator: */
-
-      const auto u_j = hyperbolic_system.state(U_j);
+      const auto u_j = view.state(U_j);
       u_abs_max = std::max(u_abs_max, std::abs(u_j));
-      const auto d_eta_j =
-          hyperbolic_system.kruzkov_entropy_derivative(u_i, u_j);
-      const auto f_j = hyperbolic_system.construct_flux_tensor(prec_j);
+      const auto d_eta_j = view.kruzkov_entropy_derivative(u_i, u_j);
+      const auto f_j = view.construct_flux_tensor(prec_j);
 
       left += d_eta_j * (f_j * c_ij);
       right += d_eta_j * (f_i * c_ij);
@@ -189,7 +217,7 @@ namespace ryujin
            std::max(hd_i * std::abs(u_abs_max),
                     Number(100. * std::numeric_limits<ScalarNumber>::min())));
 
-      return std::min(Number(1.), evc_factor * quotient);
+      return std::min(Number(1.), parameters.evc_factor() * quotient);
     }
 
   } // namespace ScalarConservation

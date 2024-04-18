@@ -1,6 +1,6 @@
 //
-// SPDX-License-Identifier: MIT
-// Copyright (C) 2020 - 2023 by the ryujin authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Copyright (C) 2020 - 2024 by the ryujin authors
 //
 
 #pragma once
@@ -81,26 +81,20 @@ namespace ryujin
     using HyperbolicSystem = typename Description::HyperbolicSystem;
 
     /**
-     * @copydoc HyperbolicSystem::View
+     * @copydoc HyperbolicSystemView
      */
-    using HyperbolicSystemView =
-        typename HyperbolicSystem::template View<dim, Number>;
+    using View =
+        typename Description::template HyperbolicSystemView<dim, Number>;
 
     /**
      * @copydoc HyperbolicSystem::problem_dimension
      */
-    static constexpr unsigned int problem_dimension =
-        HyperbolicSystemView::problem_dimension;
+    static constexpr unsigned int problem_dimension = View::problem_dimension;
 
     /**
      * @copydoc HyperbolicSystem::state_type
      */
-    using state_type = typename HyperbolicSystemView::state_type;
-
-    /**
-     * @copydoc HyperbolicSystem::flux_type
-     */
-    using flux_type = typename HyperbolicSystemView::flux_type;
+    using state_type = typename View::state_type;
 
     /**
      * @copydoc OfflineData::scalar_type
@@ -108,39 +102,38 @@ namespace ryujin
     using scalar_type = typename OfflineData<dim, Number>::scalar_type;
 
     /**
-     * @copydoc HyperbolicSystem::View::vector_type
+     * @copydoc HyperbolicSystemView::vector_type
      */
-    using vector_type = typename HyperbolicSystemView::vector_type;
+    using vector_type = typename View::vector_type;
 
     /**
      * @copydoc HyperbolicSystem::n_precomputed_values
      */
     static constexpr unsigned int n_precomputed_values =
-        HyperbolicSystemView::n_precomputed_values;
+        View::n_precomputed_values;
 
     /**
      * @copydoc HyperbolicSystemView::n_precomputation_cycles
      */
     static constexpr unsigned int n_precomputation_cycles =
-        HyperbolicSystemView::n_precomputation_cycles;
+        View::n_precomputation_cycles;
 
     /**
      * Typedef for a MultiComponentVector storing precomputed values.
      */
-    using precomputed_vector_type =
-        typename HyperbolicSystemView::precomputed_vector_type;
+    using precomputed_vector_type = typename View::precomputed_vector_type;
 
     /**
      * @copydoc HyperbolicSystem::n_precomputed_initial_values
      */
     static constexpr unsigned int n_precomputed_initial_values =
-        HyperbolicSystemView::n_precomputed_initial_values;
+        View::n_precomputed_initial_values;
 
     /**
      * Typedef for a MultiComponentVector storing precomputed initial_values.
      */
     using precomputed_initial_vector_type =
-        typename HyperbolicSystemView::precomputed_initial_vector_type;
+        typename View::precomputed_initial_vector_type;
 
 
     /**
@@ -315,12 +308,14 @@ namespace ryujin
      * @name Run time options
      */
     //@{
-    Number indicator_evc_factor_;
+    typename Description::template Indicator<dim, Number>::Parameters
+        indicator_parameters_;
 
-    unsigned int limiter_iter_;
-    Number limiter_newton_tolerance_;
-    unsigned int limiter_newton_max_iter_;
-    Number limiter_relaxation_factor_;
+    typename Description::template Limiter<dim, Number>::Parameters
+        limiter_parameters_;
+
+    typename Description::template RiemannSolver<dim, Number>::Parameters
+        riemann_solver_parameters_;
 
     bool cfl_with_boundary_dofs_;
 

@@ -1,8 +1,8 @@
 //
-// SPDX-License-Identifier: MIT or BSD-3-Clause
+// SPDX-License-Identifier: Apache-2.0
 // [LANL Copyright Statement]
-// Copyright (C) 2020 - 2023 by the ryujin authors
-// Copyright (C) 2023 - 2023 by Triad National Security, LLC
+// Copyright (C) 2022 - 2024 by the ryujin authors
+// Copyright (C) 2023 - 2024 by Triad National Security, LLC
 //
 
 #pragma once
@@ -25,10 +25,9 @@ namespace ryujin
     class CircularDamBreak : public InitialState<Description, dim, Number>
     {
     public:
-      using HyperbolicSystemView = HyperbolicSystem::View<dim, Number>;
-      using state_type = typename HyperbolicSystemView::state_type;
-      using primitive_state_type =
-          typename HyperbolicSystemView::primitive_state_type;
+      using View = HyperbolicSystemView<dim, Number>;
+      using state_type = typename View::state_type;
+      using primitive_state_type = typename View::primitive_state_type;
 
       CircularDamBreak(const HyperbolicSystem &hyperbolic_system,
                        const std::string sub)
@@ -58,7 +57,7 @@ namespace ryujin
       /* Default bathymetry of 0 */
 
     private:
-      const HyperbolicSystemView hyperbolic_system;
+      const HyperbolicSystem &hyperbolic_system;
 
       Number still_water_depth_;
       Number radius_;

@@ -1,6 +1,6 @@
 //
-// SPDX-License-Identifier: MIT
-// Copyright (C) 2020 - 2023 by the ryujin authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Copyright (C) 2020 - 2024 by the ryujin authors
 //
 
 #pragma once
@@ -34,17 +34,16 @@ namespace ryujin
   {
   public:
     /**
-     * @copydoc HyperbolicSystem::View
+     * @copydoc HyperbolicSystemView
      */
-    using HyperbolicSystemView =
-        typename Description::HyperbolicSystem::template View<dim, Number>;
+    using View =
+        typename Description::template HyperbolicSystemView<dim, Number>;
 
-    using state_type = typename HyperbolicSystemView::state_type;
-    using precomputed_state_type =
-        typename HyperbolicSystemView::precomputed_state_type;
+    using state_type = typename View::state_type;
+    using precomputed_state_type = typename View::precomputed_state_type;
 
     /**
-     * Constructor taking geometry name @p name and a subsection @p
+     * Constructor taking initial state name @p name and a subsection @p
      * subsection as an argument. The dealii::ParameterAcceptor is
      * initialized with the subsubsection `subsection + "/" + name`.
      */
@@ -79,7 +78,7 @@ namespace ryujin
     }
 
     /**
-     * Return the name of the geometry as (const reference) std::string
+     * Return the name of the initial state as (const reference) std::string
      */
     ACCESSOR_READ_ONLY(name)
 

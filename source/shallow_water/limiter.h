@@ -1,8 +1,8 @@
 //
-// SPDX-License-Identifier: MIT or BSD-3-Clause
+// SPDX-License-Identifier: Apache-2.0
 // [LANL Copyright Statement]
-// Copyright (C) 2020 - 2023 by the ryujin authors
-// Copyright (C) 2023 - 2023 by Triad National Security, LLC
+// Copyright (C) 2023 - 2024 by the ryujin authors
+// Copyright (C) 2023 - 2024 by Triad National Security, LLC
 //
 
 #pragma once
@@ -17,6 +17,67 @@ namespace ryujin
 {
   namespace ShallowWater
   {
+    template <typename ScalarNumber = double>
+    class LimiterParameters : public dealii::ParameterAcceptor
+    {
+    public:
+      LimiterParameters(const std::string &subsection = "/Limiter")
+          : ParameterAcceptor(subsection)
+      {
+        iterations_ = 2;
+        add_parameter(
+            "iterations", iterations_, "Number of limiter iterations");
+
+        if constexpr (std::is_same<ScalarNumber, double>::value)
+          newton_tolerance_ = 1.e-10;
+        else
+          newton_tolerance_ = 1.e-4;
+        add_parameter("newton tolerance",
+                      newton_tolerance_,
+                      "Tolerance for the quadratic newton stopping criterion");
+
+        newton_max_iterations_ = 2;
+        add_parameter("newton max iterations",
+                      newton_max_iterations_,
+                      "Maximal number of quadratic newton iterations performed "
+                      "during limiting");
+
+        relaxation_factor_ = ScalarNumber(1.);
+        add_parameter("relaxation factor",
+                      relaxation_factor_,
+                      "Factor for scaling the relaxation window with r_i = "
+                      "factor * (m_i/|Omega|)^(1.5/d).");
+
+        limit_on_kinetic_energy_ = false;
+        add_parameter("limit on kinetic energy",
+                      limit_on_kinetic_energy_,
+                      "Limit on kinetic energy");
+
+        limit_on_square_velocity_ = true;
+        add_parameter("limit on square velocity",
+                      limit_on_square_velocity_,
+                      "Limit on square velocity");
+      }
+
+      ACCESSOR_READ_ONLY(iterations);
+      ACCESSOR_READ_ONLY(newton_tolerance);
+      ACCESSOR_READ_ONLY(newton_max_iterations);
+      ACCESSOR_READ_ONLY(relaxation_factor);
+
+      ACCESSOR_READ_ONLY(limit_on_kinetic_energy);
+      ACCESSOR_READ_ONLY(limit_on_square_velocity);
+
+    private:
+      unsigned int iterations_;
+      ScalarNumber newton_tolerance_;
+      unsigned int newton_max_iterations_;
+      ScalarNumber relaxation_factor_;
+
+      bool limit_on_kinetic_energy_;
+      bool limit_on_square_velocity_;
+    };
+
+
     /**
      * The convex limiter.
      *
@@ -27,31 +88,35 @@ namespace ryujin
     {
     public:
       /**
-       * @copydoc HyperbolicSystem::View
+       * @copydoc HyperbolicSystemView
        */
-      using HyperbolicSystemView = HyperbolicSystem::View<dim, Number>;
+      using View = HyperbolicSystemView<dim, Number>;
 
       /**
-       * @copydoc HyperbolicSystem::View::state_type
+       * @copydoc HyperbolicSystemView::state_type
        */
-      using state_type = typename HyperbolicSystemView::state_type;
+      using state_type = typename View::state_type;
 
       /**
-       * @copydoc HyperbolicSystem::View::n_precomputed_values
+       * @copydoc HyperbolicSystemView::n_precomputed_values
        */
       static constexpr unsigned int n_precomputed_values =
-          HyperbolicSystemView::n_precomputed_values;
+          View::n_precomputed_values;
 
       /**
-       * @copydoc HyperbolicSystem::View::flux_contribution_type
+       * @copydoc HyperbolicSystemView::flux_contribution_type
        */
-      using flux_contribution_type =
-          typename HyperbolicSystemView::flux_contribution_type;
+      using flux_contribution_type = typename View::flux_contribution_type;
 
       /**
-       * @copydoc HyperbolicSystem::View::ScalarNumber
+       * @copydoc HyperbolicSystemView::ScalarNumber
        */
       using ScalarNumber = typename get_value_type<Number>::type;
+
+      /**
+       * @copydoc LimiterParameters
+       */
+      using Parameters = LimiterParameters<ScalarNumber>;
 
       /**
        * @name Stencil-based computation of bounds
@@ -87,16 +152,12 @@ namespace ryujin
        * Constructor taking a HyperbolicSystem instance as argument
        */
       Limiter(const HyperbolicSystem &hyperbolic_system,
+              const Parameters &parameters,
               const MultiComponentVector<ScalarNumber, n_precomputed_values>
-                  &precomputed_values,
-              const ScalarNumber relaxation_factor,
-              const ScalarNumber newton_tol,
-              const unsigned int newton_max_iter)
+                  &precomputed_values)
           : hyperbolic_system(hyperbolic_system)
+          , parameters(parameters)
           , precomputed_values(precomputed_values)
-          , relaxation_factor(relaxation_factor)
-          , newton_tol(newton_tol)
-          , newton_max_iter(newton_max_iter)
       {
       }
 
@@ -152,7 +213,7 @@ namespace ryujin
        * invariant domain.
        */
       static bool
-      is_in_invariant_domain(const HyperbolicSystemView & /*hyperbolic_system*/,
+      is_in_invariant_domain(const HyperbolicSystem & /*hyperbolic_system*/,
                              const Bounds & /*bounds*/,
                              const state_type & /*U*/);
 
@@ -160,14 +221,12 @@ namespace ryujin
       //@}
       /** @name Arguments and internal fields */
       //@{
-      const HyperbolicSystemView hyperbolic_system;
+
+      const HyperbolicSystem &hyperbolic_system;
+      const Parameters &parameters;
 
       const MultiComponentVector<ScalarNumber, n_precomputed_values>
           &precomputed_values;
-
-      ScalarNumber relaxation_factor;
-      ScalarNumber newton_tol;
-      unsigned int newton_max_iter;
 
       state_type U_i;
 
@@ -223,10 +282,12 @@ namespace ryujin
         const Number &beta_ij,
         const state_type &affine_shift)
     {
+      const auto view = hyperbolic_system.view<dim, Number>();
+
       /* The bar states: */
 
-      const auto f_star_ij = hyperbolic_system.f(U_star_ij);
-      const auto f_star_ji = hyperbolic_system.f(U_star_ji);
+      const auto f_star_ij = view.f(U_star_ij);
+      const auto f_star_ji = view.f(U_star_ji);
 
       auto U_ij_bar = ScalarNumber(0.5) *
                       (U_star_ij + U_star_ji +
@@ -238,16 +299,15 @@ namespace ryujin
 
       auto &[h_min, h_max, h_small, kin_max, v2_max] = bounds_;
 
-      const auto h_bar_ij = hyperbolic_system.water_depth(U_ij_bar);
+      const auto h_bar_ij = view.water_depth(U_ij_bar);
       h_min = std::min(h_min, h_bar_ij);
       h_max = std::max(h_max, h_bar_ij);
 
-      const auto kin_bar_ij = hyperbolic_system.kinetic_energy(U_ij_bar);
+      const auto kin_bar_ij = view.kinetic_energy(U_ij_bar);
       kin_max = std::max(kin_max, kin_bar_ij);
 
-      const auto v_bar_ij =
-          hyperbolic_system.momentum(U_ij_bar) *
-          hyperbolic_system.inverse_water_depth_mollified(U_ij_bar);
+      const auto v_bar_ij = view.momentum(U_ij_bar) *
+                            view.inverse_water_depth_mollified(U_ij_bar);
       const auto v2_bar_ij = v_bar_ij.norm_square();
       v2_max = std::max(v2_max, v2_bar_ij);
 
@@ -255,18 +315,18 @@ namespace ryujin
 
       relaxation_denominator += std::abs(beta_ij);
 
-      const auto h_i = hyperbolic_system.water_depth(U_i);
-      const auto h_j = hyperbolic_system.water_depth(U_j);
+      const auto h_i = view.water_depth(U_i);
+      const auto h_j = view.water_depth(U_j);
       h_relaxation_numerator += beta_ij * (h_i + h_j);
 
-      const auto kin_i = hyperbolic_system.kinetic_energy(U_i);
-      const auto kin_j = hyperbolic_system.kinetic_energy(U_j);
+      const auto kin_i = view.kinetic_energy(U_i);
+      const auto kin_j = view.kinetic_energy(U_j);
       kin_relaxation_numerator += beta_ij * (kin_i + kin_j);
 
-      const auto vel_i = hyperbolic_system.momentum(U_i) *
-                         hyperbolic_system.inverse_water_depth_mollified(U_i);
-      const auto vel_j = hyperbolic_system.momentum(U_j) *
-                         hyperbolic_system.inverse_water_depth_mollified(U_j);
+      const auto vel_i =
+          view.momentum(U_i) * view.inverse_water_depth_mollified(U_i);
+      const auto vel_j =
+          view.momentum(U_j) * view.inverse_water_depth_mollified(U_j);
       v2_relaxation_numerator +=
           beta_ij * (-vel_i.norm_square() + vel_j.norm_square());
     }
@@ -276,6 +336,8 @@ namespace ryujin
     DEAL_II_ALWAYS_INLINE inline auto
     Limiter<dim, Number>::bounds(const Number hd_i) const -> Bounds
     {
+      const auto view = hyperbolic_system.view<dim, Number>();
+
       auto relaxed_bounds = bounds_;
       auto &[h_min, h_max, h_small, kin_max, v2_max] = relaxed_bounds;
 
@@ -286,7 +348,7 @@ namespace ryujin
         r_i = dealii::Utilities::fixed_power<3>(std::sqrt(r_i)); // in 2D: ^ 3/4
       else if constexpr (dim == 1)                               //
         r_i = dealii::Utilities::fixed_power<3>(r_i);            // in 1D: ^ 3/2
-      r_i *= relaxation_factor;
+      r_i *= parameters.relaxation_factor();
 
       constexpr ScalarNumber eps = std::numeric_limits<ScalarNumber>::epsilon();
 
@@ -314,9 +376,9 @@ namespace ryujin
       r_i = hd_i;
       if constexpr (dim == 2)
         r_i = std::sqrt(hd_i);
-      r_i *= hyperbolic_system.dry_state_relaxation_factor();
+      r_i *= view.dry_state_relaxation_factor();
 
-      h_small = hyperbolic_system.reference_water_depth() * r_i;
+      h_small = view.reference_water_depth() * r_i;
 
       return relaxed_bounds;
     }
@@ -325,7 +387,7 @@ namespace ryujin
     template <int dim, typename Number>
     DEAL_II_ALWAYS_INLINE inline bool
     Limiter<dim, Number>::is_in_invariant_domain(
-        const HyperbolicSystemView & /*hyperbolic_system*/,
+        const HyperbolicSystem & /*hyperbolic_system*/,
         const Bounds & /*bounds*/,
         const state_type & /*U*/)
     {

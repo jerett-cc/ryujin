@@ -1,6 +1,6 @@
 //
-// SPDX-License-Identifier: MIT
-// Copyright (C) 2020 - 2023 by the ryujin authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Copyright (C) 2020 - 2024 by the ryujin authors
 //
 
 #pragma once
@@ -35,6 +35,9 @@ namespace ryujin
       : ParameterAcceptor(subsection)
       , precompute_only_(false)
       , id_violation_strategy_(IDViolationStrategy::warn)
+      , indicator_parameters_(subsection + "/indicator")
+      , limiter_parameters_(subsection + "/limiter")
+      , riemann_solver_parameters_(subsection + "/riemann solver")
       , mpi_communicator_(mpi_communicator)
       , computing_timer_(computing_timer)
       , offline_data_(&offline_data)
@@ -44,35 +47,6 @@ namespace ryujin
       , n_restarts_(0)
       , n_warnings_(0)
   {
-    indicator_evc_factor_ = Number(1.);
-    add_parameter("indicator evc factor",
-                  indicator_evc_factor_,
-                  "Factor for scaling the entropy viscocity commuator");
-
-    limiter_iter_ = 2;
-    add_parameter(
-        "limiter iterations", limiter_iter_, "Number of limiter iterations");
-
-    if constexpr (std::is_same<Number, double>::value)
-      limiter_newton_tolerance_ = 1.e-10;
-    else
-      limiter_newton_tolerance_ = 1.e-4;
-    add_parameter("limiter newton tolerance",
-                  limiter_newton_tolerance_,
-                  "Tolerance for the quadratic newton stopping criterion");
-
-    limiter_newton_max_iter_ = 2;
-    add_parameter("limiter newton max iterations",
-                  limiter_newton_max_iter_,
-                  "Maximal number of quadratic newton iterations performed "
-                  "during limiting");
-
-    limiter_relaxation_factor_ = Number(1.);
-    add_parameter("limiter relaxation factor",
-                  limiter_relaxation_factor_,
-                  "Factor for scaling the relaxation window with r_i = "
-                  "factor * (m_i/|Omega|)^(1.5/d).");
-
     cfl_with_boundary_dofs_ = false;
     add_parameter("cfl with boundary dofs",
                   cfl_with_boundary_dofs_,
@@ -89,7 +63,7 @@ namespace ryujin
               << std::endl;
 #endif
 
-    AssertThrow(limiter_iter_ <= 2,
+    AssertThrow(limiter_parameters_.iterations() <= 2,
                 dealii::ExcMessage(
                     "The number of limiter iterations must be between [0,2]"));
 
@@ -102,7 +76,8 @@ namespace ryujin
 
     const auto &vector_partitioner = offline_data_->vector_partitioner();
     r_.reinit(vector_partitioner);
-    using View = typename HyperbolicSystem::template View<dim, Number>;
+    using View =
+        typename Description::template HyperbolicSystemView<dim, Number>;
 
     /* Initialize matrices: */
 
@@ -317,9 +292,9 @@ namespace ryujin
 
         /* Stored thread locally: */
         typename Description::template RiemannSolver<dim, T> riemann_solver(
-            *hyperbolic_system_, new_precomputed);
+            *hyperbolic_system_, riemann_solver_parameters_, new_precomputed);
         typename Description::template Indicator<dim, T> indicator(
-            *hyperbolic_system_, new_precomputed, indicator_evc_factor_);
+            *hyperbolic_system_, indicator_parameters_, new_precomputed);
         bool thread_ready = false;
 
         RYUJIN_OMP_FOR
@@ -337,9 +312,8 @@ namespace ryujin
 
           indicator.reset(i, U_i);
 
-          /* Skip diagonal. */
-          const unsigned int *js = sparsity_simd.columns(i) + stride_size;
-          for (unsigned int col_idx = 1; col_idx < row_length;
+          const unsigned int *js = sparsity_simd.columns(i);
+          for (unsigned int col_idx = 0; col_idx < row_length;
                ++col_idx, js += stride_size) {
 
             const auto U_j = old_U.template get_tensor<T>(js);
@@ -347,6 +321,10 @@ namespace ryujin
             const auto c_ij = cij_matrix.template get_tensor<T>(i, col_idx);
 
             indicator.accumulate(js, U_j, c_ij);
+
+            /* Skip diagonal. */
+            if (col_idx == 0)
+              continue;
 
             /* Only iterate over the upper triangular portion of d_ij */
             if (all_below_diagonal<T>(i, js))
@@ -361,9 +339,9 @@ namespace ryujin
             dij_matrix_.write_entry(d_ij, i, col_idx, true);
           }
 
-          const auto mass = load_value<T>(lumped_mass_matrix, i);
+          const auto mass = get_entry<T>(lumped_mass_matrix, i);
           const auto hd_i = mass * measure_of_omega_inverse;
-          store_value<T>(alpha_, indicator.alpha(hd_i), i);
+          write_entry<T>(alpha_, indicator.alpha(hd_i), i);
         }
       };
 
@@ -395,25 +373,33 @@ namespace ryujin
       /* Complete d_ij at boundary: */
 
       typename Description::template RiemannSolver<dim, Number> riemann_solver(
-          *hyperbolic_system_, new_precomputed);
+          *hyperbolic_system_, riemann_solver_parameters_, new_precomputed);
 
       Number local_tau_max = std::numeric_limits<Number>::max();
 
+      /*
+       * Note: we need this dance of iterating over an integer and then
+       * accessing the element to make Apple's OpenMP implementation
+       * happy.
+       */
       RYUJIN_OMP_FOR
       for (std::size_t k = 0; k < coupling_boundary_pairs.size(); ++k) {
-        const auto &entry = coupling_boundary_pairs[k];
-        const auto &[i, col_idx, j] = entry;
+        const auto &[i, col_idx, j] = coupling_boundary_pairs[k];
+
         const auto U_i = old_U.get_tensor(i);
         const auto U_j = old_U.get_tensor(j);
+
         const auto c_ji = cij_matrix.get_transposed_tensor(i, col_idx);
         Assert(c_ji.norm() > 1.e-12, ExcInternalError());
-        const auto norm = c_ji.norm();
-        const auto n_ji = c_ji / norm;
-        auto lambda_max = riemann_solver.compute(U_j, U_i, j, &i, n_ji);
+        const auto norm_ji = c_ji.norm();
+        const auto n_ji = c_ji / norm_ji;
 
-        auto d = dij_matrix_.get_entry(i, col_idx);
-        d = std::max(d, norm * lambda_max);
-        dij_matrix_.write_entry(d, i, col_idx);
+        const auto d_ij = dij_matrix_.get_entry(i, col_idx);
+
+        const auto lambda_max = riemann_solver.compute(U_j, U_i, j, &i, n_ji);
+        const auto d_ji = norm_ji * lambda_max;
+
+        dij_matrix_.write_entry(std::max(d_ij, d_ji), i, col_idx);
       }
 
       /* Symmetrize d_ij: */
@@ -498,6 +484,11 @@ namespace ryujin
       }
     }
 
+#ifdef DEBUG
+    /*  Exchange d_ij so that we can check for symmetry: */
+    dij_matrix_.update_ghost_rows();
+#endif
+
     /*
      * -------------------------------------------------------------------------
      * Step 4: Low-order update, also compute limiter bounds, R_i
@@ -522,7 +513,8 @@ namespace ryujin
 
       auto loop = [&](auto sentinel, unsigned int left, unsigned int right) {
         using T = decltype(sentinel);
-        using View = typename HyperbolicSystem::template View<dim, T>;
+        using View =
+            typename Description::template HyperbolicSystemView<dim, T>;
         using Limiter = typename Description::template Limiter<dim, T>;
         using flux_contribution_type = typename View::flux_contribution_type;
         using state_type = typename View::state_type;
@@ -532,11 +524,8 @@ namespace ryujin
         const auto view = hyperbolic_system_->template view<dim, T>();
 
         /* Stored thread locally: */
-        Limiter limiter(*hyperbolic_system_,
-                        new_precomputed,
-                        limiter_relaxation_factor_,
-                        limiter_newton_tolerance_,
-                        limiter_newton_max_iter_);
+        Limiter limiter(
+            *hyperbolic_system_, limiter_parameters_, new_precomputed);
         bool thread_ready = false;
 
         RYUJIN_OMP_FOR
@@ -553,9 +542,9 @@ namespace ryujin
           const auto U_i = old_U.template get_tensor<T>(i);
           auto U_i_new = U_i;
 
-          const auto alpha_i = load_value<T>(alpha_, i);
-          const auto m_i = load_value<T>(lumped_mass_matrix, i);
-          const auto m_i_inv = load_value<T>(lumped_mass_matrix_inverse, i);
+          const auto alpha_i = get_entry<T>(alpha_, i);
+          const auto m_i = get_entry<T>(lumped_mass_matrix, i);
+          const auto m_i_inv = get_entry<T>(lumped_mass_matrix_inverse, i);
 
           const auto flux_i = view.flux_contribution(
               new_precomputed, precomputed_initial_, i, U_i);
@@ -569,25 +558,18 @@ namespace ryujin
                 stage_precomputed[s].get(), precomputed_initial_, i, temp);
 
             if constexpr (View::have_source_terms) {
-              // FIXME: Chain through correct time
-              constexpr Number t = 0.;
               S_iH += stage_weights[s] *
-                      view.high_order_source(new_precomputed, i, temp, t, tau);
+                      view.nodal_source(new_precomputed, i, temp, tau);
             }
           }
 
-          state_type F_iH;
           [[maybe_unused]] state_type S_i;
+          state_type F_iH;
 
           if constexpr (View::have_source_terms) {
-            // FIXME: Chain through correct time
-            constexpr Number t = 0.;
-
-            S_i = view.low_order_source(new_precomputed, i, U_i, t, tau);
+            S_i = view.nodal_source(new_precomputed, i, U_i, tau);
+            S_iH += weight * S_i;
             U_i_new += tau * /* m_i_inv * m_i */ S_i;
-
-            S_iH += weight *
-                    view.high_order_source(new_precomputed, i, U_i, t, tau);
             F_iH += m_i * S_iH;
           }
 
@@ -626,13 +608,26 @@ namespace ryujin
 
             const auto U_j = old_U.template get_tensor<T>(js);
 
-            const auto alpha_j = load_value<T>(alpha_, js);
+            const auto alpha_j = get_entry<T>(alpha_, js);
 
             const auto d_ij = dij_matrix_.template get_entry<T>(i, col_idx);
             const auto d_ijH = d_ij * (alpha_i + alpha_j) * Number(.5);
 
+#ifdef DEBUG
+            /*
+             * Verify that all local chunks of the d_ij matrix have been
+             * computed consistently over all MPI ranks. For that we
+             * imported all ghost rows from neighboring MPI ranks and
+             * simply check that the (local) values of d_ij and d_ji match.
+             */
+            const auto d_ji =
+                dij_matrix_.template get_transposed_entry<T>(i, col_idx);
+            Assert(std::max(std::abs(d_ij - d_ji), T(1.0e-12)) == T(1.0e-12),
+                   dealii::ExcMessage("d_ij not symmetric"));
+#endif
+
             const auto c_ij = cij_matrix.template get_tensor<T>(i, col_idx);
-            const auto d_ij_inv = Number(1.) / d_ij;
+            const auto scaled_c_ij = c_ij / d_ij;
 
             const auto beta_ij =
                 betaij_matrix.template get_entry<T>(i, col_idx);
@@ -646,9 +641,9 @@ namespace ryujin
              * Compute low-order flux and limiter bounds:
              */
 
-            const auto flux_ij = view.flux(flux_i, flux_j);
-            U_i_new += tau * m_i_inv * contract(flux_ij, c_ij);
-            auto P_ij = -contract(flux_ij, c_ij);
+            const auto flux_ij = view.flux_divergence(flux_i, flux_j, c_ij);
+            U_i_new += tau * m_i_inv * flux_ij;
+            auto P_ij = -flux_ij;
 
             if constexpr (shallow_water) {
               /*
@@ -665,7 +660,7 @@ namespace ryujin
               limiter.accumulate(U_j,
                                  U_star_ij,
                                  U_star_ji,
-                                 d_ij_inv * c_ij,
+                                 scaled_c_ij,
                                  beta_ij,
                                  affine_shift);
 
@@ -675,7 +670,7 @@ namespace ryujin
               F_iH += d_ijH * (U_j - U_i);
               P_ij += (d_ijH - d_ij) * (U_j - U_i);
 
-              limiter.accumulate(js, U_j, flux_j, d_ij_inv * c_ij, beta_ij);
+              limiter.accumulate(js, U_j, flux_j, scaled_c_ij, beta_ij);
             }
 
             if constexpr (View::have_source_terms) {
@@ -689,50 +684,46 @@ namespace ryujin
 
             if constexpr (View::have_high_order_flux) {
               const auto high_order_flux_ij =
-                  view.high_order_flux(flux_i, flux_j);
-              F_iH += weight * contract(high_order_flux_ij, c_ij);
-              P_ij += weight * contract(high_order_flux_ij, c_ij);
+                  view.high_order_flux_divergence(flux_i, flux_j, c_ij);
+              F_iH += weight * high_order_flux_ij;
+              P_ij += weight * high_order_flux_ij;
             } else {
-              F_iH += weight * contract(flux_ij, c_ij);
-              P_ij += weight * contract(flux_ij, c_ij);
+              F_iH += weight * flux_ij;
+              P_ij += weight * flux_ij;
             }
 
             if constexpr (View::have_source_terms) {
-              // FIXME: Chain through correct time
-              constexpr Number t = 0.;
-              const auto contribution =
-                  view.high_order_source(new_precomputed, js, U_j, t, tau);
-              F_iH += weight * m_ij * contribution;
-              P_ij += weight * m_ij * contribution;
+              const auto S_j = view.nodal_source(new_precomputed, js, U_j, tau);
+              F_iH += weight * m_ij * S_j;
+              P_ij += weight * m_ij * S_j;
             }
 
             for (int s = 0; s < stages; ++s) {
               const auto U_jH = stage_U[s].get().template get_tensor<T>(js);
-              const auto p = view.flux_contribution(
+              const auto flux_jHs = view.flux_contribution(
                   stage_precomputed[s].get(), precomputed_initial_, js, U_jH);
 
               if constexpr (View::have_high_order_flux) {
-                const auto high_order_flux_ij =
-                    view.high_order_flux(flux_iHs[s], p);
-                F_iH += stage_weights[s] * contract(high_order_flux_ij, c_ij);
-                P_ij += stage_weights[s] * contract(high_order_flux_ij, c_ij);
+                const auto high_order_flux_ij = view.high_order_flux_divergence(
+                    flux_iHs[s], flux_jHs, c_ij);
+                F_iH += stage_weights[s] * high_order_flux_ij;
+                P_ij += stage_weights[s] * high_order_flux_ij;
               } else {
-                const auto flux_ij = view.flux(flux_iHs[s], p);
-                F_iH += stage_weights[s] * contract(flux_ij, c_ij);
-                P_ij += stage_weights[s] * contract(flux_ij, c_ij);
+                const auto flux_ij =
+                    view.flux_divergence(flux_iHs[s], flux_jHs, c_ij);
+                F_iH += stage_weights[s] * flux_ij;
+                P_ij += stage_weights[s] * flux_ij;
               }
 
               if constexpr (View::have_source_terms) {
-                // FIXME: Chain through correct time
-                constexpr Number t = 0.;
-                const auto contribution = view.high_order_source(
-                    stage_precomputed[s].get(), js, U_jH, t, tau);
-                F_iH += stage_weights[s] * m_ij * contribution;
-                P_ij += stage_weights[s] * m_ij * contribution;
+                const auto S_js = view.nodal_source(
+                    stage_precomputed[s].get(), js, U_jH, tau);
+                F_iH += stage_weights[s] * m_ij * S_js;
+                P_ij += stage_weights[s] * m_ij * S_js;
               }
             }
 
-            pij_matrix_.write_tensor(P_ij, i, col_idx, true);
+            pij_matrix_.write_entry(P_ij, i, col_idx, true);
           }
 
 #ifdef CHECK_BOUNDS
@@ -765,7 +756,7 @@ namespace ryujin
      * -------------------------------------------------------------------------
      */
 
-    if (limiter_iter_ != 0) {
+    if (limiter_parameters_.iterations() != 0) {
       Scope scope(computing_timer_, scoped_name("compute p_ij, and l_ij"));
 
       SynchronizationDispatch synchronization_dispatch([&]() {
@@ -778,17 +769,15 @@ namespace ryujin
 
       auto loop = [&](auto sentinel, unsigned int left, unsigned int right) {
         using T = decltype(sentinel);
-        using View = typename HyperbolicSystem::template View<dim, T>;
+        using View =
+            typename Description::template HyperbolicSystemView<dim, T>;
         using Limiter = typename Description::template Limiter<dim, T>;
 
         unsigned int stride_size = get_stride_size<T>;
 
         /* Stored thread locally: */
-        Limiter limiter(*hyperbolic_system_,
-                        new_precomputed,
-                        limiter_relaxation_factor_,
-                        limiter_newton_tolerance_,
-                        limiter_newton_max_iter_);
+        Limiter limiter(
+            *hyperbolic_system_, limiter_parameters_, new_precomputed);
         bool thread_ready = false;
 
         RYUJIN_OMP_FOR
@@ -805,7 +794,7 @@ namespace ryujin
           const auto bounds =
               bounds_.template get_tensor<T, std::array<T, n_bounds>>(i);
 
-          const auto m_i_inv = load_value<T>(lumped_mass_matrix_inverse, i);
+          const auto m_i_inv = get_entry<T>(lumped_mass_matrix_inverse, i);
 
           const auto U_i_new = new_U.template get_tensor<T>(i);
 
@@ -823,7 +812,7 @@ namespace ryujin
              * Mass matrix correction:
              */
 
-            const auto m_j_inv = load_value<T>(lumped_mass_matrix_inverse, js);
+            const auto m_j_inv = get_entry<T>(lumped_mass_matrix_inverse, js);
             const auto m_ij = mass_matrix.template get_entry<T>(i, col_idx);
 
             const auto b_ij = (col_idx == 0 ? T(1.) : T(0.)) - m_ij * m_j_inv;
@@ -834,7 +823,7 @@ namespace ryujin
             const auto F_jH = r_.template get_tensor<T>(js);
             P_ij += b_ij * F_jH - b_ji * F_iH;
             P_ij *= factor;
-            pij_matrix_.write_tensor(P_ij, i, col_idx);
+            pij_matrix_.write_entry(P_ij, i, col_idx);
 
             /*
              * Compute limiter coefficients:
@@ -877,15 +866,16 @@ namespace ryujin
      * -------------------------------------------------------------------------
      */
 
-    for (unsigned int pass = 0; pass < limiter_iter_; ++pass) {
-      bool last_round = (pass + 1 == limiter_iter_);
+    const auto n_iterations = limiter_parameters_.iterations();
+    for (unsigned int pass = 0; pass < n_iterations; ++pass) {
+      bool last_round = (pass + 1 == n_iterations);
 
       std::string additional_step = (last_round ? "" : ", next l_ij");
       Scope scope(
           computing_timer_,
           scoped_name("symmetrize l_ij, h.-o. update" + additional_step));
 
-      if ((limiter_iter_ == 2) && last_round) {
+      if ((n_iterations == 2) && last_round) {
         std::swap(lij_matrix_, lij_matrix_next_);
       }
 
@@ -901,18 +891,16 @@ namespace ryujin
 
       auto loop = [&](auto sentinel, unsigned int left, unsigned int right) {
         using T = decltype(sentinel);
-        using View = typename HyperbolicSystem::template View<dim, T>;
+        using View =
+            typename Description::template HyperbolicSystemView<dim, T>;
         using Limiter = typename Description::template Limiter<dim, T>;
 
         unsigned int stride_size = get_stride_size<T>;
 
         /* Stored thread locally: */
         AlignedVector<T> lij_row;
-        Limiter limiter(*hyperbolic_system_,
-                        new_precomputed,
-                        limiter_relaxation_factor_,
-                        limiter_newton_tolerance_,
-                        limiter_newton_max_iter_);
+        Limiter limiter(
+            *hyperbolic_system_, limiter_parameters_, new_precomputed);
         bool thread_ready = false;
 
         RYUJIN_OMP_FOR
@@ -1010,7 +998,8 @@ namespace ryujin
     } /* limiter_iter_ */
 
     /* Update sources: */
-    using View = typename HyperbolicSystem::template View<dim, Number>;
+    using View =
+        typename Description::template HyperbolicSystemView<dim, Number>;
 
     CALLGRIND_STOP_INSTRUMENTATION;
 
@@ -1050,8 +1039,8 @@ namespace ryujin
               << std::endl;
 #endif
 
-    const auto cycle_number =
-        5 + (n_precomputation_cycles > 0 ? 1 : 0) + limiter_iter_;
+    const auto cycle_number = 5 + (n_precomputation_cycles > 0 ? 1 : 0) +
+                              limiter_parameters_.iterations();
     Scope scope(computing_timer_,
                 "time step [H] " + std::to_string(cycle_number) +
                     " - apply boundary conditions");

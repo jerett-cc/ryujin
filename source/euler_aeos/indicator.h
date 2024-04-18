@@ -1,6 +1,6 @@
 //
-// SPDX-License-Identifier: MIT
-// Copyright (C) 2020 - 2023 by the ryujin authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Copyright (C) 2020 - 2024 by the ryujin authors
 //
 
 #pragma once
@@ -11,6 +11,7 @@
 #include <multicomponent_vector.h>
 #include <simd.h>
 
+#include <deal.II/base/parameter_acceptor.h>
 #include <deal.II/base/vectorization.h>
 
 
@@ -18,6 +19,26 @@ namespace ryujin
 {
   namespace EulerAEOS
   {
+    template <typename ScalarNumber = double>
+    class IndicatorParameters : public dealii::ParameterAcceptor
+    {
+    public:
+      IndicatorParameters(const std::string &subsection = "/Indicator")
+          : ParameterAcceptor(subsection)
+      {
+        evc_factor_ = ScalarNumber(1.);
+        add_parameter("evc factor",
+                      evc_factor_,
+                      "Factor for scaling the entropy viscocity commuator");
+      }
+
+      ACCESSOR_READ_ONLY(evc_factor);
+
+    private:
+      ScalarNumber evc_factor_;
+    };
+
+
     /**
      * This class implements an indicator strategy used to form the
      * preliminary high-order update.
@@ -62,48 +83,50 @@ namespace ryujin
     {
     public:
       /**
-       * @copydoc HyperbolicSystem::View
+       * @copydoc HyperbolicSystemView
        */
-      using HyperbolicSystemView = HyperbolicSystem::View<dim, Number>;
+      using View = HyperbolicSystemView<dim, Number>;
 
       /**
-       * @copydoc HyperbolicSystem::View::problem_dimension
+       * @copydoc HyperbolicSystemView::problem_dimension
        */
-      static constexpr unsigned int problem_dimension =
-          HyperbolicSystemView::problem_dimension;
+      static constexpr unsigned int problem_dimension = View::problem_dimension;
 
       /**
-       * @copydoc HyperbolicSystem::View::state_type
+       * @copydoc HyperbolicSystemView::state_type
        */
-      using state_type = typename HyperbolicSystemView::state_type;
+      using state_type = typename View::state_type;
 
       /**
-       * @copydoc HyperbolicSystem::View::n_precomputed_values
+       * @copydoc HyperbolicSystemView::n_precomputed_values
        */
       static constexpr unsigned int n_precomputed_values =
-          HyperbolicSystemView::n_precomputed_values;
+          View::n_precomputed_values;
 
       /**
-       * @copydoc HyperbolicSystem::View::precomputed_state_type
+       * @copydoc HyperbolicSystemView::precomputed_state_type
        */
-      using precomputed_state_type =
-          typename HyperbolicSystemView::precomputed_state_type;
+      using precomputed_state_type = typename View::precomputed_state_type;
 
       /**
-       * @copydoc HyperbolicSystem::View::flux_type
+       * @copydoc HyperbolicSystemView::flux_type
        */
-      using flux_type = typename HyperbolicSystemView::flux_type;
+      using flux_type = typename View::flux_type;
 
       /**
-       * @copydoc HyperbolicSystem::View::flux_type
+       * @copydoc HyperbolicSystemView::flux_type
        */
-      using flux_contribution_type =
-          typename HyperbolicSystemView::flux_contribution_type;
+      using flux_contribution_type = typename View::flux_contribution_type;
 
       /**
-       * @copydoc HyperbolicSystem::View::ScalarNumber
+       * @copydoc HyperbolicSystemView::ScalarNumber
        */
-      using ScalarNumber = typename HyperbolicSystemView::ScalarNumber;
+      using ScalarNumber = typename View::ScalarNumber;
+
+      /**
+       * @copydoc IndicatorParameters
+       */
+      using Parameters = IndicatorParameters<ScalarNumber>;
 
       /**
        * @name Stencil-based computation of indicators
@@ -128,12 +151,12 @@ namespace ryujin
        * Constructor taking a HyperbolicSystem instance as argument
        */
       Indicator(const HyperbolicSystem &hyperbolic_system,
+                const Parameters &parameters,
                 const MultiComponentVector<ScalarNumber, n_precomputed_values>
-                    &precomputed_values,
-                const ScalarNumber evc_factor)
+                    &precomputed_values)
           : hyperbolic_system(hyperbolic_system)
+          , parameters(parameters)
           , precomputed_values(precomputed_values)
-          , evc_factor(evc_factor)
       {
       }
 
@@ -164,12 +187,12 @@ namespace ryujin
        */
       //@{
 
-      const HyperbolicSystem::View<dim, Number> hyperbolic_system;
+      const HyperbolicSystem &hyperbolic_system;
+      const Parameters &parameters;
 
       const MultiComponentVector<ScalarNumber, n_precomputed_values>
           &precomputed_values;
 
-      const ScalarNumber evc_factor;
 
       Number rho_i_inverse = 0.;
       Number eta_i = 0.;
@@ -196,7 +219,9 @@ namespace ryujin
     DEAL_II_ALWAYS_INLINE inline void
     Indicator<dim, Number>::reset(const unsigned int i, const state_type &U_i)
     {
-      if (!hyperbolic_system.compute_strict_bounds())
+      const auto view = hyperbolic_system.view<dim, Number>();
+
+      if (!view.compute_strict_bounds())
         return;
 
       /* entropy viscosity commutator: */
@@ -207,17 +232,15 @@ namespace ryujin
 
       gamma_min = gamma_min_i;
 
-      const auto rho_i = hyperbolic_system.density(U_i);
+      const auto rho_i = view.density(U_i);
       rho_i_inverse = Number(1.) / rho_i;
       eta_i = new_eta_i;
 
-      d_eta_i = hyperbolic_system.surrogate_harten_entropy_derivative(
-          U_i, eta_i, gamma_min);
+      d_eta_i = view.surrogate_harten_entropy_derivative(U_i, eta_i, gamma_min);
       d_eta_i[0] -= eta_i * rho_i_inverse;
 
-      const auto surrogate_p_i =
-          hyperbolic_system.surrogate_pressure(U_i, gamma_min);
-      f_i = hyperbolic_system.f(U_i, surrogate_p_i);
+      const auto surrogate_p_i = view.surrogate_pressure(U_i, gamma_min);
+      f_i = view.f(U_i, surrogate_p_i);
 
       left = 0.;
       right = 0.;
@@ -230,22 +253,22 @@ namespace ryujin
         const state_type &U_j,
         const dealii::Tensor<1, dim, Number> &c_ij)
     {
-      if (!hyperbolic_system.compute_strict_bounds())
+      const auto view = hyperbolic_system.view<dim, Number>();
+
+      if (!view.compute_strict_bounds())
         return;
 
       /* entropy viscosity commutator: */
 
-      const auto eta_j =
-          hyperbolic_system.surrogate_harten_entropy(U_j, gamma_min);
+      const auto eta_j = view.surrogate_harten_entropy(U_j, gamma_min);
 
-      const auto rho_j = hyperbolic_system.density(U_j);
+      const auto rho_j = view.density(U_j);
       const auto rho_j_inverse = Number(1.) / rho_j;
 
-      const auto m_j = hyperbolic_system.momentum(U_j);
+      const auto m_j = view.momentum(U_j);
 
-      const auto surrogate_p_j =
-          hyperbolic_system.surrogate_pressure(U_j, gamma_min);
-      const auto f_j = hyperbolic_system.f(U_j, surrogate_p_j);
+      const auto surrogate_p_j = view.surrogate_pressure(U_j, gamma_min);
+      const auto f_j = view.f(U_j, surrogate_p_j);
 
       left += (eta_j * rho_j_inverse - eta_i * rho_i_inverse) * (m_j * c_ij);
       for (unsigned int k = 0; k < problem_dimension; ++k)
@@ -257,7 +280,9 @@ namespace ryujin
     DEAL_II_ALWAYS_INLINE inline Number
     Indicator<dim, Number>::alpha(const Number hd_i) const
     {
-      if (!hyperbolic_system.compute_strict_bounds())
+      const auto view = hyperbolic_system.view<dim, Number>();
+
+      if (!view.compute_strict_bounds())
         return Number(0.);
 
       Number numerator = left;
@@ -270,7 +295,7 @@ namespace ryujin
       const auto quotient =
           std::abs(numerator) / (denominator + hd_i * std::abs(eta_i));
 
-      return std::min(Number(1.), evc_factor * quotient);
+      return std::min(Number(1.), parameters.evc_factor() * quotient);
     }
 
   } // namespace EulerAEOS

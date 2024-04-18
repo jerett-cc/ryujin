@@ -1,8 +1,8 @@
 //
-// SPDX-License-Identifier: MIT or BSD-3-Clause
+// SPDX-License-Identifier: Apache-2.0
 // [LANL Copyright Statement]
-// Copyright (C) 2020 - 2023 by the ryujin authors
-// Copyright (C) 2023 - 2023 by Triad National Security, LLC
+// Copyright (C) 2023 - 2024 by the ryujin authors
+// Copyright (C) 2023 - 2024 by Triad National Security, LLC
 //
 
 #pragma once
@@ -12,11 +12,14 @@
 #include "initial_state_contrast.h"
 #include "initial_state_flow_over_bump.h"
 #include "initial_state_function.h"
+#include "initial_state_geotiff.h"
 #include "initial_state_hou_test.h"
 #include "initial_state_paraboloid.h"
 #include "initial_state_ritter_dam_break.h"
+#include "initial_state_sloping_friction.h"
 #include "initial_state_smooth_vortex.h"
 #include "initial_state_three_bumps_dam_break.h"
+#include "initial_state_transient.h"
 #include "initial_state_uniform.h"
 
 
@@ -38,12 +41,15 @@ namespace ryujin
       add(std::make_unique<Contrast<Description, dim, Number>>(h, s));
       add(std::make_unique<FlowOverBump<Description, dim, Number>>(h, s));
       add(std::make_unique<Function<Description, dim, Number>>(h, s));
+      add(std::make_unique<GeoTIFF<Description, dim, Number>>(h, s));
       add(std::make_unique<HouTest<Description, dim, Number>>(h, s));
       add(std::make_unique<Paraboloid<Description, dim, Number>>(h, s));
       add(std::make_unique<RitterDamBreak<Description, dim, Number>>(h, s));
+      add(std::make_unique<SlopingFriction<Description, dim, Number>>(h, s));
       add(std::make_unique<SmoothVortex<Description, dim, Number>>(h, s));
       add(std::make_unique<ThreeBumpsDamBreak<Description, dim, Number>>(h, s));
       add(std::make_unique<Uniform<Description, dim, Number>>(h, s));
+      add(std::make_unique<TankExperiments<Description, dim, Number>>(h, s));
     }
   } // namespace ShallowWaterInitialStates
 } // namespace ryujin

@@ -1,6 +1,6 @@
 //
-// SPDX-License-Identifier: MIT
-// Copyright (C) 2020 - 2023 by the ryujin authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Copyright (C) 2022 - 2024 by the ryujin authors
 //
 
 #pragma once
@@ -39,6 +39,19 @@ namespace ryujin
    * Controls the chosen time-stepping scheme.
    */
   enum class TimeSteppingScheme {
+    /**
+     * The strong stability preserving Runge Kutta method of order 2,
+     * SSPRK(2,2;1/2), with the following butcher tableau
+     * \f{align*}
+     * \begin{array}{c|ccc}
+     *   0            & 0 \\
+     *   \tfrac{1}{2} & \tfrac{1}{2} & 0 \\
+     *   \hline
+     *   1            & 1  & 0
+     * \end{array}
+     * \f}
+     */
+    ssprk_22,
     /**
      * The strong stability preserving Runge Kutta method of order 3,
      * SSPRK(3,3;1/3), with the following butcher tableau
@@ -135,7 +148,8 @@ DECLARE_ENUM(ryujin::CFLRecoveryStrategy,
 
 DECLARE_ENUM(
     ryujin::TimeSteppingScheme,
-    LIST({ryujin::TimeSteppingScheme::ssprk_33, "ssprk 33"},
+    LIST({ryujin::TimeSteppingScheme::ssprk_22, "ssprk 22"},
+         {ryujin::TimeSteppingScheme::ssprk_33, "ssprk 33"},
          {ryujin::TimeSteppingScheme::erk_11, "erk 11"},
          {ryujin::TimeSteppingScheme::erk_22, "erk 22"},
          {ryujin::TimeSteppingScheme::erk_33, "erk 33"},
@@ -169,22 +183,21 @@ namespace ryujin
     using ParabolicSystem = typename Description::ParabolicSystem;
 
     /**
-     * @copydoc HyperbolicSystem::View
+     * @copydoc HyperbolicSystemView
      */
-    using HyperbolicSystemView =
-        typename Description::HyperbolicSystem::template View<dim, Number>;
+    using View =
+        typename Description::template HyperbolicSystemView<dim, Number>;
 
     /**
      * @copydoc HyperbolicSystem::problem_dimension
      */
-    static constexpr unsigned int problem_dimension =
-        HyperbolicSystemView::problem_dimension;
+    static constexpr unsigned int problem_dimension = View::problem_dimension;
 
     /**
      * @copydoc HyperbolicSystem::n_precomputed_values
      */
     static constexpr unsigned int n_precomputed_values =
-        HyperbolicSystemView::n_precomputed_values;
+        View::n_precomputed_values;
 
     /**
      * Typedef for a MultiComponentVector storing the state U.
@@ -249,7 +262,19 @@ namespace ryujin
   protected:
     /**
      * Given a reference to a previous state vector U performs an explicit
-     * third-order strong-stability preserving Runge-Kutta SSPRK(3,3,1/3)
+     * second-order strong-stability preserving Runge-Kutta SSPRK(2,2;1/2)
+     * time step (and store the result in U). The function returns the
+     * chosen time step size tau.
+     *
+     * If the parameter @p tau is set to a nonzero value then the
+     * supplied value is used for time stepping instead of the computed
+     * maximal time step size.
+     */
+    Number step_ssprk_22(vector_type &U, Number t);
+
+    /**
+     * Given a reference to a previous state vector U performs an explicit
+     * third-order strong-stability preserving Runge-Kutta SSPRK(3,3;1/3)
      * time step (and store the result in U). The function returns the
      * chosen time step size tau.
      *
@@ -261,35 +286,35 @@ namespace ryujin
 
     /**
      * Given a reference to a previous state vector U performs an explicit
-     * first-order Euler step ERK(1,1,1) time step (and store the result
+     * first-order Euler step ERK(1,1;1) time step (and store the result
      * in U). The function returns the chosen time step size tau.
      */
     Number step_erk_11(vector_type &U, Number t);
 
     /**
      * Given a reference to a previous state vector U performs an explicit
-     * second-order Runge-Kutta ERK(2,2,1) time step (and store the result
+     * second-order Runge-Kutta ERK(2,2;1) time step (and store the result
      * in U). The function returns the chosen time step size tau.
      */
     Number step_erk_22(vector_type &U, Number t);
 
     /**
      * Given a reference to a previous state vector U performs an explicit
-     * third-order Runge-Kutta ERK(3,3,1) time step (and store the result
+     * third-order Runge-Kutta ERK(3,3;1) time step (and store the result
      * in U). The function returns the chosen time step size tau.
      */
     Number step_erk_33(vector_type &U, Number t);
 
     /**
      * Given a reference to a previous state vector U performs an explicit
-     * 4 stage third-order Runge-Kutta ERK(4,3,1) time step (and store the
+     * 4 stage third-order Runge-Kutta ERK(4,3;1) time step (and store the
      * result in U). The function returns the chosen time step size tau.
      */
     Number step_erk_43(vector_type &U, Number t);
 
     /**
      * Given a reference to a previous state vector U performs an explicit
-     * 4 stage fourth-order Runge-Kutta ERK(5,4,1) time step (and store
+     * 4 stage fourth-order Runge-Kutta ERK(5,4;1) time step (and store
      * the result in U). The function returns the chosen time step size
      * tau.
      */
@@ -298,7 +323,7 @@ namespace ryujin
     /**
      * Given a reference to a previous state vector U performs a combined
      * explicit implicit Strang split using a third-order Runge-Kutta
-     * ERK(3,3,1/3) time step and an implicit Crank-Nicolson step (and
+     * ERK(3,3;1/3) time step and an implicit Crank-Nicolson step (and
      * store the result in U). The function returns the chosen time step
      * size tau.
      */
@@ -307,7 +332,7 @@ namespace ryujin
     /**
      * Given a reference to a previous state vector U performs a combined
      * explicit implicit Strang split using a third-order Runge-Kutta
-     * ERK(3,3,1) time step and an implicit Crank-Nicolson step (and store
+     * ERK(3,3;1) time step and an implicit Crank-Nicolson step (and store
      * the result in U). The function returns the chosen time step size
      * tau.
      */
@@ -316,7 +341,7 @@ namespace ryujin
     /**
      * Given a reference to a previous state vector U performs a combined
      * explicit implicit Strang split using a third-order Runge-Kutta
-     * ERK(4,3,1) time step and an implicit Crank-Nicolson step (and store
+     * ERK(4,3;1) time step and an implicit Crank-Nicolson step (and store
      * the result in U). The function returns the chosen time step size
      * tau.
      */

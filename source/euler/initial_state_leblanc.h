@@ -1,6 +1,6 @@
 //
-// SPDX-License-Identifier: MIT
-// Copyright (C) 2020 - 2023 by the ryujin authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Copyright (C) 2023 - 2024 by the ryujin authors
 //
 
 #pragma once
@@ -29,11 +29,11 @@ namespace ryujin
     {
     public:
       using HyperbolicSystem = typename Description::HyperbolicSystem;
-      using HyperbolicSystemView =
-          typename HyperbolicSystem::template View<dim, Number>;
-      using state_type = typename HyperbolicSystemView::state_type;
+      using View =
+          typename Description::template HyperbolicSystemView<dim, Number>;
+      using state_type = typename View::state_type;
 
-      using ScalarNumber = typename HyperbolicSystemView::ScalarNumber;
+      using ScalarNumber = typename View::ScalarNumber;
 
       LeBlanc(const HyperbolicSystem &hyperbolic_system,
               const std::string subsection)
@@ -50,8 +50,9 @@ namespace ryujin
 
         /* Initial left and right states (rho, u, p): */
         using state_type_1d = std::array<Number, 3>;
-        constexpr state_type_1d primitive_left{1., 0., 2. / 3. * 1.e-1};
-        constexpr state_type_1d primitive_right{1.e-3, 0., 2. / 3. * 1.e-10};
+        constexpr state_type_1d primitive_left{1., 0., Number(2. / 3. * 1.e-1)};
+        constexpr state_type_1d primitive_right{
+            1.e-3, 0., Number(2. / 3. * 1.e-10)};
 
         /* The intermediate wave-speeds appearing on the Riemann fan: */
         constexpr Number rarefaction_speed = 0.49578489518897934;
@@ -109,7 +110,7 @@ namespace ryujin
       }
 
     private:
-      const HyperbolicSystemView hyperbolic_system_;
+      const HyperbolicSystem &hyperbolic_system_;
     };
   } // namespace EulerInitialStates
 } // namespace ryujin

@@ -1,6 +1,6 @@
 //
-// SPDX-License-Identifier: MIT
-// Copyright (C) 2020 - 2023 by the ryujin authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Copyright (C) 2020 - 2024 by the ryujin authors
 //
 
 #pragma once
@@ -190,35 +190,60 @@ namespace ryujin
       AssertDimension(import_indices_part.size(),
                       partitioner->n_import_indices());
 
-      indices_to_be_sent.clear();
+      entries_to_be_sent.clear();
       send_targets.resize(partitioner->import_targets().size());
       auto idx = import_indices_part.begin();
 
+      /*
+       * Index p iterates over import_targets() and index p_match iterates
+       * over ghost_ranges. such that
+       *   import_targets()[p].first == ghost_rangs[p_match].first
+       */
+      unsigned int p_match = 0;
       for (unsigned int p = 0; p < partitioner->import_targets().size(); ++p) {
+
+        /*
+         * Match up processor index between receive and import targets. If
+         * we do not find a match, which can happen for locally refined
+         * meshes - then set p_match equal to receive_targests.size().
+         */
+        while (p_match < receive_targets.size() &&
+               receive_targets[p_match].first !=
+                   partitioner->import_targets()[p].first)
+          p_match++;
+
         for (unsigned int c = 0; c < partitioner->import_targets()[p].second;
              ++c, ++idx) {
+
+          /*
+           * Continue if we do not have a match. Note that we need to enter
+           * and continue this loop till the end in order to advance idx
+           * correctly.
+           */
+          if (p_match == receive_targets.size())
+            continue;
+
           const unsigned int row = *idx;
-          indices_to_be_sent.push_back(row < n_internal_dofs
-                                           ? row_starts[row / simd_length] +
-                                                 row % simd_length
-                                           : row_starts[row]);
-          for (auto jt = ++sparsity.begin(row); jt != sparsity.end(row); ++jt)
-            if (jt->column() >= ghost_ranges[p] &&
-                jt->column() < ghost_ranges[p + 1])
-              indices_to_be_sent.push_back(
-                  row < n_internal_dofs
-                      ? row_starts[row / simd_length] + row % simd_length +
-                            (jt - sparsity.begin(row)) * simd_length
-                      : row_starts[row] + (jt - sparsity.begin(row)));
+
+          entries_to_be_sent.push_back({row, 0});
+
+          for (auto jt = ++sparsity.begin(row); jt != sparsity.end(row); ++jt) {
+            if (jt->column() >= ghost_ranges[p_match] &&
+                jt->column() < ghost_ranges[p_match + 1]) {
+              const unsigned int position_within_column =
+                  jt - sparsity.begin(row);
+              entries_to_be_sent.push_back({row, position_within_column});
+            }
+          }
         }
 
         send_targets[p].first = partitioner->import_targets()[p].first;
-        send_targets[p].second = indices_to_be_sent.size();
+        send_targets[p].second = entries_to_be_sent.size();
       }
 
       /*
        * Count how many dofs to receive and the various buffers to set up
-       * the MPI communication.
+       * for the MPI communication.
        */
 
       std::size_t receive_counter = 0;
@@ -299,7 +324,7 @@ namespace ryujin
                   sparsity->partitioner->local_to_global(i + k),
                   sparsity->partitioner->local_to_global(js[k]));
 
-        write_tensor(temp, i, col_idx, true);
+        write_entry(temp, i, col_idx, true);
       }
     }
 
@@ -319,7 +344,7 @@ namespace ryujin
             temp[d] = sparse_matrix[d].el(
                 sparsity->partitioner->local_to_global(i),
                 sparsity->partitioner->local_to_global(js[0]));
-        write_tensor(temp, i, col_idx);
+        write_entry(temp, i, col_idx);
       }
     }
 

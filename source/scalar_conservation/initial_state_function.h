@@ -1,6 +1,6 @@
 //
-// SPDX-License-Identifier: MIT
-// Copyright (C) 2020 - 2023 by the ryujin authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Copyright (C) 2023 - 2024 by the ryujin authors
 //
 
 #pragma once
@@ -25,10 +25,9 @@ namespace ryujin
     class Function : public InitialState<Description, dim, Number>
     {
     public:
-      using HyperbolicSystemView = HyperbolicSystem::View<dim, Number>;
-      using state_type = typename HyperbolicSystemView::state_type;
-      using primitive_state_type =
-          typename HyperbolicSystemView::primitive_state_type;
+      using View = HyperbolicSystemView<dim, Number>;
+      using state_type = typename View::state_type;
+      using primitive_state_type = typename View::primitive_state_type;
 
       Function(const HyperbolicSystem &hyperbolic_system,
                const std::string subsection)
@@ -67,7 +66,7 @@ namespace ryujin
       }
 
     private:
-      const HyperbolicSystemView hyperbolic_system;
+      const HyperbolicSystem &hyperbolic_system;
 
       std::string expression_;
       std::unique_ptr<dealii::FunctionParser<dim>> function_;

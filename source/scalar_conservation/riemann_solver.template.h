@@ -1,6 +1,6 @@
 //
-// SPDX-License-Identifier: MIT
-// Copyright (C) 2020 - 2023 by the ryujin authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Copyright (C) 2023 - 2024 by the ryujin authors
 //
 
 #pragma once
@@ -27,7 +27,7 @@ namespace ryujin
         const precomputed_state_type &prec_j,
         const dealii::Tensor<1, dim, Number> &n_ij) const
     {
-      const auto &view = hyperbolic_system;
+      const auto &view = hyperbolic_system.view<dim, Number>();
 
       /* Project all fluxes to 1D: */
       const Number f_i = view.construct_flux_tensor(prec_i) * n_ij;
@@ -35,7 +35,7 @@ namespace ryujin
       const Number df_i = view.construct_flux_gradient_tensor(prec_i) * n_ij;
       const Number df_j = view.construct_flux_gradient_tensor(prec_j) * n_ij;
 
-      const auto h2 = Number(2. * view.riemann_solver_approximation_delta());
+      const auto h2 = Number(2. * view.derivative_approximation_delta());
 
 #ifdef DEBUG_RIEMANN_SOLVER
       std::cout << "\nu_i  = " << u_i << std::endl;
@@ -68,7 +68,7 @@ namespace ryujin
 
       constexpr auto gte = dealii::SIMDComparison::greater_than_or_equal;
 
-      if (view.riemann_solver_greedy_wavespeed()) {
+      if (parameters.use_greedy_wavespeed()) {
         /*
          * In case of a greedy estimate we make sure that we always use the
          * Roe average and only fall back to the derivative approximation
@@ -139,13 +139,13 @@ namespace ryujin
         std::cout << "f_k  = " << f_k << std::endl;
 #endif
 
-        const Number eta_i = hyperbolic_system.kruzkov_entropy(k, u_i);
+        const Number eta_i = view.kruzkov_entropy(k, u_i);
         const Number q_i =
-            hyperbolic_system.kruzkov_entropy_derivative(k, u_i) * (f_i - f_k);
+            view.kruzkov_entropy_derivative(k, u_i) * (f_i - f_k);
 
-        const Number eta_j = hyperbolic_system.kruzkov_entropy(k, u_j);
+        const Number eta_j = view.kruzkov_entropy(k, u_j);
         const Number q_j =
-            hyperbolic_system.kruzkov_entropy_derivative(k, u_j) * (f_j - f_k);
+            view.kruzkov_entropy_derivative(k, u_j) * (f_j - f_k);
 
         const Number a = u_i + u_j - ScalarNumber(2.) * k;
         const Number b = f_j - f_i;
@@ -173,12 +173,12 @@ namespace ryujin
       };
 
 
-      if (view.riemann_solver_averaged_entropy()) {
+      if (parameters.use_averaged_entropy()) {
         const Number k = ScalarNumber(0.5) * (u_i + u_j);
         enforce_entropy(k);
       }
 
-      const unsigned int n_entropies = view.riemann_solver_random_entropies();
+      const unsigned int n_entropies = parameters.random_entropies();
       for (unsigned int i = 0; i < n_entropies; ++i) {
         const Number factor = draw();
         const Number k = factor * u_i + (Number(1.) - factor) * u_j;
@@ -189,6 +189,29 @@ namespace ryujin
       std::cout << "-> lambda_max        = " << lambda_max << std::endl;
 #endif
       return lambda_max;
+    }
+
+
+    template <int dim, typename Number>
+    DEAL_II_ALWAYS_INLINE inline Number RiemannSolver<dim, Number>::compute(
+        const state_type &U_i,
+        const state_type &U_j,
+        const unsigned int i,
+        const unsigned int *js,
+        const dealii::Tensor<1, dim, Number> &n_ij) const
+    {
+      const auto view = hyperbolic_system.view<dim, Number>();
+
+      using pst = typename View::precomputed_state_type;
+
+      const auto u_i = view.state(U_i);
+      const auto u_j = view.state(U_j);
+
+      const auto &pv = precomputed_values;
+      const auto prec_i = pv.template get_tensor<Number, pst>(i);
+      const auto prec_j = pv.template get_tensor<Number, pst>(js);
+
+      return compute(u_i, u_j, prec_i, prec_j, n_ij);
     }
 
   } // namespace ScalarConservation

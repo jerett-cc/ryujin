@@ -1,18 +1,17 @@
 //
-// SPDX-License-Identifier: MIT
-// Copyright (C) 2020 - 2023 by the ryujin authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Copyright (C) 2020 - 2024 by the ryujin authors
 //
 
 #pragma once
 
 #include "checkpointing.h"
-#include "introspection.h"
 #include "scope.h"
 #include "solution_transfer.h"
 #include "time_loop.h"
+#include "version_info.h"
 
 #include <deal.II/base/logstream.h>
-#include <deal.II/base/revision.h>
 #include <deal.II/base/work_stream.h>
 #include <deal.II/numerics/vector_tools.h>
 #include <deal.II/numerics/vector_tools.templates.h>
@@ -148,8 +147,8 @@ namespace ryujin
         "Multiplicative modifier applied to \"output granularity\" that "
         "determines the writeout granularity for quantities of interest");
 
-    std::copy(std::begin(HyperbolicSystemView::component_names),
-              std::end(HyperbolicSystemView::component_names),
+    std::copy(std::begin(View::component_names),
+              std::end(View::component_names),
               std::back_inserter(error_quantities_));
 
     add_parameter("error quantities",
@@ -270,9 +269,9 @@ namespace ryujin
         U = initial_values_.interpolate();
 #ifdef DEBUG
         /* Poison constrained degrees of freedom: */
-        const unsigned int n_relevant = offline_data_.n_locally_relevant();
+        const unsigned int n_owned = offline_data_.n_locally_owned();
         const auto &partitioner = offline_data_.scalar_partitioner();
-        for (unsigned int i = 0; i < n_relevant; ++i) {
+        for (unsigned int i = 0; i < n_owned; ++i) {
           if (offline_data_.affine_constraints().is_constrained(
                   partitioner->local_to_global(i)))
             U.write_tensor(dealii::Tensor<1, dim + 2, Number>() *
@@ -436,7 +435,7 @@ namespace ryujin
 
     /* Loop over all selected components: */
     for (const auto &entry : error_quantities_) {
-      const auto &names = HyperbolicSystemView::component_names;
+      const auto &names = View::component_names;
       const auto pos = std::find(std::begin(names), std::end(names), entry);
       if (pos == std::end(names)) {
         AssertThrow(
@@ -634,28 +633,14 @@ namespace ryujin
 
     /* Output commit and library information: */
 
-    /* clang-format off */
-    stream << std::endl;
-    stream << "###" << std::endl;
-    stream << "#" << std::endl;
-    stream << "# deal.II version " << std::setw(8) << DEAL_II_PACKAGE_VERSION
-            << "  -  " << DEAL_II_GIT_REVISION << std::endl;
-    stream << "# ryujin  version " << std::setw(8) << RYUJIN_VERSION
-            << "  -  " << RYUJIN_GIT_REVISION << std::endl;
-    stream << "#" << std::endl;
-    stream << "###" << std::endl;
+    print_revision_and_version(stream);
 
     /* Print compile time parameters: */
 
-    stream << std::endl
-           << std::endl << "Compile time parameters:" << std::endl << std::endl;
+    print_compile_time_parameters(stream);
 
-    stream << "NUMBER == " << typeid(Number).name() << std::endl;
-    stream << "SIMD width == " << VectorizedArray<Number>::size() << std::endl;
+    /* Print run time parameters: */
 
-    /* clang-format on */
-
-    stream << std::endl;
     stream << std::endl << "Run time parameters:" << std::endl << std::endl;
     ParameterAcceptor::prm.print_parameters(
         stream, ParameterHandler::OutputStyle::ShortPRM);

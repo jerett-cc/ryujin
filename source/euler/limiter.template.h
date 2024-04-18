@@ -1,6 +1,6 @@
 //
-// SPDX-License-Identifier: MIT
-// Copyright (C) 2020 - 2023 by the ryujin authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Copyright (C) 2020 - 2024 by the ryujin authors
 //
 
 #pragma once
@@ -19,12 +19,14 @@ namespace ryujin
                                 const Number t_min /* = Number(0.) */,
                                 const Number t_max /* = Number(1.) */)
     {
+      const auto view = hyperbolic_system.view<dim, Number>();
+
       bool success = true;
       Number t_r = t_max;
 
       constexpr ScalarNumber eps = std::numeric_limits<ScalarNumber>::epsilon();
-      const auto small = hyperbolic_system.vacuum_state_relaxation_small();
-      const auto large = hyperbolic_system.vacuum_state_relaxation_large();
+      const auto small = view.vacuum_state_relaxation_small();
+      const auto large = view.vacuum_state_relaxation_large();
       const ScalarNumber relax_small = ScalarNumber(1. + small * eps);
       const ScalarNumber relax = ScalarNumber(1. + large * eps);
 
@@ -35,8 +37,8 @@ namespace ryujin
        */
 
       {
-        const auto &rho_U = hyperbolic_system.density(U);
-        const auto &rho_P = hyperbolic_system.density(P);
+        const auto &rho_U = view.density(U);
+        const auto &rho_P = view.density(P);
 
         const auto &rho_min = std::get<0>(bounds);
         const auto &rho_max = std::get<1>(bounds);
@@ -45,9 +47,9 @@ namespace ryujin
          * Verify that rho_U is within bounds. This property might be
          * violated for relative CFL numbers larger than 1.
          */
-        const auto test_min = hyperbolic_system.filter_vacuum_density(
+        const auto test_min = view.filter_vacuum_density(
             std::max(Number(0.), rho_U - relax * rho_max));
-        const auto test_max = hyperbolic_system.filter_vacuum_density(
+        const auto test_max = view.filter_vacuum_density(
             std::max(Number(0.), rho_min - relax * rho_U));
         if (!(test_min == Number(0.) && test_max == Number(0.))) {
 #ifdef DEBUG_OUTPUT
@@ -108,10 +110,10 @@ namespace ryujin
         /*
          * Verify that the new state is within bounds:
          */
-        const auto rho_new = hyperbolic_system.density(U + t_r * P);
-        const auto test_new_min = hyperbolic_system.filter_vacuum_density(
+        const auto rho_new = view.density(U + t_r * P);
+        const auto test_new_min = view.filter_vacuum_density(
             std::max(Number(0.), rho_new - relax * rho_max));
-        const auto test_new_max = hyperbolic_system.filter_vacuum_density(
+        const auto test_new_max = view.filter_vacuum_density(
             std::max(Number(0.), rho_min - relax * rho_new));
         if (!(test_new_min == Number(0.) && test_new_max == Number(0.))) {
 #ifdef DEBUG_OUTPUT
@@ -139,7 +141,7 @@ namespace ryujin
 
       Number t_l = t_min; // good state
 
-      const ScalarNumber gamma = hyperbolic_system.gamma();
+      const ScalarNumber gamma = view.gamma();
       const ScalarNumber gp1 = gamma + ScalarNumber(1.);
 
       {
@@ -160,12 +162,12 @@ namespace ryujin
 
         const auto &s_min = std::get<2>(bounds);
 
-        for (unsigned int n = 0; n < newton_max_iter; ++n) {
+        for (unsigned int n = 0; n < parameters.newton_max_iterations(); ++n) {
 
           const auto U_r = U + t_r * P;
-          const auto rho_r = hyperbolic_system.density(U_r);
+          const auto rho_r = view.density(U_r);
           const auto rho_r_gamma = ryujin::pow(rho_r, gamma);
-          const auto rho_e_r = hyperbolic_system.internal_energy(U_r);
+          const auto rho_e_r = view.internal_energy(U_r);
 
           auto psi_r =
               relax_small * rho_r * rho_e_r - s_min * rho_r * rho_r_gamma;
@@ -208,9 +210,9 @@ namespace ryujin
 #endif
 
           const auto U_l = U + t_l * P;
-          const auto rho_l = hyperbolic_system.density(U_l);
+          const auto rho_l = view.density(U_l);
           const auto rho_l_gamma = ryujin::pow(rho_l, gamma);
-          const auto rho_e_l = hyperbolic_system.internal_energy(U_l);
+          const auto rho_e_l = view.internal_energy(U_l);
 
           auto psi_l =
               relax_small * rho_l * rho_e_l - s_min * rho_l * rho_l_gamma;
@@ -246,16 +248,15 @@ namespace ryujin
            * Break if the window between t_l and t_r is within the prescribed
            * tolerance:
            */
-          if (std::max(Number(0.), t_r - t_l - newton_tolerance) == Number(0.))
+          const Number tolerance(parameters.newton_tolerance());
+          if (std::max(Number(0.), t_r - t_l - tolerance) == Number(0.))
             break;
 
           /* We got unlucky and have to perform a Newton step: */
 
-          const auto drho = hyperbolic_system.density(P);
-          const auto drho_e_l =
-              hyperbolic_system.internal_energy_derivative(U_l) * P;
-          const auto drho_e_r =
-              hyperbolic_system.internal_energy_derivative(U_r) * P;
+          const auto drho = view.density(P);
+          const auto drho_e_l = view.internal_energy_derivative(U_l) * P;
+          const auto drho_e_r = view.internal_energy_derivative(U_r) * P;
           const auto dpsi_l =
               rho_l * drho_e_l + (rho_e_l - gp1 * s_min * rho_l_gamma) * drho;
           const auto dpsi_r =
@@ -280,9 +281,9 @@ namespace ryujin
          */
         {
           const auto U_new = U + t_l * P;
-          const auto rho_new = hyperbolic_system.density(U_new);
+          const auto rho_new = view.density(U_new);
           const auto rho_new_gamma = ryujin::pow(rho_new, gamma);
-          const auto rho_e_new = hyperbolic_system.internal_energy(U_new);
+          const auto rho_e_new = view.internal_energy(U_new);
 
           auto psi_new = relax_small * rho_new * rho_e_new -
                          s_min * rho_new * rho_new_gamma;

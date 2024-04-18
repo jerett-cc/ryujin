@@ -1,6 +1,6 @@
 //
-// SPDX-License-Identifier: MIT
-// Copyright (C) 2020 - 2023 by the ryujin authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Copyright (C) 2023 - 2024 by the ryujin authors
 //
 
 #pragma once
@@ -51,15 +51,15 @@ namespace ryujin
         typename Description::template ParabolicSolver<dim, Number>;
 
     /**
-     * @copydoc HyperbolicSystem::View
+     * @copydoc HyperbolicSystemView
      */
-    using HyperbolicSystemView =
-        typename HyperbolicSystem::template View<dim, Number>;
+    using View =
+        typename Description::template HyperbolicSystemView<dim, Number>;
 
     /**
-     * @copydoc HyperbolicSystem::View::vector_type
+     * @copydoc HyperbolicSystemView::vector_type
      */
-    using vector_type = typename HyperbolicSystemView::vector_type;
+    using vector_type = typename View::vector_type;
 
     /**
      * Constructor.
@@ -101,17 +101,7 @@ namespace ryujin
          std::array<std::reference_wrapper<const vector_type>, stages> stage_U,
          const std::array<Number, stages> stage_weights,
          vector_type &new_U,
-         const Number tau) const;
-
-    /**
-     * Given a reference to a previous state vector @p old_U at time @p
-     * old_t and a time-step size @p tau perform an implicit Crank-Nicolson
-     * step (and store the result in @p new_U).
-     */
-    void crank_nicolson_step(const vector_type &old_U,
-                             const Number old_t,
-                             vector_type &new_U,
-                             const Number tau) const;
+         Number tau) const;
 
     /**
      * Print a status line with solver statistics. This function is used

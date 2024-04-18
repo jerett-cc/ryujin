@@ -1,6 +1,6 @@
 //
-// SPDX-License-Identifier: MIT
-// Copyright (C) 2020 - 2023 by the ryujin authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Copyright (C) 2020 - 2024 by the ryujin authors
 //
 
 #pragma once
@@ -309,6 +309,16 @@ namespace ryujin
      */
     template <typename ITERATOR1, typename ITERATOR2>
     boundary_map_type construct_boundary_map(
+        const ITERATOR1 &begin,
+        const ITERATOR2 &end,
+        const dealii::Utilities::MPI::Partitioner &partitioner) const;
+
+    /**
+     * Collect coupling pairs of locally owned (and locally relevant)
+     * boundary degrees of freedom.
+     */
+    template <typename ITERATOR1, typename ITERATOR2>
+    coupling_boundary_pairs_type collect_coupling_boundary_pairs(
         const ITERATOR1 &begin,
         const ITERATOR2 &end,
         const dealii::Utilities::MPI::Partitioner &partitioner) const;
