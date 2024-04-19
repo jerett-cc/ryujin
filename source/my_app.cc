@@ -189,7 +189,6 @@ namespace mgrit{
              problem_dimension),
         dealii::ExcMessage("Trying to interpolate to a vector and level where "
                            "the n_dofs do not match will not work."));
-    using scalar_type = ryujin::OfflineData<2, NUMBER>::scalar_type;
     scalar_type from_component, to_component;
 
     const auto &from_partitioner =
