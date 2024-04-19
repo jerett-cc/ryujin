@@ -59,12 +59,6 @@ set_property(SOURCE time_loop.cc APPEND PROPERTY COMPILE_DEFINITIONS
   RYUJIN_GIT_REVISION="${GIT_REVISION}"
   RYUJIN_GIT_SHORTREV="${GIT_SHORTREV}"
   )
-  
-set_property(SOURCE time_loop_mgrit.cc APPEND PROPERTY COMPILE_DEFINITIONS
-  RYUJIN_VERSION="${RYUJIN_VERSION}"
-  RYUJIN_GIT_REVISION="${GIT_REVISION}"
-  RYUJIN_GIT_SHORTREV="${GIT_SHORTREV}"
-  )
 
 #
 # Equation-specific source files and compilation targets:
@@ -102,7 +96,6 @@ endforeach()
 # MGRIT dependencies/library
 #
 SET(MGRIT_DEPENDENT_SOURCE_FILES
-  time_loop_mgrit.cc
   my_app.cc
   mgrit_functions.cc
   )
