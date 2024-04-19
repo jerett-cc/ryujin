@@ -192,7 +192,6 @@ namespace mgrit{
     using scalar_type = ryujin::OfflineData<2, NUMBER>::scalar_type;
     scalar_type from_component, to_component;
 
-    const unsigned int problem_dimension = problem_dimension;
     const auto &from_partitioner =
         levels[from_level]->offline_data->scalar_partitioner();
     const auto &to_partitioner =
