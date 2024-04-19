@@ -73,7 +73,7 @@ namespace mgrit{
     using TimeLoopType =
         std::shared_ptr<ryujin::TimeLoop<Description, 2, Number>>;
     using HyperbolicSystemView =
-        typename Description::HyperbolicSystem::template View<2, Number>;
+        typename Description::template HyperbolicSystemView<2, Number>;
     static constexpr unsigned int problem_dimension =
         HyperbolicSystemView::problem_dimension;
     static constexpr unsigned int n_precomputed_values =

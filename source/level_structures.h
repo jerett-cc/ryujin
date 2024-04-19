@@ -62,7 +62,7 @@ namespace ryujin{
         /*Describe relevant typenames*/
         using HyperbolicSystem = typename Description::HyperbolicSystem;
         using HyperbolicSystemView
-            = typename Description::HyperbolicSystem::template View<dim, Number>;
+            = typename Description::template HyperbolicSystemView<dim, Number>;
         using ParabolicSystem
             = typename Description::ParabolicSystem;
         using OfflineData

@@ -117,7 +117,7 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
 
   public://FIXME: public needs to be moved.
     using HyperbolicSystemView =
-        typename Description::HyperbolicSystem::template View<2, Number>;
+        typename Description::template HyperbolicSystemView<2, Number>;
     static constexpr unsigned int problem_dimension =
         HyperbolicSystemView::problem_dimension;
     static constexpr unsigned int n_precomputed_values =
