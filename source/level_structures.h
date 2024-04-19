@@ -114,23 +114,23 @@ namespace ryujin{
     : ParameterAcceptor("/LevelStructures")
     , level_comm_x(comm_x)//what constructor is used here? copy?
     , level_refinement(refinement)
-    , hyperbolic_system(std::make_shared<HyperbolicSystem>("/Equation"))
-    , parabolic_system(std::make_shared<ParabolicSystem>("/Equation"))
+    , hyperbolic_system(std::make_shared<HyperbolicSystem>("/B - Equation"))
+    , parabolic_system(std::make_shared<ParabolicSystem>("/B - Equation"))
     , discretization(std::make_shared<Discretization>(comm_x,
                                                       level_refinement,
-                                                      "/Discretization"))
+                                                      "/C - Discretization"))
     , offline_data(std::make_shared<OfflineData>(comm_x,
                                                  *discretization,
                                                  "/OfflineData"))
     , initial_values(std::make_shared<InitialValues>(*hyperbolic_system,
                                                      *offline_data,
-                                                     "/InitialValues"))
+                                                     "/E - InitialValues"))
     , hyperbolic_module(std::make_shared<HyperbolicModule>(comm_x,
                                                            computing_timer,
                                                            *offline_data,
                                                            *hyperbolic_system,
                                                            *initial_values,
-                                                           "/HyperbolicModule"))
+                                                           "/F - HyperbolicModule"))
     , parabolic_module(std::make_shared<ParabolicModule>(comm_x,
                                                          computing_timer,
                                                          *offline_data,
@@ -143,20 +143,20 @@ namespace ryujin{
                                                        *offline_data,
                                                        *hyperbolic_module,
                                                        *parabolic_module,
-                                                       "/TimeIntegrator"))
+                                                       "/H - TimeIntegrator"))
     , postprocessor(std::make_shared<Postprocessor>(comm_x,
                                                     *hyperbolic_system,
                                                     *offline_data,
-                                                    "/VTUOutput"))
+                                                    "/I - VTUOutput"))
     , vtu_output(std::make_shared<VTUOutput>(comm_x,
                                              *offline_data,
                                              *hyperbolic_module,
                                              *postprocessor,
-                                             "/VTUOutput"))
+                                             "/I - VTUOutput"))
     , quantities(std::make_shared<Quantities>(comm_x,
                                              *hyperbolic_system,
                                              *offline_data,
-                                             "/Quantities"))
+                                             "/J - Quantities"))
     {}
 
     /**

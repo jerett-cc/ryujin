@@ -201,7 +201,7 @@ namespace ryujin
   template <typename Description, int dim, typename Number>
   TimeLoop<Description, dim, Number>::TimeLoop(const MPI_Comm &mpi_comm,
                                                const mgrit::LevelStructures<Description,dim,Number> &ls)
-    : ParameterAcceptor("/TimeLoop")
+    : ParameterAcceptor("/A - TimeLoop")
     , mpi_communicator_(mpi_comm)
     , hyperbolic_system_(ls.hyperbolic_system)
     , parabolic_system_(ls.parabolic_system)
