@@ -38,7 +38,9 @@ namespace ryujin
     class HyperbolicSystem final : public dealii::ParameterAcceptor
     {
 
+
     public:
+
 
       /**
        * The name of the hyperbolic system as a string.
@@ -1108,6 +1110,7 @@ namespace ryujin
       if (id == Boundary::dirichlet) {
         result = get_dirichlet_data();
 
+      } else if (id == Boundary::slip || id == Boundary::object) {
       } else if (id == Boundary::slip || id == Boundary::object) {
         auto m = momentum(U);
         m -= 1. * (m * normal) * normal;

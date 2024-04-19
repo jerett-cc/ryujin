@@ -204,6 +204,9 @@ endif()
 #append braid
 list(APPEND EXTERNAL_TARGETS ${BRAID_LIBRARY})
 
+#append braid
+list(APPEND EXTERNAL_TARGETS ${BRAID_LIBRARY})
+
 #
 # Set up the rest:
 #
@@ -211,6 +214,7 @@ list(APPEND EXTERNAL_TARGETS ${BRAID_LIBRARY})
 include(GNUInstallDirs)
 
 add_subdirectory(source)
+
 
 
 install(FILES COPYING.md README.md

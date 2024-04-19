@@ -210,6 +210,13 @@ namespace ryujin
                    const std::string &subsection = "/Discretization");
 
     /**
+     * Constructor where user specifies the refinement.
+     */
+    Discretization(const MPI_Comm &mpi_communicator,
+                   const unsigned int refinement,
+                   const std::string &subsection = "/Discretization");
+
+    /**
      * Create the triangulation and set up the finite element, mapping and
      * quadrature objects.
      */
