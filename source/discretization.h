@@ -110,14 +110,14 @@ namespace ryujin
      * of freedom to the value of InitialData::initial_state(). Such conditions
      * are used in many steady state problems with inflow conditions.
      */
-    dirichlet_momentum = 6
+    dirichlet_momentum = 6,
 
     /**
      * On degrees of freedom marked as object, we enforce the same condition as
      * the slip, but now we will be able to explicitly specify when we are on
      * the surface of the object in question, so we can do analyses there.
      */
-    object = 7,
+    object = 7
   };
 } // namespace ryujin
 
