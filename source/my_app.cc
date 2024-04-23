@@ -51,7 +51,7 @@
 
 //mgrit includes
 #include "my_app.h"
-#include "mgrit_functions.h"
+#include "mgrit_functions.template.h"
 
 namespace mgrit{
   MyApp::MyApp(const MPI_Comm comm_x,
