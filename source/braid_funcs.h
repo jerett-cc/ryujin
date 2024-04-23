@@ -42,7 +42,9 @@
 #include <deal.II/numerics/vector_tools.h>
 #include <deal.II/base/parameter_acceptor.h>
 #include <deal.II/lac/la_parallel_vector.h>
+#include <deal.II/lac/affine_constraints.h>
 #include <deal.II/base/tensor.h>
+#include <deal.II/dofs/dof_tools.h>
 
 //xbraid include
 #include <braid.h>
@@ -224,33 +226,6 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
       //all parameters defined, we can now call all objects prepare function.
       prepare_mg_objects();
       initialized = true;//now the user can access data in app. TODO: implement a check for getter functions.
-    }
-
-    /// This function takes a level and a time start point and tells you which brick you are on as an integer on this level.
-    /// How is the performance of this algorithm? Should we precompute ans store with a faster data structure like a hash?
-    /// TODO: remove this, it is broken and does not work.
-    unsigned int level_brick(const unsigned int level, const Number t_start)
-    {
-      //determine number of slabs on this level
-      unsigned int n_slabs = static_cast<unsigned int>(num_time/std::pow(cfactor,level));//is static cast right?
-    //   assert("Figure out how to test that the division above makes sense.",
-    //      dealii::ExcMessage("In level_brick(), " + std::to_string(num_time) 
-    //                         + "/" + std::to_string(cfactor) + "^" + std::to_string(level) 
-    //                         + " is not an unsigned int."));
-      Number delta_t = (global_tstop - global_tstart)/static_cast<Number>(n_slabs);
-      //Asserts that our delta t is not smaller than our criterion below.
-    //   dealii::Assert(delta_t > 1e-6, dealii::ExcMessage("In level_brick(), delta_t=" + std::to_string(delta_t) 
-    //                         + " is smaller than the criterion to test the start of a brick which is " +std::to_string(1e-6)));
-      for(unsigned int i = 0; i < n_slabs; i++)
-      {
-        if(std::abs( delta_t * static_cast<Number>(i)-t_start) < 1e-6)//FIXME: in principle, we do not know that we should check 1e-6 away, since brick size could be smaller than this.
-        {
-          return i;
-        } else {
-          //how should this exit if the brick does not exist?
-          return 0;
-        }
-      }
     }
 
   private:
@@ -461,12 +436,14 @@ dealii::Tensor<1,2/*dim*/> calculate_drag_and_lift(const my_Vector& u, const my_
 }
 
 /**
- * @brief a ryujin::MulticomponentVector<double, 4> at a time t.
+ * @brief Prints a ryujin::MulticomponentVector<double, 4> at a time t.
  * @param v - The vector to be printed.
- * @param app - the my_App object which stores the timeloop which does the printing
- * @param t - the time t at which the vector is printed fixme: does this need to be here? could put it in the fname
- * @param level - the level from which this vector comes. fixme: this should really not be a separate thing. For example, one could call this for a vector from level 0, but ask it to print level 8. this is a problem
- * @param 
+ * @param app - The my_App object which stores the timeloop which does the printing
+ * @param t - The time t at which the vector is printed fixme: does this need to be here? could put it in the fname
+ * @param level - The level from which this vector comes. fixme: this should really not be a separate thing. For example, one could call this for a vector from level 0, but ask it to print level 8. this is a problem
+ * @param fname - The name of the output file. Default is "./test-output"
+ * @param time_in_fname - Whether or not to add the time to the filename. 
+ * @param cycle - The MG cycle.
 */
 void print_solution(ryujin::MultiComponentVector<double, 4> &v,
                     const braid_App &app,
@@ -476,8 +453,12 @@ void print_solution(ryujin::MultiComponentVector<double, 4> &v,
                     const bool time_in_fname = true,
                     const unsigned int cycle = 0)
 {
+  
   std::cout << "printing solution" << std::endl;
   const auto time_loop = app->time_loops[level];
+  Assert((app->levels[level]->offline_data->dof_handler().n_dofs() * app->problem_dimension == v.size()), 
+         dealii::ExcMessage("Printing vector of size " + std::to_string(v.size()) + " on level " + std::to_string(level)
+         + " which has expected vector size " + std::to_string(app->levels[level]->offline_data->dof_handler().n_dofs() * app->problem_dimension)));
   if (time_in_fname)
   {
     time_loop->output_wrapper(v, fname + std::to_string(t), t /*current time*/, 0/*cycle*/);
@@ -517,32 +498,60 @@ void interpolate_between_levels(my_Vector& to_v,
 {
   Assert((to_v.U.size() == app->levels[to_level]->offline_data->dof_handler().n_dofs()*app->problem_dimension)
       , dealii::ExcMessage("Trying to interpolate to a vector and level where the n_dofs do not match will not work."));
+  Assert((to_level != from_level), dealii::ExcMessage("Levels you want to interpolate between are the same. to_level=" + std::to_string(to_level)
+      + " from_level=" + std::to_string(from_level)));
+
   using scalar_type = ryujin::OfflineData<2,NUMBER>::scalar_type;
   scalar_type from_component,to_component;
 
+  std::cout << "Interpolating from level " << from_level << " to level " << to_level << std::endl;
   const unsigned int problem_dimension = app->problem_dimension;
   const auto &from_partitioner = app->levels[from_level]->offline_data->scalar_partitioner();
+  const auto &from_dof_handler = app->levels[from_level]->offline_data->dof_handler();
+
   const auto &to_partitioner = app->levels[to_level]->offline_data->scalar_partitioner();
+  const auto &to_dof_handler = app->levels[to_level]->offline_data->dof_handler();
+  const auto &to_constraints = app->levels[to_level]->offline_data->affine_constraints();
+
   const auto &comm = app->comm_x;
 
-  // print_partition(*from_partitioner);
-  // print_partition(*to_partitioner);
-  //reinit the components to match the correct info.
+  // Reinit the components to match the correct info.
   from_component.reinit(from_partitioner,comm);
   to_component.reinit(to_partitioner,comm);
 
-  for(unsigned int comp=0; comp<problem_dimension; comp++)
-  {
-    // extract component
-    from_v.U.extract_component(from_component, comp);
-    // interpolate this into the to_component
-    dealii::VectorTools::interpolate_to_different_mesh(
-        app->levels[from_level]->offline_data->dof_handler(),
-        from_component,
-        app->levels[to_level]->offline_data->dof_handler(),
-        to_component);
-    // place component
-    to_v.U.insert_component(to_component, comp);
+  // If the level we want to go to is less than the one we are from, we are interpolating to a finer mesh, so we use the corresponding function. 
+  // Otherwise, we are interpolating to a coarser mesh, and use that function.
+
+  if(to_level < from_level) {
+    for(unsigned int comp=0; comp<problem_dimension; comp++)
+    {
+      // extract component
+      from_v.U.extract_component(from_component, comp);
+      // interpolate this into the to_component
+      dealii::VectorTools::interpolate_to_finer_mesh(
+          from_dof_handler,
+          from_component,
+          to_dof_handler,
+          to_constraints,
+          to_component);
+      // place component
+      to_v.U.insert_component(to_component, comp);
+    }
+  } else {
+    for(unsigned int comp=0; comp<problem_dimension; comp++)
+    {
+      // extract component
+      from_v.U.extract_component(from_component, comp);
+      // interpolate this into the to_component
+      dealii::VectorTools::interpolate_to_coarser_mesh(
+          from_dof_handler,
+          from_component,
+          to_dof_handler,
+          to_constraints,
+          to_component);
+      // place component
+      to_v.U.insert_component(to_component, comp);
+    }
   }
   to_v.U.update_ghost_values();
 }
@@ -1057,7 +1066,7 @@ int
 my_BufUnpack(braid_App           app,
              void               *buffer,
              braid_Vector       *u_ptr,
-             braid_BufferStatus  bstatus)
+             braid_BufferStatus  /*bstatus*/)
 {
   if (dealii::Utilities::MPI::this_mpi_process(app->comm_t) == 0)
   {
@@ -1065,7 +1074,7 @@ my_BufUnpack(braid_App           app,
   }
 
   NUMBER *dbuffer = (NUMBER*)buffer;
-  int buf_size = static_cast<int>(dbuffer[0]);//TODO: is this dangerous?
+  unsigned int buf_size = static_cast<unsigned int>(dbuffer[0]);//TODO: is this dangerous?
   const int problem_dimension = app->problem_dimension;
 
   // The vector should be size (dim + 2) X n_dofs at finest level.

@@ -96,7 +96,6 @@ int main(int argc, char *argv[])
   /* Define XBraid parameters
    * See -help message for descriptions */
   unsigned int max_levels = app.refinement_levels.size(); // fixme, cthis is later cast to an int.
-  int nrelax = 1; // Default is 1 in XBraid which is FC relaxation(TODO: verify this.), 1 is FCF relaxation, 2 is FCFCF relaxation.
   //      int       skip          = 0;
   double tol = 1e-2;
   int max_iter = app.max_iter;
