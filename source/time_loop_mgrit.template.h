@@ -414,17 +414,9 @@ namespace ryujin{
       }
       // if(dealii::Utilities::MPI::this_mpi_process(mpi_communicator_) == 0)
         // U.print(std::cout);
-      const bool write_output_files = enable_checkpointing_ ||
-          enable_output_full_ ||
-          enable_output_levelsets_;
 
       Number t = start_time;//we will start at the initial time that this object was created with
-      unsigned int output_cycle = 0;
-
       unsigned int cycle = 1;
-      Number last_terminal_output = (terminal_update_interval_ == Number(0.)
-          ? std::numeric_limits<Number>::max()
-      : std::numeric_limits<Number>::lowest());
 
       /* Loop: */
 
@@ -683,7 +675,7 @@ namespace ryujin{
 
     template <typename Description, int dim, typename Number>
     void
-    TimeLoopMgrit<Description, dim, Number>::print_parameters(std::ostream &stream)
+    TimeLoopMgrit<Description, dim, Number>::print_parameters(std::ostream &/*stream*/)
     {
 
     }
@@ -691,7 +683,7 @@ namespace ryujin{
 
     template <typename Description, int dim, typename Number>
     void
-    TimeLoopMgrit<Description, dim, Number>::print_mpi_partition(std::ostream &stream)
+    TimeLoopMgrit<Description, dim, Number>::print_mpi_partition(std::ostream &/*stream*/)
     {
 
     }
@@ -699,14 +691,14 @@ namespace ryujin{
 
     template <typename Description, int dim, typename Number>
     void TimeLoopMgrit<Description, dim, Number>::print_memory_statistics(
-        std::ostream &stream)
+      std::ostream &/*stream*/)
     {
 
     }
 
 
     template <typename Description, int dim, typename Number>
-    void TimeLoopMgrit<Description, dim, Number>::print_timers(std::ostream &stream)
+    void TimeLoopMgrit<Description, dim, Number>::print_timers(std::ostream &/*stream*/)
     {
 
     }
@@ -714,14 +706,15 @@ namespace ryujin{
 
     template <typename Description, int dim, typename Number>
     void TimeLoopMgrit<Description, dim, Number>::print_throughput(
-        unsigned int cycle, Number t, std::ostream &stream, bool final_time)
+      unsigned int /*cycle*/, Number /*t*/,
+      std::ostream &/*stream*/, bool /*final_time*/)
     {
 
     }
 
 
     template <typename Description, int dim, typename Number>
-    void TimeLoopMgrit<Description, dim, Number>::print_info(const std::string &header)
+    void TimeLoopMgrit<Description, dim, Number>::print_info(const std::string &/*header*/)
     {
 
     }
@@ -729,9 +722,9 @@ namespace ryujin{
 
     template <typename Description, int dim, typename Number>
     void
-    TimeLoopMgrit<Description, dim, Number>::print_head(const std::string &header,
-        const std::string &secondary,
-        std::ostream &stream)
+    TimeLoopMgrit<Description, dim, Number>::print_head(const std::string &/*header*/,
+                                                        const std::string &/*secondary*/,
+                                                        std::ostream &/*stream*/)
     {
 
     }
@@ -739,11 +732,11 @@ namespace ryujin{
 
     template <typename Description, int dim, typename Number>
     void TimeLoopMgrit<Description, dim, Number>::print_cycle_statistics(
-        unsigned int cycle,
-        Number t,
-        unsigned int output_cycle,
-        bool write_to_logfile,
-        bool final_time)
+      unsigned int /*cycle*/,
+      Number /*t*/,
+      unsigned int /*output_cycle*/,
+      bool /*write_to_logfile*/,
+      bool /*final_time*/)
     {
 
     }

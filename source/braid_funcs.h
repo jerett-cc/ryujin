@@ -965,7 +965,7 @@ int
 my_BufUnpack(braid_App           app,
              void               *buffer,
              braid_Vector       *u_ptr,
-             braid_BufferStatus  bstatus)
+             braid_BufferStatus  /*bstatus*/)
 {
   if (dealii::Utilities::MPI::this_mpi_process(app->comm_t) == 0)
   {
@@ -973,7 +973,7 @@ my_BufUnpack(braid_App           app,
   }
 
   NUMBER *dbuffer = (NUMBER*)buffer;
-  int buf_size = static_cast<int>(dbuffer[0]);//TODO: is this dangerous?
+  unsigned int buf_size = static_cast<unsigned int>(dbuffer[0]);//TODO: is this dangerous?
   const int problem_dimension = app->problem_dimension;
 
   // The vector should be size (dim + 2) X n_dofs at finest level.
