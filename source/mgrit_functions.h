@@ -19,4 +19,21 @@ dealii::Tensor<1, dim> calculate_drag_and_lift(mgrit::MyApp *app,
                                                const mgrit::MyVector &u,
                                                const braid_Real t);
 
+/// @brief This function ensures that the solution state @u produces physical
+/// quantities. For example, if u represents the conservative states of a
+/// system, we ensure that the pressure, density, and entropy remain
+/// non-negative.
+/// @tparam Description The description of the system, providing a pressure
+/// function and an entropy function.
+/// @tparam dim The spatial dimension.
+/// @tparam Number Either a double or float.
+/// @param u The solution state we want to modify to remain conservative.
+/// @param level The level that describes the vector we want to enforce physicality.
+/// @param app The app containing the level structures we need to do work on u.
+template <typename Description, int dim, typename Number>
+void enforce_physicality_bounds(mgrit::MyVector &u,
+                                const unsigned int level,
+                                const mgrit::MyApp &app,
+                                const Number t);
+
 }// Namespace mgrit_functions
