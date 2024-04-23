@@ -97,7 +97,6 @@ endforeach()
 #
 SET(MGRIT_DEPENDENT_SOURCE_FILES
   my_app.cc
-  mgrit_functions.cc
   )
 
 add_library(obj_mgrit OBJECT ${MGRIT_DEPENDENT_SOURCE_FILES})
