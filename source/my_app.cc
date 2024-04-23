@@ -63,9 +63,9 @@ namespace mgrit{
       , levels(a_refinement_levels.size())
       , refinement_levels(a_refinement_levels)
       , time_loops(a_refinement_levels.size())
-      , finest_index(0) // for XBRAID, the finest level is always 0.
+      , finest_level(0) // for XBRAID, the finest level is always 0.
   {
-    coarsest_index = refinement_levels.size() - 1;
+    coarsest_level = refinement_levels.size() - 1;
     print_solution_bool = false;
     add_parameter("print_solution_bool",
                   print_solution_bool,
@@ -443,12 +443,12 @@ namespace mgrit{
     MyVector *temp_coarse = new (MyVector);
     reinit_to_level(
         u,
-        finest_index); // this is the u that we will start each time brick with.
-    reinit_to_level(temp_coarse, coarsest_index); // coarse on the coarses
+        finest_level); // this is the u that we will start each time brick with.
+    reinit_to_level(temp_coarse, coarsest_level); // coarse on the coarses
                                                   // level.
     // sets up U data at t=0;
-    u->U = levels[finest_index]->initial_values->interpolate(0); 
-    temp_coarse->U = levels[coarsest_index]->initial_values->interpolate(0);
+    u->U = levels[finest_level]->initial_values->interpolate(0); 
+    temp_coarse->U = levels[coarsest_level]->initial_values->interpolate(0);
 
     std::string str = "initialized_at_t=" + std::to_string(t);
     // If T is not zero, we step on the coarsest level until we are done.
@@ -457,19 +457,19 @@ namespace mgrit{
     if (std::fabs(t) > 0) {
       // interpolate the initial conditions up to the coarsest mesh
       interpolate_between_levels(
-          temp_coarse->U, coarsest_index, u->U, finest_index);
+          temp_coarse->U, coarsest_level, u->U, finest_level);
       // steps to the correct end time on the coarse level to end time t
-      time_loops[coarsest_index]->run_with_initial_data(temp_coarse->U, t);
+      time_loops[coarsest_level]->run_with_initial_data(temp_coarse->U, t);
       if (print_solution_bool)
-        print_solution(temp_coarse->U, t, coarsest_index, str);
+        print_solution(temp_coarse->U, t, coarsest_level, str);
 
       interpolate_between_levels(
-          u->U, finest_index, temp_coarse->U, coarsest_index);
+          u->U, finest_level, temp_coarse->U, coarsest_level);
     }
     if (print_solution_bool)
       print_solution(u->U,
                      t,
-                     finest_index,
+                     finest_level,
                      str,
                      false,
                      -1); // prints the interpolated state.
@@ -680,7 +680,7 @@ namespace mgrit{
     // The vector should be size (dim + 2) X n_dofs at finest level.
     MyVector *u = new (MyVector); // TODO: where does this get deleted? Probably
                                   // wherever owns the u_ptr.
-    reinit_to_level(u, finest_index); // each U is at the finest level.
+    reinit_to_level(u, finest_level); // each U is at the finest level.
 
     // unpack the sent data into the right level
     for (unsigned int node = 0; node < n_locally_owned_dofs; node++) {

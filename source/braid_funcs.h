@@ -132,7 +132,7 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
     std::vector<LevelType> levels; //instantiation
     std::vector<unsigned int> refinement_levels;
     std::vector<TimeLoopType> time_loops;
-    int finest_index, coarsest_index;
+    int finest_level, coarsest_level;
     unsigned int n_fine_dofs;
     unsigned int n_locally_owned_dofs;
     bool print_solution = false;
@@ -159,14 +159,14 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
       levels(a_refinement_levels.size()),
       refinement_levels(a_refinement_levels),
       time_loops(a_refinement_levels.size()),
-      finest_index(0)//for XBRAID, the finest level is always 0.
+      finest_level(0)//for XBRAID, the finest level is always 0.
     {
       // refinement_levels = {5,2,1};
       // add_parameter("mgrit refinements",
       //               refinement_levels,
       //               "Vector of levels of global mesh refinement where "
       //               "each MGRIT level will work on.");
-      coarsest_index = refinement_levels.size()-1;
+      coarsest_level = refinement_levels.size()-1;
 
       print_solution = false;
       add_parameter("print_solution",
@@ -312,14 +312,14 @@ dealii::Tensor<1,2/*dim*/> calculate_drag_and_lift(const my_Vector& u, const my_
     
     UNUSED(t);
 
-    const auto offline_data = app.levels[app.finest_index]->offline_data;
+    const auto offline_data = app.levels[app.finest_level]->offline_data;
     const auto mpi_communicator = app.comm_x;
-    const auto hyperbolic_system_view = app.levels[app.finest_index]->hyperbolic_system->template view<2/*dim*/, NUMBER>();
+    const auto hyperbolic_system_view = app.levels[app.finest_level]->hyperbolic_system->template view<2/*dim*/, NUMBER>();
     // first, set up the finite element, the data, and the facevalues
-    // const dealii::FiniteElement<2,2> fe = app.levels[app.finest_index]->offline_data->discretization().finite_element(); // the finite element
-    // const int degree = app.levels[app.finest_index]->offline_data->discretization().finite_element().degree;
-    // dealii::QGauss<1> face_quadrature_formula = app.levels[app.finest_index]->offline_data->discretization().quadrature_1d();
-    const int n_q_points = app.levels[app.finest_index]->offline_data->discretization().quadrature_1d().size();
+    // const dealii::FiniteElement<2,2> fe = app.levels[app.finest_level]->offline_data->discretization().finite_element(); // the finite element
+    // const int degree = app.levels[app.finest_level]->offline_data->discretization().finite_element().degree;
+    // dealii::QGauss<1> face_quadrature_formula = app.levels[app.finest_level]->offline_data->discretization().quadrature_1d();
+    const int n_q_points = app.levels[app.finest_level]->offline_data->discretization().quadrature_1d().size();
 
     std::vector<double> pressure_values(n_q_points);
 
@@ -339,8 +339,8 @@ dealii::Tensor<1,2/*dim*/> calculate_drag_and_lift(const my_Vector& u, const my_
     dealii::Tensor<1, 2/*dim*/> forces;
 
     dealii::FEFaceValues<2/*dim*/> fe_face_values(
-        app.levels[app.finest_index]->offline_data->discretization().finite_element()/*FE_Q<dim>*/,
-        app.levels[app.finest_index]->offline_data->discretization().quadrature_1d()/*QGauss<dim-1*/,
+        app.levels[app.finest_level]->offline_data->discretization().finite_element()/*FE_Q<dim>*/,
+        app.levels[app.finest_level]->offline_data->discretization().quadrature_1d()/*QGauss<dim-1*/,
         dealii::update_values | dealii::update_quadrature_points |
             dealii::update_gradients | dealii::update_JxW_values |
             dealii::update_normal_vectors); // the face values
@@ -728,10 +728,10 @@ my_Init(braid_App     app,
   // and interpolate the fine initial state into the coarse vector, then interpolates it up to the coarse level and steps.
   my_Vector *u = new(my_Vector);
   my_Vector *temp_coarse = new(my_Vector);
-  reinit_to_level(u, app, app->finest_index);//this is the u that we will start each time brick with.
-  reinit_to_level(temp_coarse, app, app->coarsest_index);//coarse on the coarses level.
-  u->U = app->levels[app->finest_index]->initial_values->interpolate(0);//sets up U data at t=0;
-  temp_coarse->U = app->levels[app->coarsest_index]->initial_values->interpolate(0);
+  reinit_to_level(u, app, app->finest_level);//this is the u that we will start each time brick with.
+  reinit_to_level(temp_coarse, app, app->coarsest_level);//coarse on the coarses level.
+  u->U = app->levels[app->finest_level]->initial_values->interpolate(0);//sets up U data at t=0;
+  temp_coarse->U = app->levels[app->coarsest_level]->initial_values->interpolate(0);
   
   std::string str = "initialized_at_t=" + std::to_string(t);
   // If T is not zero, we step on the coarsest level until we are done. Otherwise we have no need to step any because
@@ -740,15 +740,15 @@ my_Init(braid_App     app,
   if(std::fabs(t) > 0)
   {
     //interpolate the initial conditions up to the coarsest mesh
-    interpolate_between_levels(*temp_coarse, app->coarsest_index, *u, app->finest_index, app);
+    interpolate_between_levels(*temp_coarse, app->coarsest_level, *u, app->finest_level, app);
     //steps to the correct end time on the coarse level to end time t
-    app->time_loops[app->coarsest_index]->run_with_initial_data(temp_coarse->U,t);
+    app->time_loops[app->coarsest_level]->run_with_initial_data(temp_coarse->U,t);
     if(app->print_solution)
-      print_solution(temp_coarse->U, app, t, app->coarsest_index, str);
+      print_solution(temp_coarse->U, app, t, app->coarsest_level, str);
 
-    interpolate_between_levels(*u, app->finest_index, *temp_coarse, app->coarsest_index, app);
+    interpolate_between_levels(*u, app->finest_level, *temp_coarse, app->coarsest_level, app);
   }
-  print_solution(u->U, app, t, app->finest_index, str, false, -1);//prints the interpolated state.
+  print_solution(u->U, app, t, app->finest_level, str, false, -1);//prints the interpolated state.
   //delete the temporary coarse U. f
   delete temp_coarse;
 
@@ -1080,7 +1080,7 @@ my_BufUnpack(braid_App           app,
   // The vector should be size (dim + 2) X n_dofs at finest level.
   my_Vector *u = NULL; // the vector we will pack the info into
   u = new(my_Vector);//TODO: where does this get deleted? Probably wherever owns the u_ptr.
-  reinit_to_level(u, app, app->finest_index);//each U is at the finest level.
+  reinit_to_level(u, app, app->finest_level);//each U is at the finest level.
   dealii::Tensor<1, problem_dimension, NUMBER> temp_tensor;
 
   //unpack the sent data into the right level

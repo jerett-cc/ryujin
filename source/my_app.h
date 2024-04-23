@@ -236,7 +236,7 @@ namespace mgrit{
     std::vector<LevelType> levels; // instantiation
     std::vector<unsigned int> refinement_levels;
     std::vector<TimeLoopType> time_loops;
-    braid_Int finest_index, coarsest_index;
+    braid_Int finest_level, coarsest_level;
     unsigned int n_fine_dofs;
     unsigned int n_locally_owned_dofs;
     bool print_solution_bool = false;
