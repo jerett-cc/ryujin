@@ -159,6 +159,11 @@ namespace mgrit{
                         const bool time_in_fname = true,
                         const unsigned int cycle = 0);
 
+    /// @brief Returns the number of locally owned dofs at the specified level.
+    /// @param level Level we are querying.
+    /// @return Number of dofs owned on this process, at this level.
+    unsigned int n_locally_owned_at_level(const unsigned int level) const;
+
   private:
     /// Creates all objects ryujin needs to run.
     void create_mg_levels();

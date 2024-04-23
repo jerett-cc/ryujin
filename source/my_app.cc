@@ -278,6 +278,11 @@ namespace mgrit{
     }
   }
 
+  unsigned int MyApp::n_locally_owned_at_level(const unsigned int level) const
+  {
+    return levels[level]->offline_data->n_locally_owned();
+  }
+
   braid_Int MyApp::Step(braid_Vector u,
                         braid_Vector ustop,
                         braid_Vector fstop,
