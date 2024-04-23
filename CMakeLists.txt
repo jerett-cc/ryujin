@@ -223,8 +223,6 @@ include(GNUInstallDirs)
 
 add_subdirectory(source)
 
-
-
 install(FILES COPYING.md README.md
   DESTINATION ${CMAKE_INSTALL_DOCDIR}
   )
