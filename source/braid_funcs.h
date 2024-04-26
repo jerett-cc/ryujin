@@ -135,7 +135,7 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
     int finest_level, coarsest_level;
     unsigned int n_fine_dofs;
     unsigned int n_locally_owned_dofs;
-    bool print_solution = false;
+    bool print_solution_bool = false;
     int num_time;
     double global_tstart;
     double global_tstop;
@@ -168,9 +168,9 @@ typedef struct _braid_App_struct : public dealii::ParameterAcceptor
       //               "each MGRIT level will work on.");
       coarsest_level = refinement_levels.size()-1;
 
-      print_solution = false;
-      add_parameter("print_solution",
-                    print_solution,
+      print_solution_bool = false;
+      add_parameter("print_solution_bool",
+                    print_solution_bool,
                     "Optional to print the solution in Init and Access.");
       num_time = 4;
       add_parameter("Time Bricks",
@@ -500,7 +500,7 @@ void interpolate_between_levels(my_Vector& to_v,
       , dealii::ExcMessage("Trying to interpolate to a vector and level where the n_dofs do not match will not work."));
   Assert((to_level != from_level), dealii::ExcMessage("Levels you want to interpolate between are the same. to_level=" + std::to_string(to_level)
       + " from_level=" + std::to_string(from_level)));
-
+  
   using scalar_type = ryujin::OfflineData<2,NUMBER>::scalar_type;
   scalar_type from_component,to_component;
 
@@ -666,7 +666,7 @@ int my_Step(braid_App        app,
   test_physicality<my_Vector*, 2>(&u_to_step, app, level, "before step.");
 #endif
 
-  if(app->print_solution)
+  if(app->print_solution_bool)
     print_solution(u_to_step.U, app, tstart/*this is a big problem, not knowing what time we are summing at*/, level/*level, always needs to be zero, to be fixed*/, fname, false, app->n_cycles);
 
   if(level == 1 && std::abs(tstart - 3.125) < 1e-6 && std::abs(tstop - 3.4375) < 1e-6 && num_step_calls==132)
@@ -699,7 +699,7 @@ int my_Step(braid_App        app,
 #endif
 
   std::string fname_post = "FcOnLevel_" + std::to_string(level)+ "on_interval_[" +std::to_string(tstart)+ "_"+std::to_string(tstop)+ "]";
-  if(app->print_solution)
+  if(app->print_solution_bool)
     print_solution(u->U, app, tstop, 0/*level, always needs to be zero, to be fixed*/, fname_post, false, app->n_cycles);
 
   num_step_calls++;
@@ -743,7 +743,7 @@ my_Init(braid_App     app,
     interpolate_between_levels(*temp_coarse, app->coarsest_level, *u, app->finest_level, app);
     //steps to the correct end time on the coarse level to end time t
     app->time_loops[app->coarsest_level]->run_with_initial_data(temp_coarse->U,t);
-    if(app->print_solution)
+    if(app->print_solution_bool)
       print_solution(temp_coarse->U, app, t, app->coarsest_level, str);
 
     interpolate_between_levels(*u, app->finest_level, *temp_coarse, app->coarsest_level, app);
@@ -946,7 +946,7 @@ my_Access(braid_App          app,
 #endif
   }
 
-  if(app->print_solution && (std::abs(t-0)< 1e-6 ||std::abs(t-1.25) < 1e-6 
+  if(app->print_solution_bool && (std::abs(t-0)< 1e-6 ||std::abs(t-1.25) < 1e-6 
 			     || std::abs(t-2.5) < 1e-6 || std::abs(t-3.75) < 1e-6
 			     || std::abs(t-5.0) < 1e-6))
     {//FIXME: this only prints for the [0,5] time interval at specific points. Make this more general.
@@ -1121,7 +1121,7 @@ void test_braid_functions(my_App& app, braid_MPI_Comm comm_x = MPI_COMM_WORLD)
   // test my_Clone
   my_Vector *V_cloned;
   my_Clone(&app, V, &V_cloned);
-  if(app.print_solution)
+  if(app.print_solution_bool)
     print_solution(V_cloned->U,
                   &app,
                   10101 /*time set to arbitrary time identified with clone*/,
