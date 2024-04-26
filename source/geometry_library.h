@@ -13,7 +13,6 @@
 #include "geometry_tank.h"
 #include "geometry_wall.h"
 #include "geometry_cylinder_mgrit.h"//TODO: rename this to double cylinder.
-#include "geometry_cylinder_mgrit.h"//TODO: rename this to double cylinder.
 
 namespace ryujin
 {
