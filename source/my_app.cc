@@ -595,12 +595,12 @@ namespace mgrit{
     // calculate drag and lift for this solution on level 0
     // TODO: insert drag and lift calculation call. and think about when to call
     // calculate drag (at end of cycle...)
-    // dealii::Tensor<1, 2> forces =
-    //     mgrit_functions::calculate_drag_and_lift<2>(this, *u_, t);
-    // std::cout << "cycle." + std::to_string(mgCycle) + " drag." +
-    //                  std::to_string(forces[0]) + " lift." +
-    //                  std::to_string(forces[1]) + " time." + std::to_string(t)
-    //           << std::endl;
+    dealii::Tensor<1, 2> forces =
+        mgrit_functions::calculate_drag_and_lift<2>(this, *u_, t);
+    std::cout << "cycle." + std::to_string(mgCycle) + " drag." +
+                     std::to_string(forces[0]) + " lift." +
+                     std::to_string(forces[1]) + " time." + std::to_string(t)
+              << std::endl;
 
     n_cycles = mgCycle;
 
