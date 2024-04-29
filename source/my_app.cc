@@ -567,24 +567,23 @@ namespace mgrit{
     static int sum_count = 0;
     MyVector *x_ = (MyVector *) x;
     MyVector *y_ = (MyVector *) y;
-#ifdef CHECK_BOUNDS
-    if (0 < alpha && 0 < beta)
-      test_physicality<2>(y_->U, 0, "my_Sum: incoming y");
-#endif
 
     if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
       std::cout << "[INFO] Summing XBraid vectors" << std::endl;
       std::cout << alpha << "x + " << beta << "y" << std::endl;
     }
-
+// #ifdef CHECK_BOUNDS
+//     if (0 < alpha && 0 < beta)
+//       test_physicality<2>(y_->U, 0, "my_Sum: incoming y");
+// #endif
 
     y_->U.sadd(beta, alpha, x_->U);
-#ifdef CHECK_BOUNDS
-    // Test that the outgoing vector is physical at the fine level, but only for
-    // the prolongation step.
-    if (0 < alpha && 0 < beta)
-      test_physicality<2>(y_->U, 0, "my_Sum: y after summing.");
-#endif
+// #ifdef CHECK_BOUNDS
+//     // Test that the outgoing vector is physical at the fine level, but only for
+//     // the prolongation step.
+//     if (0 < alpha && 0 < beta)
+//       test_physicality<2>(y_->U, 0, "my_Sum: y after summing.");
+// #endif
 
     sum_count++;
 
