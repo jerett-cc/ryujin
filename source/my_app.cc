@@ -31,6 +31,7 @@
 #include "time_integrator.h"
 #include "vtu_output.h"
 #include "convenience_macros.h"
+#include "local_index_handling.h"
 
 //MPI
 #include <deal.II/base/mpi.h>
@@ -183,37 +184,88 @@ namespace mgrit{
                                          const vector_type &from_v,
                                          const unsigned int from_level)
   {
+    Assert((to_v.size() == levels[to_level]->offline_data->dof_handler().n_dofs()*problem_dimension)
+      , dealii::ExcMessage("Trying to interpolate to a vector and level where the n_dofs do not match will not work."));
     Assert(
-        (to_v.size() ==
-         levels[to_level]->offline_data->dof_handler().n_dofs() *
-             problem_dimension),
-        dealii::ExcMessage("Trying to interpolate to a vector and level where "
-                           "the n_dofs do not match will not work."));
+        (to_level != from_level),
+        dealii::ExcMessage(
+            "Levels you want to interpolate between are the same. to_level=" +
+            std::to_string(to_level) +
+            " from_level=" + std::to_string(from_level) +
+            "this is a waste of time, just use the same vector, or make a "
+            "copy."));
+
+    using scalar_type = ryujin::OfflineData<2, NUMBER>::scalar_type;
     scalar_type from_component, to_component;
 
+    std::cout << "Interpolating from level " << from_level << " to level "
+              << to_level << std::endl;
     const auto &from_partitioner =
         levels[from_level]->offline_data->scalar_partitioner();
+    const auto &from_dof_handler =
+        levels[from_level]->offline_data->dof_handler();
+    const auto &from_constraints =
+        levels[from_level]->offline_data->affine_constraints();
+    // const dealii::AffineConstraints<NUMBER> from_affine_constraints_tmp;
+    // from_affine_constraints_tmp.copy_from(from_constraints);
+
     const auto &to_partitioner =
         levels[to_level]->offline_data->scalar_partitioner();
+    const auto &to_dof_handler = levels[to_level]->offline_data->dof_handler();
+    const auto &to_constraints =
+        levels[to_level]->offline_data->affine_constraints();
+    // const dealii::AffineConstraints to_affine_constraints_tmp;
+    // from_affine_constraints_tmp.copy_from(to_constraints);
+
+    // ryujin::transform_to_local_range(from_partitioner,
+    //                                  from_affine_constraints_tmp);
+    // ryujin::transform_to_local_range(to_partitioner, to_affine_constraints_tmp);
+
     const auto &comm = comm_x;
 
-    // print_partition(*from_partitioner);
-    // print_partition(*to_partitioner);
-    // reinit the components to match the correct info.
+    // Reinit the components to match the correct info.
     from_component.reinit(from_partitioner, comm);
-    to_component.reinit(to_partitioner, comm);
+    from_constraints.distribute(from_component);
 
-    for (unsigned int comp = 0; comp < problem_dimension; comp++) {
-      // extract component
-      from_v.extract_component(from_component, comp);
-      // interpolate this into the to_component
-      dealii::VectorTools::interpolate_to_different_mesh(
-          levels[from_level]->offline_data->dof_handler(),
-          from_component,
-          levels[to_level]->offline_data->dof_handler(),
-          to_component);
-      // place component
-      to_v.insert_component(to_component, comp);
+    to_component.reinit(to_partitioner, comm);
+    to_constraints.distribute(
+        to_component); // Do we need to do this for the vector to which we are
+                       // interpolating?
+
+    from_component.update_ghost_values();
+    to_component.update_ghost_values(); // Do we need to do this for the vector
+                                        // to which we are interpolating?
+
+    // If the level we want to go to is less than the one we are from, we are
+    // interpolating to a finer mesh, so we use the corresponding function.
+    // Otherwise, we are interpolating to a coarser mesh, and use that function.
+
+    if (from_level < to_level) {
+      for (unsigned int comp = 0; comp < problem_dimension; comp++) {
+        // extract component
+        from_v.extract_component(from_component, comp);
+        // interpolate this into the to_component
+        dealii::VectorTools::interpolate_to_coarser_mesh(from_dof_handler,
+                                                         from_component,
+                                                         to_dof_handler,
+                                                         to_constraints,
+                                                         to_component);
+        // place component
+        to_v.insert_component(to_component, comp);
+      }
+    } else {
+      for (unsigned int comp = 0; comp < problem_dimension; comp++) {
+        // extract component
+        from_v.extract_component(from_component, comp);
+        // interpolate this into the to_component
+        dealii::VectorTools::interpolate_to_finer_mesh(from_dof_handler,
+                                                       from_component,
+                                                       to_dof_handler,
+                                                       to_constraints,
+                                                       to_component);
+        // place component
+        to_v.insert_component(to_component, comp);
+      }
     }
     to_v.update_ghost_values();
   }
