@@ -640,6 +640,9 @@ int my_Step(braid_App        app,
       + "total step call number " +std::to_string(num_step_calls) << std::endl;
   }
 
+  enforce_physicality_bounds<ryujin::Euler::Description, 2, NUMBER>(
+      *u, app->finest_level, *app, tstart);
+
   std::string fname = "step" + std::to_string(num_step_calls)+ "_cycle" + std::to_string(app->n_cycles)+ "_level_" + std::to_string(level)
       +"_interval_[" +std::to_string(tstart)+ "_"+std::to_string(tstop)+ "]";
 #ifdef CHECK_BOUNDS
@@ -938,9 +941,16 @@ my_Access(braid_App          app,
   }
 
   std::string fname = "./cycle" + std::to_string(mgCycle);
-  if(caller_id && caller_id == braid_ASCaller_FInterp)
-  {
-    fname = fname + "caller_FInterp_";
+  // If caller is equal to Projection, we modify the vector to be stable, then
+  // in debug, we would also test this.
+  if (caller_id && caller_id == braid_ASCaller_FInterp_Projection) {
+    fname = fname + "caller_FInterp_Projection";
+    std::cout << "Access called for " + fname
+              << " enforcing physicality bounds after summing in FInterp."
+              << std::endl;
+    // Call the stability projection function.
+      enforce_physicality_bounds<ryujin::Euler::Description, 2, NUMBER>(
+        *u, app->finest_level, *app, t);
 #ifdef CHECK_BOUNDS
     test_physicality<braid_Vector, 2>(u, app, 0, "my_Access: u when caller is FInterp.");
 #endif
