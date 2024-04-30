@@ -937,8 +937,8 @@ my_Sum(braid_App app,
   // print_solution(y->U, app, 0/*this is a big problem, not nowing what time we are summing at*/, 0/*level, always needs to be zero, to be fixed*/, fname, false, sum_count);
 // #ifdef CHECK_BOUNDS
   // Test that the outgoing vector is physical at the fine level, but only for the prolongation step.
-  if(0 < alpha && 0 < beta)
-    test_physicality<braid_Vector, 2>(y, app, 0, "my_Sum: y after summing.");
+  // if(0 < alpha && 0 < beta)
+  //   test_physicality<braid_Vector, 2>(y, app, 0, "my_Sum: y after summing.");
 // #endif
 
   sum_count++;
