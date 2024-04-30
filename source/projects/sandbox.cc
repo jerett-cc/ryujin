@@ -17,7 +17,7 @@ int main(int argc, char *argv[]){
   const std::string restart_fname = argv[2];
   const double tstart = std::stof(argv[3]);
   const double tstop  = std::stof(argv[4]);
-  const int refinement = std::stoi(argv[5]);
+  const unsigned int refinement = std::stoul(argv[5]);
 
   std::cout << "Restarting computation with file " << restart_fname << "\nending at time t in [" << tstart << ", " <<  tstop << "]." << std::endl;
 
@@ -141,7 +141,7 @@ int main(int argc, char *argv[]){
 
   app.time_loops[0]->change_base_name(restart_fname);
   //now that we have the data, we call the run function
-  app.time_loops[0]->run_with_initial_data(U, tstop, tstart, /*mgrit_specified_printing*/false, calculate_drag_and_lift);
+  app.time_loops[0]->run_with_initial_data(U, tstop, tstart, /*mgrit_specified_printing*/true, calculate_drag_and_lift);
 
   return 1;
 }

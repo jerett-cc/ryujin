@@ -13,7 +13,7 @@ int main(int argc, char* argv[]){
   const std::string prm_name(argv[1]);// prm file
 
   // now that we have the communicators, we can create the app, and initialize with the parameter file.
-  my_App app(comm_world, comm_world, {argc});
+  my_App app(comm_world, comm_world, {(unsigned int)argc});
   app.initialize(prm_name);
 
 
