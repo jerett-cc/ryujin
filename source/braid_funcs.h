@@ -434,6 +434,56 @@ dealii::Tensor<1,2/*dim*/> calculate_drag_and_lift(const my_Vector& u, const my_
     return forces;
   }
 }
+/// @brief Enforces the description's physicality conditions on the input vector u.
+/// @tparam Description 
+/// @tparam Number 
+/// @tparam dim 
+/// @param u 
+/// @param level 
+/// @param app 
+/// @param t 
+template <typename Description, int dim, typename Number>
+void enforce_physicality_bounds(my_Vector &u,
+                                const unsigned int level,
+                                const my_App &app,
+                                const Number t)
+{
+  // Create Hyperbolic System View, where we can compute functions like
+  // pressure.
+  const auto view =
+      app.levels[level]->hyperbolic_system->template view<dim, Number>();
+
+  // For each node, translate the conserved quantities into the primitive
+  // quantities. If we dip below the minimums, set the primitive to their
+  // minimum.
+  for (unsigned int node = 0; node < app.levels[level]->offline_data->n_locally_owned();
+       node++) {
+    const auto state =
+        u.U.get_tensor(node); // The current conserved state at this node.
+    auto primitive_state =
+        view.to_primitive_state(state); // The primitive state at this node.
+
+    // Modify the primitive state to be physical.
+    // We only need to ensure that the density and pressure are positive.
+    // Velocities can be negative. todo: is this true? do we need to make sure
+    // that the velocities are not too large if we decrease pressure? is the
+    // number here good enough (1e-8)?
+    // TODO: make a way to do this based on description?
+    primitive_state[0] = std::max(primitive_state[0], Number(1e-8));
+    primitive_state[dim + 1] = std::max(primitive_state[dim + 1], Number(1e-8));
+
+    // Translate new state to conserved, then place in to spot.
+    u.U.write_tensor(view.from_primitive_state(primitive_state), node);
+  }
+
+  u.U.update_ghost_values();
+
+  // Make sure boundary conditions are satisfied on these states.
+  // FIXME: this function also calls update_ghost_values(), do I need the one
+  // above?
+  app.levels[level]->hyperbolic_module->apply_boundary_conditions(u.U, t);
+}
+
 
 /**
  * @brief Prints a ryujin::MulticomponentVector<double, 4> at a time t.
