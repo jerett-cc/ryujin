@@ -741,7 +741,8 @@ namespace mgrit{
     UNUSED(bstatus);
 
     NUMBER *dbuffer = (NUMBER *)buffer;
-    unsigned int buf_size = static_cast<unsigned int>(dbuffer[0]); // TODO: is this dangerous?
+    // todo: use this for a range check. Make sure we are not indexing outside of bounds of the buffer.
+    // unsigned int buf_size = static_cast<unsigned int>(dbuffer[0]); // TODO: is this dangerous?
 
     // The vector should be size (dim + 2) X n_dofs at finest level.
     MyVector *u = new (MyVector); // TODO: where does this get deleted? Probably
