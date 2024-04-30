@@ -554,54 +554,81 @@ void interpolate_between_levels(my_Vector& to_v,
   using scalar_type = ryujin::OfflineData<2,NUMBER>::scalar_type;
   scalar_type from_component,to_component;
 
-  std::cout << "Interpolating from level " << from_level << " to level " << to_level << std::endl;
+  // std::cout << "Interpolating from level " << from_level << " to level " << to_level << std::endl;
+  // const unsigned int problem_dimension = app->problem_dimension;
+  // const auto &from_partitioner = app->levels[from_level]->offline_data->scalar_partitioner();
+  // const auto &from_dof_handler = app->levels[from_level]->offline_data->dof_handler();
+
+  // const auto &to_partitioner = app->levels[to_level]->offline_data->scalar_partitioner();
+  // const auto &to_dof_handler = app->levels[to_level]->offline_data->dof_handler();
+  // const auto &to_constraints = app->levels[to_level]->offline_data->affine_constraints();
+
+  // const auto &comm = app->comm_x;
+
+  // // Reinit the components to match the correct info.
+  // from_component.reinit(from_partitioner,comm);
+  // to_component.reinit(to_partitioner,comm);
+
+  // // If the level we want to go to is less than the one we are from, we are interpolating to a finer mesh, so we use the corresponding function. 
+  // // Otherwise, we are interpolating to a coarser mesh, and use that function.
+
+  // if(to_level < from_level) {
+  //   for(unsigned int comp=0; comp<problem_dimension; comp++)
+  //   {
+  //     // extract component
+  //     from_v.U.extract_component(from_component, comp);
+  //     // interpolate this into the to_component
+  //     dealii::VectorTools::interpolate_to_finer_mesh(
+  //         from_dof_handler,
+  //         from_component,
+  //         to_dof_handler,
+  //         to_constraints,
+  //         to_component);
+  //     // place component
+  //     to_v.U.insert_component(to_component, comp);
+  //   }
+  // } else {
+  //   for(unsigned int comp=0; comp<problem_dimension; comp++)
+  //   {
+  //     // extract component
+  //     from_v.U.extract_component(from_component, comp);
+  //     // interpolate this into the to_component
+  //     dealii::VectorTools::interpolate_to_coarser_mesh(
+  //         from_dof_handler,
+  //         from_component,
+  //         to_dof_handler,
+  //         to_constraints,
+  //         to_component);
+  //     // place component
+  //     to_v.U.insert_component(to_component, comp);
+  //   }
+  // }
+  // to_v.U.update_ghost_values();
+
+
   const unsigned int problem_dimension = app->problem_dimension;
   const auto &from_partitioner = app->levels[from_level]->offline_data->scalar_partitioner();
-  const auto &from_dof_handler = app->levels[from_level]->offline_data->dof_handler();
-
   const auto &to_partitioner = app->levels[to_level]->offline_data->scalar_partitioner();
-  const auto &to_dof_handler = app->levels[to_level]->offline_data->dof_handler();
-  const auto &to_constraints = app->levels[to_level]->offline_data->affine_constraints();
-
   const auto &comm = app->comm_x;
 
-  // Reinit the components to match the correct info.
+  // print_partition(*from_partitioner);
+  // print_partition(*to_partitioner);
+  //reinit the components to match the correct info.
   from_component.reinit(from_partitioner,comm);
   to_component.reinit(to_partitioner,comm);
 
-  // If the level we want to go to is less than the one we are from, we are interpolating to a finer mesh, so we use the corresponding function. 
-  // Otherwise, we are interpolating to a coarser mesh, and use that function.
-
-  if(to_level < from_level) {
-    for(unsigned int comp=0; comp<problem_dimension; comp++)
-    {
-      // extract component
-      from_v.U.extract_component(from_component, comp);
-      // interpolate this into the to_component
-      dealii::VectorTools::interpolate_to_finer_mesh(
-          from_dof_handler,
-          from_component,
-          to_dof_handler,
-          to_constraints,
-          to_component);
-      // place component
-      to_v.U.insert_component(to_component, comp);
-    }
-  } else {
-    for(unsigned int comp=0; comp<problem_dimension; comp++)
-    {
-      // extract component
-      from_v.U.extract_component(from_component, comp);
-      // interpolate this into the to_component
-      dealii::VectorTools::interpolate_to_coarser_mesh(
-          from_dof_handler,
-          from_component,
-          to_dof_handler,
-          to_constraints,
-          to_component);
-      // place component
-      to_v.U.insert_component(to_component, comp);
-    }
+  for(unsigned int comp=0; comp<problem_dimension; comp++)
+  {
+    // extract component
+    from_v.U.extract_component(from_component, comp);
+    // interpolate this into the to_component
+    dealii::VectorTools::interpolate_to_different_mesh(
+        app->levels[from_level]->offline_data->dof_handler(),
+        from_component,
+        app->levels[to_level]->offline_data->dof_handler(),
+        to_component);
+    // place component
+    to_v.U.insert_component(to_component, comp);
   }
   to_v.U.update_ghost_values();
 }
