@@ -171,6 +171,7 @@ namespace mgrit_functions{
       // Modify the primitive state to be physical.
       // We only need to ensure that the density and pressure are positive. Velocities can be negative.
       // todo: is this true? do we need to make sure that the velocities are not too large if we decrease pressure? is the number here good enough (1e-8)?
+      // todo: we need to make this actually a template, and use the physicality from the description...
       primitive_state[0] = std::max(primitive_state[0], Number(1e-8));
       primitive_state[dim + 1] = std::max(primitive_state[dim + 1], Number(1e-8));
 
