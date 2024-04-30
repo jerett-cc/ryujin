@@ -1029,7 +1029,8 @@ my_Access(braid_App          app,
       enforce_physicality_bounds<ryujin::Euler::Description, 2, NUMBER>(
         *u, app->finest_level, *app, t);
 #ifdef CHECK_BOUNDS
-    test_physicality<braid_Vector, 2>(u, app, 0, "my_Access: u when caller is FInterp.");
+    test_physicality<braid_Vector,2>(
+        u, app, 0, "my_Access: u when caller is FInterp_Projection.");
 #endif
   }
 
@@ -1039,6 +1040,8 @@ my_Access(braid_App          app,
     {//FIXME: this only prints for the [0,5] time interval at specific points. Make this more general.
       print_solution(u->U, app, t, 0/*level, always needs to be zero, to be fixed*/, fname);
     }
+
+
   //calculate drag and lift for this solution on level 0
   //TODO: insert drag and lift calculation call.
   dealii::Tensor<1,2> forces = calculate_drag_and_lift(*u,*app,t,2/*dim*/);
