@@ -43,12 +43,12 @@ $(BUILDDIR)/$(MAKE_FILE):
 debug:
 	@mkdir -p $(BUILDDIR)
 	@cd $(BUILDDIR) && cmake -DCMAKE_BUILD_TYPE=Debug -G$(GENERATOR) $(SOURCEDIR)
-	@cd $(BUILDDIR) && $(MAKE_COMMAND) -j4
+	@cd $(BUILDDIR) && $(MAKE_COMMAND) -j${JOBS}
 
 release:
 	@mkdir -p $(BUILDDIR)
 	@cd $(BUILDDIR) && cmake -DCMAKE_BUILD_TYPE=Release -G$(GENERATOR) $(SOURCEDIR)
-	@cd $(BUILDDIR) && $(MAKE_COMMAND) -j4
+	@cd $(BUILDDIR) && $(MAKE_COMMAND) -j${JOBS}
 
 Makefile:
 	
