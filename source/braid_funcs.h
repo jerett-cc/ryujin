@@ -1164,7 +1164,7 @@ my_BufUnpack(braid_App           app,
   }
 
   NUMBER *dbuffer = (NUMBER*)buffer;
-  unsigned int buf_size = static_cast<unsigned int>(dbuffer[0]);//TODO: is this dangerous?
+  // unsigned int buf_size = static_cast<unsigned int>(dbuffer[0]);//TODO: is this dangerous?
   const int problem_dimension = app->problem_dimension;
 
   // The vector should be size (dim + 2) X n_dofs at finest level.
