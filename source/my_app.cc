@@ -355,7 +355,9 @@ namespace mgrit{
     pstatus.GetTstartTstop(&lvl_tstart, &lvl_tstop);
 
     // Ensure this is a physical vector.
-    mgrit_functions::enforce_physicality_bounds<ryujin::Euler::Description, 2, NUMBER>(*u_, finest_level, *this, lvl_tstart);
+    mgrit_functions::
+        enforce_physicality_bounds<Description, 2, NUMBER>(
+            *u_, finest_level, *this, lvl_tstart);
 
     if (1 /*this was a mpi comm id check before FIXME*/) {
       std::cout << "[INFO] Stepping on level: " + std::to_string(level) +
@@ -627,7 +629,8 @@ namespace mgrit{
       fname = fname + "caller_FInterp_Projection";
       std::cout << "Access called for " + fname << " enforcing physicality bounds after summing in FInterp." << std::endl;
       // Call the stability projection function.
-      mgrit_functions::enforce_physicality_bounds<Description, 2, Number>(*u_, finest_level, *this, t);
+      mgrit_functions::enforce_physicality_bounds<Description, 2, Number>(
+          *u_, finest_level, *this, t);
 #ifdef CHECK_BOUNDS
       test_physicality<2>(
           u_->U, 0, "my_Access: u when caller is FInterp_Projection.");
