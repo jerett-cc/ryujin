@@ -9,9 +9,11 @@ int main(int argc, char* argv[])
   mgrit::MyApp app(world, world, std::vector<unsigned int>({0, 1}));
   app.initialize("test.prm");
 
-  MyVector *v = new MyVector;
-  app.Init(2.5, &v);
+  braid_Vector *v = new(braid_Vector);
+  app.Init(2.5, v);
 
   std::string fname = "./test_init_at_" + std::to_string(2.5);
-  app.time_loops[0]->output_wrapper(v->U, fname, 2.5 /*current time*/, 0 /*cycle*/);
+  mgrit::MyVector *v_ = (mgrit::MyVector *)v;
+  app.print_solution(v_->U, 2.5, app.finest_level, fname, false, -1);
+  delete v;
 }
