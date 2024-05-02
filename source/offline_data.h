@@ -79,9 +79,9 @@ namespace ryujin
      * The problem_dimension parameter is used to setup up an
      * appropriately sized vector partitioner for the MultiComponentVector.
      */
-    void prepare(const unsigned int problem_dimension)
+    void prepare(const unsigned int problem_dimension, const bool exists_in_hierarchy = false)
     {
-      setup(problem_dimension);
+      setup(problem_dimension, exists_in_hierarchy);
       assemble();
       create_multigrid_data();
     }
@@ -243,7 +243,7 @@ namespace ryujin
      * The problem_dimension parameter is used to setup up an appropriately
      * sized vector partitioner for the MultiComponentVector.
      */
-    void setup(const unsigned int problem_dimension);
+    void setup(const unsigned int problem_dimension, const bool exists_in_hierarchy);
 
     /**
      * Assemble all matrices.
