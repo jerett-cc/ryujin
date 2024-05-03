@@ -998,57 +998,72 @@ my_Access(braid_App          app,
           braid_Vector       u,
           braid_AccessStatus astatus)
 {
-  if (dealii::Utilities::MPI::this_mpi_process(app->comm_t) == 0)
-  {
-    std::cout << "[INFO] Access Called" << std::endl;
-  }
-  static int mgCycle = 0;
   braid_Int caller_id;
+  static int mgCycle = 0;
   double t = 0;
 
-  //state what iteration we are on, and what time t we are at.
+  // state what iteration we are on, and what time t we are at.
+  braid_AccessStatusGetCallingFunction(astatus, &caller_id);
   braid_AccessStatusGetIter(astatus, &mgCycle);
   braid_AccessStatusGetT(astatus, &t);
-  braid_AccessStatusGetCallingFunction(astatus, &caller_id);
-
-
-  if (dealii::Utilities::MPI::this_mpi_process(app->comm_t) == 0)
-  {
-    std::cout << "Cycles done: " << mgCycle << std::endl;
-  }
 
   std::string fname = "./cycle" + std::to_string(mgCycle);
   // If caller is equal to Projection, we modify the vector to be stable, then
-  // in debug, we would also test this.
-  if (caller_id && caller_id == braid_ASCaller_FInterp_Projection) {
-    fname = fname + "caller_FInterp_Projection";
-    std::cout << "Access called for " + fname
-              << " enforcing physicality bounds after summing in FInterp."
-              << std::endl;
-    // Call the stability projection function.
+  // in debug, we would also test this. If the caller is access, we are at the
+  // end of a MG iteration, so we postprocess and print the solution.
+  switch (caller_id) 
+  {
+    case braid_ASCaller_FInterp_Projection: 
+    {
+      fname = fname + "caller_FInterp_Projection";
+      std::cout << "Access called for " + fname
+                << " enforcing physicality bounds after summing in FInterp."
+                << std::endl;
+      // Call the stability projection function.
       enforce_physicality_bounds<ryujin::Euler::Description, 2, NUMBER>(
-        *u, app->finest_level, *app, t);
+          *u, app->finest_level, *app, t);
 #ifdef CHECK_BOUNDS
-    test_physicality<braid_Vector,2>(
-        u, app, 0, "my_Access: u when caller is FInterp_Projection.");
+      test_physicality<braid_Vector, 2>(
+          u, app, 0, "my_Access: u when caller is FInterp_Projection.");
 #endif
-  }
-
-  if(app->print_solution_bool && (std::abs(t-0)< 1e-6 ||std::abs(t-1.25) < 1e-6 
-			     || std::abs(t-2.5) < 1e-6 || std::abs(t-3.75) < 1e-6
-			     || std::abs(t-5.0) < 1e-6))
-    {//FIXME: this only prints for the [0,5] time interval at specific points. Make this more general.
-      print_solution(u->U, app, t, 0/*level, always needs to be zero, to be fixed*/, fname);
+      break;
     }
+    case braid_ASCaller_FAccess: 
+    {
+      if (app->print_solution_bool &&
+          (std::abs(t - 0) < 1e-6 || std::abs(t - 1.25) < 1e-6 ||
+          std::abs(t - 2.5) < 1e-6 || std::abs(t - 3.75) < 1e-6 ||
+          std::abs(t - 5.0) <
+              1e-6)) { // FIXME: this only prints for the [0,5] time interval at
+                        // specific points. Make this more general.
+        print_solution(u->U,
+                      app,
+                      t,
+                      0 /*level, always needs to be zero, to be fixed*/,
+                      fname);
+      }
 
+      // calculate drag and lift for this solution on level 0
+      // TODO: insert drag and lift calculation call.
+      dealii::Tensor<1, 2> forces =
+          calculate_drag_and_lift(*u, *app, t, 2 /*dim*/);
+      std::cout << "cycle." + std::to_string(mgCycle) + " drag." +
+                      std::to_string(forces[0]) + " lift." +
+                      std::to_string(forces[1]) + " time." + std::to_string(t)
+                << std::endl;
 
-  //calculate drag and lift for this solution on level 0
-  //TODO: insert drag and lift calculation call.
-  dealii::Tensor<1,2> forces = calculate_drag_and_lift(*u,*app,t,2/*dim*/);
-  std::cout << "cycle." + std::to_string(mgCycle) + " drag." +std::to_string(forces[0]) 
-              + " lift." + std::to_string(forces[1]) + " time." +std::to_string(t) << std::endl;
-  
-  app->n_cycles = mgCycle;
+      app->n_cycles = mgCycle;
+
+      if (dealii::Utilities::MPI::this_mpi_process(app->comm_t) == 0) {
+        std::cout << "Cycles done: " << mgCycle << std::endl;
+      }
+      break;
+    }
+    default: 
+    {
+      break;
+    }
+  }
 
   return 0;
 }

@@ -607,58 +607,72 @@ namespace mgrit{
   braid_Int MyApp::Access(braid_Vector u, BraidAccessStatus &astatus)
   {
     MyVector *u_ = (MyVector *) u;
-    if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
-      std::cout << "[INFO] Access Called" << std::endl;
-    }
-    static int mgCycle = 0;
+
     braid_Int caller_id;
+    static int mgCycle = 0;
     double t = 0;
 
     // state what iteration we are on, and what time t we are at.
+    astatus.GetCallingFunction(&caller_id);
     astatus.GetIter(&mgCycle);
     astatus.GetT(&t);
-    astatus.GetCallingFunction(&caller_id);
 
-    if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
-      std::cout << "Cycles done: " << mgCycle << std::endl;
-    }
+   std::string fname = "./cycle" + std::to_string(mgCycle);
 
-    std::string fname = "./cycle" + std::to_string(mgCycle);
-    // If caller is equal to Projection, we modify the vector to be stable, then in debug, we would also test this.
-    if (caller_id && caller_id == braid_ASCaller_FInterp_Projection) {
-      fname = fname + "caller_FInterp_Projection";
-      std::cout << "Access called for " + fname << " enforcing physicality bounds after summing in FInterp." << std::endl;
-      // Call the stability projection function.
-      mgrit_functions::enforce_physicality_bounds<Description, 2, Number>(
-          *u_, finest_level, *this, t);
+    switch (caller_id) 
+    {
+      case braid_ASCaller_FInterp_Projection:
+      {
+        fname = fname + "caller_FInterp_Projection";
+        std::cout << "Access called for " + fname
+                  << " enforcing physicality bounds after summing in FInterp."
+                  << std::endl;
+        // Call the stability projection function.
+        mgrit_functions::enforce_physicality_bounds<Description, 2, Number>(
+            *u_, finest_level, *this, t);
 #ifdef CHECK_BOUNDS
-      test_physicality<2>(
-          u_->U, 0, "my_Access: u when caller is FInterp_Projection.");
+        test_physicality<2>(
+            u_->U, 0, "my_Access: u when caller is FInterp_Projection.");
 #endif
+        break;
+      }
+      case braid_ASCaller_FAccess: 
+      {
+        if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
+          std::cout << "[INFO] Access Called" << std::endl;
+        }
+
+        if (print_solution_bool &&
+            (std::abs(t - 0) < 1e-6 || std::abs(t - 1.25) < 1e-6 ||
+             std::abs(t - 2.5) < 1e-6 || std::abs(t - 3.75) < 1e-6 ||
+             std::abs(t - 5.0) <
+                 1e-6)) { // FIXME: this only prints for the [0,5] time interval
+                          // at specific points. Make this more general.
+          print_solution(
+              u_->U, t, finest_level /*level that u lives on*/, fname);
+        }
+        if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
+          std::cout << "Cycles done: " << mgCycle << std::endl;
+        }
+        // calculate drag (at end of cycle...)
+        dealii::Tensor<1, 2> forces =
+            mgrit_functions::calculate_drag_and_lift<2>(this, *u_, t);
+        std::cout << "cycle." + std::to_string(mgCycle) + " drag." +
+                         std::to_string(forces[0]) + " lift." +
+                         std::to_string(forces[1]) + " time." +
+                         std::to_string(t)
+                  << std::endl;
+
+        n_cycles = mgCycle;
+        break;
+      }
+      default:
+      {
+        break;
+      }
     }
 
-    if (print_solution_bool &&
-        (std::abs(t - 0) < 1e-6 || std::abs(t - 1.25) < 1e-6 ||
-         std::abs(t - 2.5) < 1e-6 || std::abs(t - 3.75) < 1e-6 ||
-         std::abs(t - 5.0) <
-             1e-6)) { // FIXME: this only prints for the [0,5] time interval at
-                      // specific points. Make this more general.
-      print_solution(
-          u_->U, t, 0 /*level, always needs to be zero, to be fixed*/, fname);
-    }
-    // calculate drag and lift for this solution on level 0
-    // TODO: insert drag and lift calculation call. and think about when to call
-    // calculate drag (at end of cycle...)
-    dealii::Tensor<1, 2> forces =
-        mgrit_functions::calculate_drag_and_lift<2>(this, *u_, t);
-    std::cout << "cycle." + std::to_string(mgCycle) + " drag." +
-                     std::to_string(forces[0]) + " lift." +
-                     std::to_string(forces[1]) + " time." + std::to_string(t)
-              << std::endl;
-
-    n_cycles = mgCycle;
-
-    return 0;
+      return 0;
   }
 
   braid_Int MyApp::BufSize(braid_Int *size_ptr,
