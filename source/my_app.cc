@@ -611,11 +611,13 @@ namespace mgrit{
     braid_Int caller_id;
     static int mgCycle = 0;
     double t = 0;
+    braid_Int t_idx;
 
     // state what iteration we are on, and what time t we are at.
     astatus.GetCallingFunction(&caller_id);
     astatus.GetIter(&mgCycle);
     astatus.GetT(&t);
+    astatus.GetTIndex(&t_idx);
 
    std::string fname = "./cycle" + std::to_string(mgCycle);
 
@@ -649,7 +651,7 @@ namespace mgrit{
                  1e-6)) { // FIXME: this only prints for the [0,5] time interval
                           // at specific points. Make this more general.
           print_solution(
-              u_->U, t, finest_level /*level that u lives on*/, fname);
+              u_->U, t, finest_level /*level that u lives on*/, fname, false,t_idx);
         }
         if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
           std::cout << "Cycles done: " << mgCycle << std::endl;
