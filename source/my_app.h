@@ -72,6 +72,8 @@ namespace mgrit{
         std::shared_ptr<ryujin::mgrit::LevelStructures<Description, 2, Number>>;
     using TimeLoopType =
         std::shared_ptr<ryujin::TimeLoop<Description, 2, Number>>;
+    using OfflineDataType = ryujin::OfflineData<2,Number>;
+    using DiscretizationType = ryujin::Discretization<2>;
     using HyperbolicSystemView =
         typename Description::template HyperbolicSystemView<2, Number>;
     static constexpr unsigned int problem_dimension =
@@ -253,5 +255,13 @@ namespace mgrit{
     braid_Int n_relax;
     unsigned int n_cycles = 0;
     braid_Int access_level;
+
+    // A vector used to store ALL levels of refinement offline_data for when we
+    // need to interpolate vectors between levels.
+    std::vector<std::shared_ptr<DiscretizationType>> discretization_vec;
+    std::vector<std::shared_ptr<OfflineDataType>> offline_data_vec;
+    // A map that stores the index in the levels in the consistend
+    std::map<int, int> level_map;
+
   };
 }// Namespace mgrit

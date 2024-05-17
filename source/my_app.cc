@@ -65,6 +65,8 @@ namespace mgrit{
       , refinement_levels(a_refinement_levels)
       , time_loops(a_refinement_levels.size())
       , finest_level(0) // for XBRAID, the finest level is always 0.
+      , discretization_vec(1)
+      , offline_data_vec(1) // initialize this with only one level, will resize later.
   {
     coarsest_level = refinement_levels.size() - 1;
     print_solution_bool = false;
@@ -120,11 +122,66 @@ namespace mgrit{
 
     create_mg_levels();
 
+    // Set up the offline_data_vec a vector of pointers to all the
+    // offline_data's for all levels between the finest and coarsest levels we
+    // actually care about.
+    const int n_total_refinements =
+        refinement_levels.front() - refinement_levels.back()+1;//inclusive
+    const int most_refinement = refinement_levels.front();//index of most refined obj
+    const int least_refinement = refinement_levels.back();//index of least refined obj
+
+    discretization_vec.resize(n_total_refinements);
+    offline_data_vec.resize(n_total_refinements);
+    level_map[0] = 0;//The finest level is always at index 0.
+
+    int iter = 0;
+    for (int lvl = most_refinement; 
+         lvl >= least_refinement;
+         lvl--) {
+      std::cout << lvl << std::endl;
+      if (std::find(refinement_levels.begin(),
+                    refinement_levels.end(),
+                    lvl) != refinement_levels.end()) {
+                      std::cout << "exists"<< std::endl;
+        discretization_vec[most_refinement-lvl] = levels[iter]->discretization;
+        offline_data_vec[most_refinement-lvl] = levels[iter]->offline_data;
+        level_map[iter] =
+            most_refinement -
+            lvl; // The lvl, if it is one we care about for computations, lives
+                 // in the offline_data_vec at index most_refinement-lvl, which
+                 // in principle is not the same at lvl.
+        iter++;
+      } else {
+        std::cout << "does not exist" << std::endl;
+        discretization_vec[most_refinement-lvl] = std::make_shared<DiscretizationType>(
+            comm_x, lvl, "/C - Discretization");
+        offline_data_vec[most_refinement-lvl] = std::make_shared<OfflineDataType>(comm_x, 
+                                                                *discretization_vec[most_refinement-lvl],
+                                                                "/OfflineData");
+      }
+    }
     // now that levels are all created, we parse the parameter file.
     dealii::ParameterAcceptor::initialize(prm_file);
 
     // all parameters defined, we can now call all objects prepare function.
     prepare_mg_objects();
+
+    // Prepare the additional offline_data and discretizations.
+    for (int lvl = most_refinement; lvl >= least_refinement; lvl--) {
+      // If we don't find this level already set up, we prepare it.
+      if (std::find(refinement_levels.begin(),
+                    refinement_levels.end(),
+                    lvl) == refinement_levels.end()) {
+        if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
+          std::cout << "Preparing additional offline_data and "
+                       "discretization for interpolation purposes."
+                    << std::endl;
+        }
+        discretization_vec[most_refinement-lvl]->prepare();
+        offline_data_vec[most_refinement-lvl]->prepare(problem_dimension, false);
+      }
+    }
+
     //   initialized = true; // now the user can access data in app. TODO:
     //   implement a
     // check for getter functions.
