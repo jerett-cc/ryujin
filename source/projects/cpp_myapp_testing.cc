@@ -15,7 +15,7 @@ int main(int argc, char* argv[])
               "and a multigrid hierarcy. Here, the number of additional parameters needed is at least:" + std::to_string(4-argc)));
   const std::string prm_name(argv[1]);// prm file
   const int px = std::stoi(argv[2]);  // number of processors to use in space
-  std::vector<unsigned int> refinement_levels(argc - 3);// the vector of refinement levels are equal to the number of remaining arguments, set to argc-3, where 3 is the number of arguments needed before the mg_hierarchy
+  std::vector<int> refinement_levels(argc - 3);// the vector of refinement levels are equal to the number of remaining arguments, set to argc-3, where 3 is the number of arguments needed before the mg_hierarchy
   for(int i = 3; i < argc; i++)
     refinement_levels[i-3] = std::stoi(argv[i]);
 
@@ -40,7 +40,7 @@ int main(int argc, char* argv[])
                        &comm_x,
                        &comm_t);
 
-  mgrit::MyApp app(MPI_COMM_WORLD, MPI_COMM_WORLD, std::vector<unsigned int>({1, 2, 4}));
+  mgrit::MyApp app(comm_x, comm_t, refinement_levels);
   app.initialize(prm_name);
 
   std::cout << "ntime in app: " << app.ntime << std::endl;

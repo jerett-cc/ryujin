@@ -6,7 +6,7 @@ int main(int argc, char* argv[])
 {
   dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
   braid_MPI_Comm world = MPI_COMM_WORLD;
-  mgrit::MyApp app(world, world, std::vector<unsigned int>({0, 1}));
+  mgrit::MyApp app(world, world, std::vector<int>({0, 1}));
   app.initialize("test.prm");
 
   braid_Vector *v = new(braid_Vector);

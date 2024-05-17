@@ -100,7 +100,7 @@ namespace mgrit{
     /// refined 4 times on the finest, 2 times on the middle, and once at
     MyApp(const MPI_Comm comm_x,
           const MPI_Comm comm_t,
-          const std::vector<unsigned int> a_refinement_levels);
+          const std::vector<int> a_refinement_levels);
 
     /// @brief Destructor.
     virtual ~MyApp();
@@ -115,7 +115,7 @@ namespace mgrit{
     /// datastructures that are associated to @ u.
     /// @param u
     /// @param level
-    void reinit_to_level(MyVector *u, const unsigned int level);
+    void reinit_to_level(MyVector *u, const int level);
 
     /// @brief Interpolates a vector to a vector which may live on a different
     /// spatial mesh.
@@ -124,9 +124,9 @@ namespace mgrit{
     /// @param from_v The vector we wish to interpolate from.
     /// @param from_level Its level.
     void interpolate_between_levels(vector_type &to_v,
-                                    const unsigned int to_level,
+                                    const int to_level,
                                     const vector_type &from_v,
-                                    const unsigned int from_level);
+                                    const int from_level);
 
     /// @brief Tests that density, Entropy, Pressure are all physical. Exits the
     /// program if not.
@@ -138,7 +138,7 @@ namespace mgrit{
     /// done.
     template <int dim> // TODO: does this need to be templated?
     void test_physicality(const vector_type u,
-                          const unsigned int level,
+                          const int level,
                           std::string where = "");
 
     template <int dim>
@@ -154,7 +154,7 @@ namespace mgrit{
     /// @param cycle The Multigrid Cycle in which the vector is in.
     void print_solution(vector_type &v,
                         const double t = 0,
-                        const unsigned int level = 0,
+                        const int level = 0,
                         const std::string fname = "./test-output",
                         const bool time_in_fname = true,
                         const unsigned int cycle = 0);
@@ -162,7 +162,7 @@ namespace mgrit{
     /// @brief Returns the number of locally owned dofs at the specified level.
     /// @param level Level we are querying.
     /// @return Number of dofs owned on this process, at this level.
-    unsigned int n_locally_owned_at_level(const unsigned int level) const;
+    unsigned int n_locally_owned_at_level(const int level) const;
 
   private:
     /// Creates all objects ryujin needs to run.
@@ -239,7 +239,7 @@ namespace mgrit{
     const MPI_Comm
         comm_x; // todo: can I make this const? uninitialized communicators now.
     std::vector<LevelType> levels; // instantiation
-    std::vector<unsigned int> refinement_levels;
+    std::vector<int> refinement_levels;
     std::vector<TimeLoopType> time_loops;
     braid_Int finest_level, coarsest_level;
     unsigned int n_fine_dofs;

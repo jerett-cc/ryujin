@@ -57,7 +57,7 @@
 namespace mgrit{
   MyApp::MyApp(const MPI_Comm comm_x,
                const MPI_Comm comm_t,
-               const std::vector<unsigned int> a_refinement_levels)
+               const std::vector<int> a_refinement_levels)
       : BraidApp(comm_t)
       , ParameterAcceptor("/App")
       , comm_x(comm_x)
@@ -180,9 +180,9 @@ namespace mgrit{
   }
 
   void MyApp::interpolate_between_levels(vector_type &to_v,
-                                         const unsigned int to_level,
+                                         const int to_level,
                                          const vector_type &from_v,
-                                         const unsigned int from_level)
+                                         const int from_level)
   {
     Assert((to_v.size() == levels[to_level]->offline_data->dof_handler().n_dofs()*problem_dimension)
       , dealii::ExcMessage("Trying to interpolate to a vector and level where the n_dofs do not match will not work."));
@@ -272,7 +272,7 @@ namespace mgrit{
 
   template <int dim>
   void MyApp::test_physicality(const vector_type u,
-                               const unsigned int level,
+                               const int level,
                                std::string where)
   {
     std::cout << "Testing Physicality in location " + where << std::endl;
@@ -315,7 +315,7 @@ namespace mgrit{
 
   void MyApp::print_solution(vector_type &v,
                              const double t,
-                             const unsigned int level,
+                             const int level,
                              const std::string fname,
                              const bool time_in_fname,
                              const unsigned int cycle)
@@ -330,7 +330,7 @@ namespace mgrit{
     }
   }
 
-  unsigned int MyApp::n_locally_owned_at_level(const unsigned int level) const
+  unsigned int MyApp::n_locally_owned_at_level(const int level) const
   {
     return levels[level]->offline_data->n_locally_owned();
   }
