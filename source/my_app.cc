@@ -117,8 +117,15 @@ namespace mgrit{
     // this matches the fact that Xbraid has the finest level of MG
     // as 0. I.E. the most refined data is accessed with refinement_levels[0]
     std::sort(refinement_levels.rbegin(), refinement_levels.rend());
-    // TODO: need to make a way to remove duplicates, or at least warn user
-    // that duplicate refinement levels are inefficient.
+    // Test that the refinement levels are in the right order.
+    Assert(
+        (refinement_levels.front() - refinement_levels.back() > 0),
+        dealii::ExcMessage(
+            "Refinement levels is not ordered in a proper way. Here, front()=" +
+            std::to_string(refinement_levels.front()) +
+            " and back()=" + std::to_string(refinement_levels.back())));
+        // TODO: need to make a way to remove duplicates, or at least warn user
+        // that duplicate refinement levels are inefficient.
 
     create_mg_levels();
 
@@ -227,9 +234,9 @@ namespace mgrit{
     n_locally_owned_dofs = levels[0]->offline_data->n_locally_owned();
   }
 
-  void MyApp::reinit_to_level(MyVector *u, const unsigned int level)
+  void MyApp::reinit_to_level(MyVector *u, const int level)
   {
-    Assert(levels.size() > level,
+    Assert(levels.size() > static_cast<unsigned int>(level),
            dealii::ExcMessage("The level being reinitialized does not exist."));
     u->U.reinit_with_scalar_partitioner(
         levels[level]->offline_data->scalar_partitioner());
@@ -241,8 +248,11 @@ namespace mgrit{
                                          const vector_type &from_v,
                                          const int from_level)
   {
-    Assert((to_v.size() == levels[to_level]->offline_data->dof_handler().n_dofs()*problem_dimension)
-      , dealii::ExcMessage("Trying to interpolate to a vector and level where the n_dofs do not match will not work."));
+    Assert(
+        (to_v.size() == levels[to_level]->offline_data->dof_handler().n_dofs() *
+                            problem_dimension),
+        dealii::ExcMessage("Trying to interpolate to a vector and level where "
+                           "the n_dofs do not match will not work."));
     Assert(
         (to_level != from_level),
         dealii::ExcMessage(
@@ -251,80 +261,179 @@ namespace mgrit{
             " from_level=" + std::to_string(from_level) +
             "this is a waste of time, just use the same vector, or make a "
             "copy."));
+    Assert(((to_level >= 0) && (from_level >= 0)),
+           dealii::ExcMessage("You cannot interpolate to or from a level that "
+                              "is negaitve, all levels are non-negative."));
 
     using scalar_type = ryujin::OfflineData<2, NUMBER>::scalar_type;
-    scalar_type from_component, to_component;
+    scalar_type next_component, curr_component;
 
-    std::cout << "Interpolating from level " << from_level << " to level "
-              << to_level << std::endl;
-    const auto &from_partitioner =
-        levels[from_level]->offline_data->scalar_partitioner();
-    const auto &from_dof_handler =
-        levels[from_level]->offline_data->dof_handler();
-    const auto &from_constraints =
-        levels[from_level]->offline_data->affine_constraints();
-    // const dealii::AffineConstraints<NUMBER> from_affine_constraints_tmp;
-    // from_affine_constraints_tmp.copy_from(from_constraints);
+    // First, set up a vector of pointers to vectors which will correspond to
+    // data at each level, inclusive of th e level we start interpolation.
+    std::vector<vector_type*> level_vectors(std::abs(level_map[from_level]-level_map[to_level])+1);
+    
+    // Initialize each of these TODO: memory unsafe? see end of function.
+    for(auto &lvl_v : level_vectors)
+      lvl_v = new vector_type();
+    
+    // Copy the incoming data to be interpolated.
+    vector_type CV(from_v);
+    // Store this as the first entry in the temporary vector.
+    level_vectors[0] = &CV;
 
-    const auto &to_partitioner =
-        levels[to_level]->offline_data->scalar_partitioner();
-    const auto &to_dof_handler = levels[to_level]->offline_data->dof_handler();
-    const auto &to_constraints =
-        levels[to_level]->offline_data->affine_constraints();
-    // const dealii::AffineConstraints to_affine_constraints_tmp;
-    // from_affine_constraints_tmp.copy_from(to_constraints);
+    // Set up dumy final_vector
+    vector_type FV;
 
-    // ryujin::transform_to_local_range(from_partitioner,
-    //                                  from_affine_constraints_tmp);
-    // ryujin::transform_to_local_range(to_partitioner, to_affine_constraints_tmp);
+    const bool up = true;
+    const bool down = false;
+    // Figure out the direction we need to loop, up or down. Set start_lvl and end_lvl accordingly
+    const bool dir = (to_level < from_level) ? down : up;
 
-    const auto &comm = comm_x;
+    // Looping from start to end, interpolate from curr_lvl to curr_lvl +- 1 and interpolate, 
+    // until we reach the stop_lvl. Once we reach the last lvl, set next_v to be the to_v
+    int iter = 0;
+    if(dir == up)//corresponts to ++ and incrementing with +
+    {
+      int lvl_iter = iter;
+      for(int curr_lvl = level_map[from_level]; curr_lvl < level_map[to_level]; curr_lvl++)
+      {
+        const int next_lvl = curr_lvl+1;
+        Assert(((unsigned int)(lvl_iter+1) < level_vectors.size()),
+               dealii::ExcMessage("The next level in the interpolation will "
+                                  "index you out of bounds."));
+        vector_type* curr_v = level_vectors[lvl_iter];
+        // If the next level is out last, we will be modifying the to_v, not one
+        // of the temp_vectors.
+        vector_type* next_v = (next_lvl != to_level) ?  level_vectors[lvl_iter+1] : &to_v;
+        const auto &curr_od = offline_data_vec[curr_lvl];
+        const auto &curr_dof_handl = curr_od->dof_handler();
 
-    // Reinit the components to match the correct info.
-    from_component.reinit(from_partitioner, comm);
-    from_constraints.distribute(from_component);
+        const auto &next_od = offline_data_vec[next_lvl];
+        const auto &next_dof_handl = next_od->dof_handler();
+        const auto &next_constraints = next_od->affine_constraints();
+        
+        // If we are not on the final level, we will need to reinit the temp vector.
+        if(next_lvl != to_level)
+          next_v->reinit_with_scalar_partitioner(next_od->scalar_partitioner());
+        curr_component.reinit(curr_od->scalar_partitioner(), comm_x);
+        next_component.reinit(next_od->scalar_partitioner(), comm_x);
 
-    to_component.reinit(to_partitioner, comm);
-    to_constraints.distribute(
-        to_component); // Do we need to do this for the vector to which we are
-                       // interpolating?
-
-    from_component.update_ghost_values();
-    to_component.update_ghost_values(); // Do we need to do this for the vector
-                                        // to which we are interpolating?
-
-    // If the level we want to go to is less than the one we are from, we are
-    // interpolating to a finer mesh, so we use the corresponding function.
-    // Otherwise, we are interpolating to a coarser mesh, and use that function.
-
-    if (from_level < to_level) {
-      for (unsigned int comp = 0; comp < problem_dimension; comp++) {
-        // extract component
-        from_v.extract_component(from_component, comp);
-        // interpolate this into the to_component
-        dealii::VectorTools::interpolate_to_coarser_mesh(from_dof_handler,
-                                                         from_component,
-                                                         to_dof_handler,
-                                                         to_constraints,
-                                                         to_component);
-        // place component
-        to_v.insert_component(to_component, comp);
+        Assert(
+            (curr_dof_handl.get_triangulation().n_levels() ==
+             next_dof_handl.get_triangulation().n_levels() + 1),
+            dealii::ExcMessage(
+                "For interpolation, you can only interpolate between two "
+                "levels whos difference in levels is 1, which corresponds "
+                "to only one level of refinement that differentiates them. "
+                "Here, the coarser mesh has n_levels=" +
+                std::to_string(next_dof_handl.get_triangulation().n_levels()) +
+                " and the finer mesh has n_levels=" +
+                std::to_string(curr_dof_handl.get_triangulation().n_levels())));
+        // Extract and interpolate components.
+        for (unsigned int c = 0; c < problem_dimension; c++) 
+        {
+          // Extract comonent from curr_v
+          curr_v->extract_component(curr_component, c);
+          // Up also means we are interpolating to a coarser mesh.
+          dealii::VectorTools::interpolate_to_coarser_mesh(curr_dof_handl,
+                                                           curr_component,
+                                                           next_dof_handl,
+                                                           next_constraints,
+                                                           next_component);
+          // Place component in next_v
+          next_v->insert_component(next_component,c);
+        }
+        // Now, we set the current from the data of the one we just set.
+        // TODO: is this deleting the memory
+        // If we are down, we point the last entry in the vector to a dummy
+        // vector, since we delete them all at the end of this function, and we
+        // don't want to accidentally delete the outgoing data.
+        level_vectors[++iter] = (next_lvl != to_level) ?  next_v : &FV;
       }
     } else {
-      for (unsigned int comp = 0; comp < problem_dimension; comp++) {
-        // extract component
-        from_v.extract_component(from_component, comp);
-        // interpolate this into the to_component
-        dealii::VectorTools::interpolate_to_finer_mesh(from_dof_handler,
-                                                       from_component,
-                                                       to_dof_handler,
-                                                       to_constraints,
-                                                       to_component);
-        // place component
-        to_v.insert_component(to_component, comp);
+      // Down means we decrement the level.
+      Assert((level_map[from_level] > level_map[to_level]),
+             dealii::ExcMessage(
+                 "When interpolating to a down to a finer mesh, the index in "
+                 "the total "
+                 "levels vector of the from_level=" +
+                 std::to_string(from_level) + " which maps to index" +
+                 std::to_string(level_map[from_level]) +
+                 " needs to be bigger than the to_level=" +
+                 std::to_string(to_level) + " which maps to index " +
+                 std::to_string(level_map[to_level])));
+
+      int lvl_iter = iter;
+      // Decrement through the levels.
+      for(int curr_lvl = level_map[from_level]; curr_lvl > level_map[to_level]; curr_lvl--)
+      {
+        const int next_lvl = curr_lvl - 1;
+        Assert(
+            ((unsigned int)lvl_iter < level_vectors.size() && next_lvl >= to_level),
+             dealii::ExcMessage(
+                 "The next level in the interpolation will "
+                 "index you out of bounds, below zero, or the lvl_iter is "
+                 "larger than the level_vectors.size()"));
+        vector_type *curr_v = level_vectors[lvl_iter];
+        // If the next level is out last, we will be modifying the to_v, not
+        // one of the temp_vectors.
+        vector_type *next_v =
+            (next_lvl != to_level) ? level_vectors[lvl_iter + 1] : &to_v;
+        const auto &curr_od = offline_data_vec[curr_lvl];
+        const auto &curr_dof_handl = curr_od->dof_handler();
+
+        const auto &next_od = offline_data_vec[next_lvl];
+        const auto &next_dof_handl = next_od->dof_handler();
+        const auto &next_constraints = next_od->affine_constraints();
+
+        // If we are not on the final level, we will need to reinit the temp
+        // vector.
+        if (next_lvl != to_level)
+          next_v->reinit_with_scalar_partitioner(next_od->scalar_partitioner());
+        curr_component.reinit(curr_od->scalar_partitioner(), comm_x);
+        next_component.reinit(next_od->scalar_partitioner(), comm_x);
+
+        Assert((curr_dof_handl.get_triangulation().n_levels() ==
+                next_dof_handl.get_triangulation().n_levels() + 1),
+               dealii::ExcMessage(
+                   "For interpolation, you can only interpolate between two "
+                   "levels whos difference in levels is 1, which corresponds "
+                   "to only one level of refinement that differentiates them. "
+                   "Here, the coarser mesh has n_levels=" +
+                   std::to_string(
+                       next_dof_handl.get_triangulation().n_levels()) +
+                   " and the finer mesh has n_levels=" +
+                   std::to_string(
+                       curr_dof_handl.get_triangulation().n_levels())));
+        // Extract and interpolate components.
+        for (unsigned int c = 0; c < problem_dimension; c++) 
+        {
+          // Extract comonent from curr_v
+          curr_v->extract_component(curr_component, c);
+          // Up also means we are interpolating to a coarser mesh.
+          dealii::VectorTools::interpolate_to_finer_mesh(curr_dof_handl,
+                                                         curr_component,
+                                                         next_dof_handl,
+                                                         next_constraints,
+                                                         next_component);
+          // Place component in next_v
+          next_v->insert_component(next_component,c);
+        }
+        // Now, we set the current from the data of the one we just set.
+        // TODO: is this deleting the memory
+        // If we are down, we point the last entry in the vector to a dummy
+        // vector, since we delete them all at the end of this function, and we
+        // don't want to accidentally delete the outgoing data.
+        level_vectors[++iter] = (next_lvl != to_level) ?  next_v : &FV;
       }
+
+      // Delete all temp vectors.
+      // TODO: This seems like poor
+      // I feel like this accidentally deletes the to/from vectors.
+      for (auto &lvl_v : level_vectors)
+        delete lvl_v;
     }
-    to_v.update_ghost_values();
+    to_v.update_ghost_valuess();
   }
 
   template <int dim>
