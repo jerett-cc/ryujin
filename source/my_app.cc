@@ -275,15 +275,12 @@ namespace mgrit{
     // Initialize each of these TODO: memory unsafe? see end of function.
     for(auto &lvl_v : level_vectors)
       lvl_v = new vector_type();
-    
+    delete level_vectors[0];//remove the first one since we immediately replace it with a temp.
     // Copy the incoming data to be interpolated.
-    vector_type CV(from_v);
+    vector_type* CV = new vector_type(from_v);
     // Store this as the first entry in the temporary vector.
-    level_vectors[0] = &CV;
-
-    // Set up dumy final_vector
-    vector_type FV;
-
+    level_vectors[0] = CV;
+    
     const bool up = true;
     const bool down = false;
     // Figure out the direction we need to loop, up or down. Set start_lvl and end_lvl accordingly
@@ -291,10 +288,9 @@ namespace mgrit{
 
     // Looping from start to end, interpolate from curr_lvl to curr_lvl +- 1 and interpolate, 
     // until we reach the stop_lvl. Once we reach the last lvl, set next_v to be the to_v
-    int iter = 0;
+    int lvl_iter =0;
     if(dir == up)//corresponts to ++ and incrementing with +
     {
-      int lvl_iter = iter;
       for(int curr_lvl = level_map[from_level]; curr_lvl < level_map[to_level]; curr_lvl++)
       {
         const int next_lvl = curr_lvl+1;
@@ -304,7 +300,7 @@ namespace mgrit{
         vector_type* curr_v = level_vectors[lvl_iter];
         // If the next level is out last, we will be modifying the to_v, not one
         // of the temp_vectors.
-        vector_type* next_v = (next_lvl != to_level) ?  level_vectors[lvl_iter+1] : &to_v;
+        vector_type* next_v = (next_lvl != level_map[to_level]) ?  level_vectors[lvl_iter+1] : &to_v;
         const auto &curr_od = offline_data_vec[curr_lvl];
         const auto &curr_dof_handl = curr_od->dof_handler();
 
@@ -313,7 +309,7 @@ namespace mgrit{
         const auto &next_constraints = next_od->affine_constraints();
         
         // If we are not on the final level, we will need to reinit the temp vector.
-        if(next_lvl != to_level)
+        if(next_lvl != level_map[to_level])
           next_v->reinit_with_scalar_partitioner(next_od->scalar_partitioner());
         curr_component.reinit(curr_od->scalar_partitioner(), comm_x);
         next_component.reinit(next_od->scalar_partitioner(), comm_x);
@@ -343,14 +339,9 @@ namespace mgrit{
           // Place component in next_v
           next_v->insert_component(next_component,c);
         }
-        // Now, we set the current from the data of the one we just set.
-        // TODO: is this deleting the memory
-        // If we are down, we point the last entry in the vector to a dummy
-        // vector, since we delete them all at the end of this function, and we
-        // don't want to accidentally delete the outgoing data.
-        level_vectors[++iter] = (next_lvl != to_level) ?  next_v : &FV;
+        lvl_iter++;
       }
-    } else {
+    } else if (dir == down) {
       // Down means we decrement the level.
       Assert((level_map[from_level] > level_map[to_level]),
              dealii::ExcMessage(
@@ -363,13 +354,12 @@ namespace mgrit{
                  std::to_string(to_level) + " which maps to index " +
                  std::to_string(level_map[to_level])));
 
-      int lvl_iter = iter;
       // Decrement through the levels.
       for(int curr_lvl = level_map[from_level]; curr_lvl > level_map[to_level]; curr_lvl--)
       {
         const int next_lvl = curr_lvl - 1;
         Assert(
-            ((unsigned int)lvl_iter < level_vectors.size() && next_lvl >= to_level),
+            ((unsigned int)lvl_iter < level_vectors.size() && next_lvl >= level_map[to_level]),
              dealii::ExcMessage(
                  "The next level in the interpolation will "
                  "index you out of bounds, below zero, or the lvl_iter is "
@@ -378,7 +368,7 @@ namespace mgrit{
         // If the next level is out last, we will be modifying the to_v, not
         // one of the temp_vectors.
         vector_type *next_v =
-            (next_lvl != to_level) ? level_vectors[lvl_iter + 1] : &to_v;
+            (next_lvl != level_map[to_level]) ? level_vectors[lvl_iter + 1] : &to_v;
         const auto &curr_od = offline_data_vec[curr_lvl];
         const auto &curr_dof_handl = curr_od->dof_handler();
 
@@ -388,13 +378,18 @@ namespace mgrit{
 
         // If we are not on the final level, we will need to reinit the temp
         // vector.
-        if (next_lvl != to_level)
+        if (next_lvl != level_map[to_level])
           next_v->reinit_with_scalar_partitioner(next_od->scalar_partitioner());
         curr_component.reinit(curr_od->scalar_partitioner(), comm_x);
         next_component.reinit(next_od->scalar_partitioner(), comm_x);
 
+        // TODO: this assert is large, probably unnessesarily, refactor?
+        // Check that we actually are interpolating between two levels who
+        // differ only by one level.
         Assert((curr_dof_handl.get_triangulation().n_levels() ==
-                next_dof_handl.get_triangulation().n_levels() + 1),
+                next_dof_handl.get_triangulation().n_levels() + 1) || 
+                (curr_dof_handl.get_triangulation().n_levels() + 1 ==
+                next_dof_handl.get_triangulation().n_levels()),
                dealii::ExcMessage(
                    "For interpolation, you can only interpolate between two "
                    "levels whos difference in levels is 1, which corresponds "
@@ -410,7 +405,7 @@ namespace mgrit{
         {
           // Extract comonent from curr_v
           curr_v->extract_component(curr_component, c);
-          // Up also means we are interpolating to a coarser mesh.
+          // Down means we are interpolating to a finer mesh.
           dealii::VectorTools::interpolate_to_finer_mesh(curr_dof_handl,
                                                          curr_component,
                                                          next_dof_handl,
@@ -419,21 +414,17 @@ namespace mgrit{
           // Place component in next_v
           next_v->insert_component(next_component,c);
         }
-        // Now, we set the current from the data of the one we just set.
-        // TODO: is this deleting the memory
-        // If we are down, we point the last entry in the vector to a dummy
-        // vector, since we delete them all at the end of this function, and we
-        // don't want to accidentally delete the outgoing data.
-        level_vectors[++iter] = (next_lvl != to_level) ?  next_v : &FV;
+        lvl_iter++;
       }
 
       // Delete all temp vectors.
-      // TODO: This seems like poor
-      // I feel like this accidentally deletes the to/from vectors.
+      // TODO: This seems like poor practice, but for some reason,
+      // std::unique/shared_ptr is not working. Thread safety issue? I feel like
+      // this might accidentally delete the to/from vectors if you  are not careful.
       for (auto &lvl_v : level_vectors)
         delete lvl_v;
     }
-    to_v.update_ghost_valuess();
+    to_v.update_ghost_values();
   }
 
   template <int dim>
