@@ -200,6 +200,7 @@ namespace ryujin
     data_out->attach_dof_handler(offline_data_->dof_handler());
 
     for (unsigned int d = 0; d < quantities_.size(); ++d) {
+      AssertDimension (offline_data_->dof_handler().n_dofs(), quantities_[d].size());
       const auto &entry = std::get<0>(quantities_mapping_[d]);
       data_out->add_data_vector(
           quantities_[d], entry, DataOut<dim>::type_dof_data);

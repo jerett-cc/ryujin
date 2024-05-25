@@ -231,6 +231,7 @@ namespace ryujin
     StateVector state;
     auto &[U, precomputed, V] = state;
     U.reinit(offline_data_->hyperbolic_vector_partitioner());
+    precomputed.reinit(offline_data_->precomputed_vector_partitioner());
 
     using ScalarVector = typename OfflineData<dim, Number>::ScalarVector;
 
