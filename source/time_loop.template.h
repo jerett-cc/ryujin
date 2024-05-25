@@ -23,59 +23,9 @@ using namespace dealii;
 
 namespace ryujin
 {
+
   template <typename Description, int dim, typename Number>
-  TimeLoop<Description, dim, Number>::TimeLoop(const MPI_Comm &mpi_comm)
-      : ParameterAcceptor("/A - TimeLoop")
-      , mpi_communicator_(mpi_comm)
-      , hyperbolic_system_("/B - Equation")
-      , parabolic_system_("/B - Equation")
-      , discretization_(mpi_communicator_, "/C - Discretization")
-      , offline_data_(mpi_communicator_, discretization_, "/D - OfflineData")
-      , initial_values_(hyperbolic_system_, offline_data_, "/E - InitialValues")
-      , hyperbolic_module_(mpi_communicator_,
-                           computing_timer_,
-                           offline_data_,
-                           hyperbolic_system_,
-                           initial_values_,
-                           "/F - HyperbolicModule")
-      , parabolic_module_(mpi_communicator_,
-                          computing_timer_,
-                          offline_data_,
-                          hyperbolic_system_,
-                          parabolic_system_,
-                          initial_values_,
-                          "/G - ParabolicModule")
-      , time_integrator_(mpi_communicator_,
-                         offline_data_,
-                         hyperbolic_module_,
-                         parabolic_module_,
-                         "/H - TimeIntegrator")
-      , mesh_adaptor_(mpi_communicator_,
-                      offline_data_,
-                      hyperbolic_system_,
-                      parabolic_system_,
-                      "/I - MeshAdaptor")
-      , postprocessor_(mpi_communicator_,
-                       offline_data_,
-                       hyperbolic_system_,
-                       parabolic_system_,
-                       "/J - VTUOutput")
-      , vtu_output_(mpi_communicator_,
-                    offline_data_,
-                    hyperbolic_system_,
-                    parabolic_system_,
-                    postprocessor_,
-                    hyperbolic_module_.initial_precomputed(),
-                    hyperbolic_module_.alpha(),
-                    "/J - VTUOutput")
-      , quantities_(mpi_communicator_,
-                    offline_data_,
-                    hyperbolic_system_,
-                    parabolic_system_,
-                    "/K - Quantities")
-      , mpi_rank_(dealii::Utilities::MPI::this_mpi_process(mpi_communicator_))
-      , n_mpi_processes_(
-            dealii::Utilities::MPI::n_mpi_processes(mpi_communicator_))
+  void TimeLoop<Description, dim, Number>::declare_parameters()
   {
     base_name_ = "test";
     add_parameter("basename", base_name_, "Base name for all output files");
@@ -207,9 +157,98 @@ namespace ryujin
                   "testsuite to output files we wish to compare");
   }
 
+  template <typename Description, int dim, typename Number>
+      TimeLoop<Description, dim, Number>::TimeLoop(const MPI_Comm &mpi_comm)
+      : ParameterAcceptor("/A - TimeLoop")
+      , mpi_communicator_(mpi_comm) 
+      , hyperbolic_system_(std::make_shared<HyperbolicSystem>("/B - Equation")) 
+      , parabolic_system_(std::make_shared<ParabolicSystem>("/B - Equation")) 
+      , discretization_(std::make_shared<Discretization<dim>>(mpi_communicator_,
+                                                       "/C - Discretization"))
+      , offline_data_(std::make_shared<OfflineData<dim, Number>>(
+          mpi_communicator_, *discretization_, "/D - OfflineData"))
+      , initial_values_(std::make_shared<InitialValues<Description, dim, Number>>(
+          *hyperbolic_system_, *offline_data_, "/E - InitialValues"))
+      , hyperbolic_module_(
+          std::make_shared<HyperbolicModule<Description, dim, Number>>(
+              mpi_communicator_,
+              computing_timer_,
+              *offline_data_,
+              *hyperbolic_system_,
+              *initial_values_,
+              "/F - HyperbolicModule"))
+      , parabolic_module_(
+          std::make_shared<ParabolicModule<Description, dim, Number>>(mpi_communicator_,
+                                            computing_timer_,
+                                            *offline_data_,
+                                            *hyperbolic_system_,
+                                            *parabolic_system_,
+                                            *initial_values_,
+                                            "/G - ParabolicModule"))
+      , time_integrator_(
+          std::make_shared<TimeIntegrator<Description,dim,Number>>(mpi_communicator_,
+                                           *offline_data_,
+                                           *hyperbolic_module_,
+                                           *parabolic_module_,
+                                           "/H - TimeIntegrator"))
+      , mesh_adaptor_(std::make_shared<MeshAdaptor<Description, dim, Number>>(mpi_communicator_,
+                                                  *offline_data_,
+                                                  *hyperbolic_system_,
+                                                  *parabolic_system_,
+                                                  "/I - MeshAdaptor"))
+      , postprocessor_(std::make_shared<Postprocessor<Description,dim,Number>>(mpi_communicator_,
+                                                     *offline_data_,
+                                                     *hyperbolic_system_,
+                                                     *parabolic_system_,
+                                                     "/J - VTUOutput"))
+      , vtu_output_(std::make_shared<VTUOutput<Description,dim,Number>>(mpi_communicator_,
+                    *offline_data_,
+                    *hyperbolic_system_,
+                    *parabolic_system_,
+                    *postprocessor_,
+                    hyperbolic_module_->initial_precomputed(),
+                    hyperbolic_module_->alpha(),
+                    "/J - VTUOutput"))
+      , quantities_(std::make_shared<Quantities<Description,dim,Number>>(mpi_communicator_,
+                                               *offline_data_,
+                                               *hyperbolic_system_,
+                                               *parabolic_system_,
+                                               "/K - Quantities"))
+      , mpi_rank_(dealii::Utilities::MPI::this_mpi_process(mpi_communicator_)) 
+      , n_mpi_processes_(dealii::Utilities::MPI::n_mpi_processes(
+          mpi_communicator_))
+  {
+    declare_parameters();
+  }
+
+
+      template <typename Description, int dim, typename Number>
+      TimeLoop<Description, dim, Number>::TimeLoop(
+          const MPI_Comm &mpi_comm,
+          const mgrit::LevelStructures<Description, dim, Number> &ls)
+      : ParameterAcceptor("/A - TimeLoop")
+      , mpi_communicator_(mpi_comm)
+      , hyperbolic_system_(ls.hyperbolic_system)
+      , parabolic_system_(ls.parabolic_system)
+      , discretization_(ls.discretization)
+      , offline_data_(ls.offline_data)
+      , initial_values_(ls.initial_values)
+      , hyperbolic_module_(ls.hyperbolic_module)
+      , parabolic_module_(ls.parabolic_module)
+      , time_integrator_(ls.time_integrator)
+      , mesh_adaptor_(ls.mesh_adaptor)
+      , postprocessor_(ls.postprocessor)
+      , vtu_output_(ls.vtu_output)
+      , quantities_(ls.quantities)
+      , mpi_rank_(dealii::Utilities::MPI::this_mpi_process(mpi_communicator_))
+      , n_mpi_processes_(
+            dealii::Utilities::MPI::n_mpi_processes(mpi_communicator_))
+  {
+    declare_parameters();
+  }
 
   template <typename Description, int dim, typename Number>
-  void TimeLoop<Description, dim, Number>::run()
+  void TimeLoop<Description, dim, Number>::run(const Number t_start)
   {
 #ifdef DEBUG_OUTPUT
     std::cout << "TimeLoop<dim, Number>::run()" << std::endl;
@@ -228,7 +267,7 @@ namespace ryujin
      * Prepare data structures:
      */
 
-    Number t = 0.;
+    Number t = t_start;
     unsigned int timer_cycle = 0;
     StateVector state_vector;
 
@@ -236,16 +275,15 @@ namespace ryujin
      * Create a small lambda for preparing compute kernels:
      */
     const auto prepare_compute_kernels = [&]() {
-      print_info("preparing compute kernels");
 
-      offline_data_.prepare(problem_dimension, n_precomputed_values);
-      hyperbolic_module_.prepare();
-      parabolic_module_.prepare();
-      time_integrator_.prepare();
-      mesh_adaptor_.prepare(/*needs current timepoint*/ t);
-      postprocessor_.prepare();
-      vtu_output_.prepare();
-      quantities_.prepare(base_name_);
+      offline_data_->prepare(problem_dimension, n_precomputed_values);
+      hyperbolic_module_->prepare();
+      parabolic_module_->prepare();
+      time_integrator_->prepare();
+      mesh_adaptor_->prepare(/*needs current timepoint*/ t);
+      postprocessor_->prepare();
+      vtu_output_->prepare();
+      quantities_->prepare(base_name_);
       print_mpi_partition(logfile_);
     };
 
@@ -268,13 +306,14 @@ namespace ryujin
       } else {
         print_info("creating mesh and interpolating initial values");
 
-        discretization_.prepare(base_name_);
+        print_info("creating mesh");
+        discretization_->prepare(base_name_);
 
         prepare_compute_kernels();
 
-        Vectors::reinit_state_vector<Description>(state_vector, offline_data_);
+        Vectors::reinit_state_vector<Description>(state_vector, *offline_data_);
         std::get<0>(state_vector) =
-            initial_values_.interpolate_hyperbolic_vector();
+            initial_values_->interpolate_hyperbolic_vector();
       }
     }
 
@@ -290,6 +329,7 @@ namespace ryujin
     print_info("entering main loop");
     computing_timer_["time loop"].start();
 
+
     for (;; ++cycle) {
 
 #ifdef DEBUG_OUTPUT
@@ -301,7 +341,7 @@ namespace ryujin
       if (enable_compute_quantities_) {
         Scope scope(computing_timer_,
                     "time step [X]   - accumulate quantities");
-        quantities_.accumulate(state_vector, t);
+        quantities_->accumulate(state_vector, t);
       }
 
       /* Perform various tasks whenever we reach a timer tick: */
@@ -319,9 +359,9 @@ namespace ryujin
              */
             Scope scope(computing_timer_,
                         "time step [X]   - interpolate analytic solution");
-            Vectors::reinit_state_vector<Description>(analytic, offline_data_);
+            Vectors::reinit_state_vector<Description>(analytic, *offline_data_);
             std::get<0>(analytic) =
-                initial_values_.interpolate_hyperbolic_vector(t);
+                initial_values_->interpolate_hyperbolic_vector(t);
           }
           output(analytic, base_name_ + "-analytic_solution", t, timer_cycle);
         }
@@ -329,8 +369,8 @@ namespace ryujin
         if (enable_compute_quantities_ &&
             (timer_cycle % timer_compute_quantities_multiplier_ == 0)) {
           Scope scope(computing_timer_,
-                      "time step [X]   - write out quantities");
-          quantities_.write_out(state_vector, t, timer_cycle);
+                      "time step [X] 2 - write out quantities");
+          quantities_->write_out(state_vector, t, timer_cycle);
         }
 
         ++timer_cycle;
@@ -347,15 +387,14 @@ namespace ryujin
         {
           Scope scope(computing_timer_,
                       "time step [X]   - analyze for mesh adaptation");
-
-          mesh_adaptor_.analyze(state_vector, t, cycle);
+          mesh_adaptor_->analyze(state_vector, t, cycle);
         }
 
-        if (mesh_adaptor_.need_mesh_adaptation()) {
+        if (mesh_adaptor_->need_mesh_adaptation()) {
           Scope scope(computing_timer_, "(re)initialize data structures");
           print_info("performing mesh adaptation");
 
-          hyperbolic_module_.prepare_state_vector(state_vector, t);
+          hyperbolic_module_->prepare_state_vector(state_vector, t);
           adapt_mesh_and_transfer_state_vector(state_vector,
                                                prepare_compute_kernels);
         }
@@ -363,7 +402,8 @@ namespace ryujin
 
       /* Perform a time step: */
 
-      const auto tau = time_integrator_.step(state_vector, t);
+
+      const auto tau = time_integrator_->step(state_vector, t);
       t += tau;
 
       /* Print and record cycle statistics: */
@@ -400,6 +440,7 @@ namespace ryujin
 
     if (enable_compute_error_) {
       /* Output final error: */
+      hyperbolic_module_->prepare_state_vector(state_vector, t);
       compute_error(state_vector, t);
     }
 
@@ -412,6 +453,63 @@ namespace ryujin
 #ifdef WITH_VALGRIND
     CALLGRIND_DUMP_STATS;
 #endif
+  }
+
+  // FIXME: Make al my vectors into StateVectors in MGRIT.
+  template <typename Description, int dim, typename Number>
+  void TimeLoop<Description, dim, Number>::run_with_initial_data(
+      StateVector &U,
+      const Number end_time,
+      const Number start_time,
+      const bool mgrit_specified_print,
+      std::function<void(const StateVector&,
+                         double)> pp_step)
+  {
+#ifdef DEBUG_OUTPUT
+    std::cout << "TimeLoop<dim, Number>::run_with_initial_data(U,start,end,pp_func())" << std::endl;
+#endif
+
+  const bool write_output_files = mgrit_specified_print;// If the user specifies other printing option, we default to that choice.
+ 
+  Number t = start_time;
+  unsigned int timer_cycle = 0;
+  unsigned int cycle = 1;
+
+  /* Loop: */
+
+  for (;; ++cycle) {
+
+    /* Accumulate quantities of interest: */
+
+    if (enable_compute_quantities_) {
+      quantities_->accumulate(U, t);
+    }
+
+    /* Perform output: */
+
+    if (t >= timer_cycle * timer_granularity_) {
+      if (write_output_files) {
+        output(U, base_name_ + "-solution", t, timer_cycle);
+      }
+      ++timer_cycle;
+    }
+
+    /* Break if we have reached the final time: */
+
+    if (t >= end_time)
+      break;
+
+    /* Take a step: */
+    const auto tau = time_integrator_->step(U, t);
+    t += tau;
+
+    /*Optional Postprocess Step*/
+    pp_step(U,t); //FIXME: where should this be called?
+
+  } /* end of loop */
+  /* We have actually performed one cycle less. */
+  --cycle;
+  
   }
 
 
@@ -440,9 +538,9 @@ namespace ryujin
 #if !DEAL_II_VERSION_GTE(9, 6, 0)
     if constexpr (have_distributed_triangulation<dim>) {
 #endif
-      discretization_.refinement() = 0; /* do not refine */
-      discretization_.prepare(base_name);
-      discretization_.triangulation().load(base_name + "-checkpoint.mesh");
+      discretization_->refinement() = 0; /* do not refine */
+      discretization_->prepare(base_name);
+      discretization_->triangulation().load(base_name + "-checkpoint.mesh");
 #if !DEAL_II_VERSION_GTE(9, 6, 0)
     }
 #endif
@@ -477,11 +575,11 @@ namespace ryujin
      * Now read in the state vector:
      */
 
-    Vectors::reinit_state_vector<Description>(state_vector, offline_data_);
+    Vectors::reinit_state_vector<Description>(state_vector, *offline_data_);
     auto &U = std::get<0>(state_vector);
 
-    const auto &dof_handler = offline_data_.dof_handler();
-    const auto &scalar_partitioner = offline_data_.scalar_partitioner();
+    const auto &dof_handler = offline_data_->dof_handler();
+    const auto &scalar_partitioner = offline_data_->scalar_partitioner();
 
     /* Create temporary scalar component vectors: */
 
@@ -533,9 +631,9 @@ namespace ryujin
      * Create SolutionTransfer object, attach state vector and write out:
      */
 
-    const auto &triangulation = discretization_.triangulation();
-    const auto &dof_handler = offline_data_.dof_handler();
-    const auto &scalar_partitioner = offline_data_.scalar_partitioner();
+    const auto &triangulation = discretization_->triangulation();
+    const auto &dof_handler = offline_data_->dof_handler();
+    const auto &scalar_partitioner = offline_data_->scalar_partitioner();
     auto &U = std::get<0>(state_vector);
 
     using ScalarVector = typename Vectors::ScalarVector<Number>;
@@ -605,8 +703,8 @@ namespace ryujin
      * Mark cells for coarsening and refinement and set up triangulation:
      */
 
-    auto &triangulation = discretization_.triangulation();
-    mesh_adaptor_.mark_cells_for_coarsening_and_refinement(triangulation);
+    auto &triangulation = discretization_->triangulation();
+    mesh_adaptor_->mark_cells_for_coarsening_and_refinement(triangulation);
 
     triangulation.prepare_coarsening_and_refinement();
 
@@ -614,8 +712,8 @@ namespace ryujin
      * Set up SolutionTransfer:
      */
 
-    const auto &dof_handler = offline_data_.dof_handler();
-    const auto &scalar_partitioner = offline_data_.scalar_partitioner();
+    const auto &dof_handler = offline_data_->dof_handler();
+    const auto &scalar_partitioner = offline_data_->scalar_partitioner();
     auto &U = std::get<0>(state_vector);
 
     using ScalarVector = typename Vectors::ScalarVector<Number>;
@@ -646,7 +744,7 @@ namespace ryujin
     triangulation.execute_coarsening_and_refinement();
     prepare_compute_kernels();
 
-    Vectors::reinit_state_vector<Description>(state_vector, offline_data_);
+    Vectors::reinit_state_vector<Description>(state_vector, *offline_data_);
 
     std::vector<ScalarVector> interpolated_state;
     interpolated_state.resize(problem_dimension);
@@ -678,22 +776,22 @@ namespace ryujin
     std::cout << "TimeLoop<dim, Number>::compute_error()" << std::endl;
 #endif
 
-    hyperbolic_module_.prepare_state_vector(state_vector, t);
+    hyperbolic_module_->prepare_state_vector(state_vector, t);
 
     Vector<Number> difference_per_cell(
-        discretization_.triangulation().n_active_cells());
+        discretization_->triangulation().n_active_cells());
 
     Number linf_norm = 0.;
     Number l1_norm = 0;
     Number l2_norm = 0;
 
-    const auto analytic_U = initial_values_.interpolate_hyperbolic_vector(t);
+    const auto analytic_U = initial_values_->interpolate_hyperbolic_vector(t);
     const auto &U = std::get<0>(state_vector);
 
     ScalarVector analytic_component;
     ScalarVector error_component;
-    analytic_component.reinit(offline_data_.scalar_partitioner());
-    error_component.reinit(offline_data_.scalar_partitioner());
+    analytic_component.reinit(offline_data_->scalar_partitioner());
+    error_component.reinit(offline_data_->scalar_partitioner());
 
     /* Loop over all selected components: */
     for (const auto &entry : error_quantities_) {
@@ -721,7 +819,7 @@ namespace ryujin
             analytic_component.linfty_norm(), mpi_communicator_);
 
         VectorTools::integrate_difference(
-            offline_data_.dof_handler(),
+            offline_data_->dof_handler(),
             analytic_component,
             Functions::ZeroFunction<dim, Number>(),
             difference_per_cell,
@@ -732,7 +830,7 @@ namespace ryujin
                                                mpi_communicator_);
 
         VectorTools::integrate_difference(
-            offline_data_.dof_handler(),
+            offline_data_->dof_handler(),
             analytic_component,
             Functions::ZeroFunction<dim, Number>(),
             difference_per_cell,
@@ -747,14 +845,14 @@ namespace ryujin
 
       U.extract_component(error_component, index);
       /* Populate constrained dofs due to periodicity: */
-      offline_data_.affine_constraints().distribute(error_component);
+      offline_data_->affine_constraints().distribute(error_component);
       error_component.update_ghost_values();
       error_component -= analytic_component;
 
       const Number linf_norm_error =
           Utilities::MPI::max(error_component.linfty_norm(), mpi_communicator_);
 
-      VectorTools::integrate_difference(offline_data_.dof_handler(),
+      VectorTools::integrate_difference(offline_data_->dof_handler(),
                                         error_component,
                                         Functions::ZeroFunction<dim, Number>(),
                                         difference_per_cell,
@@ -764,7 +862,7 @@ namespace ryujin
       const Number l1_norm_error =
           Utilities::MPI::sum(difference_per_cell.l1_norm(), mpi_communicator_);
 
-      VectorTools::integrate_difference(offline_data_.dof_handler(),
+      VectorTools::integrate_difference(offline_data_->dof_handler(),
                                         error_component,
                                         Functions::ZeroFunction<dim, Number>(),
                                         difference_per_cell,
@@ -796,7 +894,7 @@ namespace ryujin
 
     logfile_ << description + " Linf, L1, and L2 errors at final time \n";
     logfile_ << std::setprecision(16);
-    logfile_ << "#dofs = " << offline_data_.dof_handler().n_dofs() << std::endl;
+    logfile_ << "#dofs = " << offline_data_->dof_handler().n_dofs() << std::endl;
     logfile_ << "t     = " << t << std::endl;
     logfile_ << "Linf  = " << linf_norm << std::endl;
     logfile_ << "L1    = " << l1_norm << std::endl;
@@ -804,7 +902,7 @@ namespace ryujin
 
     std::cout << description + " Linf, L1, and L2 errors at final time \n";
     std::cout << std::setprecision(16);
-    std::cout << "#dofs = " << offline_data_.dof_handler().n_dofs()
+    std::cout << "#dofs = " << offline_data_->dof_handler().n_dofs()
               << std::endl;
     std::cout << "t     = " << t << std::endl;
     std::cout << "Linf  = " << linf_norm << std::endl;
@@ -835,23 +933,23 @@ namespace ryujin
     if (!(do_full_output || do_levelsets || do_checkpointing))
       return;
 
-    hyperbolic_module_.prepare_state_vector(state_vector, t);
+    hyperbolic_module_->prepare_state_vector(state_vector, t);
 
     /* Data output: */
     if (do_full_output || do_levelsets) {
       Scope scope(computing_timer_, "time step [X]   - perform vtu output");
       print_info("scheduling output");
 
-      postprocessor_.compute(state_vector);
+      postprocessor_->compute(state_vector);
       /*
        * Workaround: Manually reset bounds during the first output cycle
        * (which is often just a uniform flow field) to obtain a better
        * normailization:
        */
       if (cycle == 0)
-        postprocessor_.reset_bounds();
+        postprocessor_->reset_bounds();
 
-      vtu_output_.schedule_output(
+      vtu_output_->schedule_output(
           state_vector, name, t, cycle, do_full_output, do_levelsets);
     }
 
@@ -863,6 +961,15 @@ namespace ryujin
     }
   }
 
+  template <typename Description, int dim, typename Number>
+  void TimeLoop<Description, dim, Number>::output_wrapper(
+      StateVector &U,
+      const std::string fname,
+      Number t,
+      unsigned int cycle)
+  {
+    output(U,fname,t,cycle);
+  }
 
   /*
    * Output and logging related functions:
@@ -906,16 +1013,16 @@ namespace ryujin
 
     // NOLINTBEGIN
     std::vector<double> values = {
-        (double)offline_data_.n_export_indices(),
-        (double)offline_data_.n_locally_internal(),
-        (double)offline_data_.n_locally_owned(),
-        (double)offline_data_.n_locally_relevant(),
-        (double)offline_data_.n_export_indices() /
-            (double)offline_data_.n_locally_relevant(),
-        (double)offline_data_.n_locally_internal() /
-            (double)offline_data_.n_locally_relevant(),
-        (double)offline_data_.n_locally_owned() /
-            (double)offline_data_.n_locally_relevant()};
+        (double)offline_data_->n_export_indices(),
+        (double)offline_data_->n_locally_internal(),
+        (double)offline_data_->n_locally_owned(),
+        (double)offline_data_->n_locally_relevant(),
+        (double)offline_data_->n_export_indices() /
+            (double)offline_data_->n_locally_relevant(),
+        (double)offline_data_->n_locally_internal() /
+            (double)offline_data_->n_locally_relevant(),
+        (double)offline_data_->n_locally_owned() /
+            (double)offline_data_->n_locally_relevant()};
     // NOLINTEND
 
     const auto data = Utilities::MPI::min_max_avg(values, mpi_communicator_);
@@ -1133,9 +1240,9 @@ namespace ryujin
     const double cycles_per_second =
         delta_cycles / (current.wall_time - previous.wall_time);
 
-    const auto efficiency = time_integrator_.efficiency();
+    const auto efficiency = time_integrator_->efficiency();
     const auto n_dofs =
-        static_cast<double>(offline_data_.dof_handler().n_dofs());
+        static_cast<double>(offline_data_->dof_handler().n_dofs());
 
     const double wall_m_dofs_per_sec =
         delta_cycles * n_dofs / 1.e6 /
@@ -1193,23 +1300,23 @@ namespace ryujin
            << std::setprecision(2) << std::fixed << cycles_per_second
            << " cycles/s)" << std::endl;
 
-    const auto &scheme = time_integrator_.time_stepping_scheme();
+    const auto &scheme = time_integrator_->time_stepping_scheme();
     output << "        [ "
            << Patterns::Tools::Convert<TimeSteppingScheme>::to_string(scheme)
            << " with CFL = "
-           << std::setprecision(2) << std::fixed << hyperbolic_module_.cfl()
+           << std::setprecision(2) << std::fixed << hyperbolic_module_->cfl()
            << " ("
-           << std::setprecision(0) << std::fixed << hyperbolic_module_.n_restarts()
+           << std::setprecision(0) << std::fixed << hyperbolic_module_->n_restarts()
            << "/"
-           << std::setprecision(0) << std::fixed << parabolic_module_.n_restarts()
+           << std::setprecision(0) << std::fixed << parabolic_module_->n_restarts()
            << " rsts) ("
-           << std::setprecision(0) << std::fixed << hyperbolic_module_.n_warnings()
+           << std::setprecision(0) << std::fixed << hyperbolic_module_->n_warnings()
            << "/"
-           << std::setprecision(0) << std::fixed << parabolic_module_.n_warnings()
+           << std::setprecision(0) << std::fixed << parabolic_module_->n_warnings()
            << " warn) ]" << std::endl;
 
     if constexpr (!ParabolicSystem::is_identity)
-      parabolic_module_.print_solver_statistics(output);
+      parabolic_module_->print_solver_statistics(output);
 
     output << "        [ dt = "
            << std::scientific << std::setprecision(2) << delta_time
@@ -1328,12 +1435,12 @@ namespace ryujin
 
     print_head(primary.str(), secondary.str(), output);
 
-    output << "Information: (HYP) " << hyperbolic_system_.problem_name;
+    output << "Information: (HYP) " << hyperbolic_system_->problem_name;
     if constexpr (!ParabolicSystem::is_identity) {
-      output << "\n             (PAR) " << parabolic_system_.problem_name;
+      output << "\n             (PAR) " << parabolic_system_->problem_name;
     }
     output << "\n             [" << base_name_ << "] with "        //
-           << offline_data_.dof_handler().n_dofs() << " Qdofs on " //
+           << offline_data_->dof_handler().n_dofs() << " Qdofs on " //
            << n_mpi_processes_ << " ranks / "                      //
 #ifdef WITH_OPENMP
            << MultithreadInfo::n_threads() << " threads <" //

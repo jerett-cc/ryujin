@@ -119,7 +119,14 @@ namespace ryujin
      * conditions are used in many steady state problems with inflow
      * conditions.
      */
-    dirichlet_momentum = 6
+    dirichlet_momentum = 6,
+
+    /**
+     * On degrees of freedom marked as object, we enforce the same condition as
+     * the slip, but now we will be able to explicitly specify when we are on
+     * the surface of the object in question, so we can do analyses there.
+     */
+    object = 7
   };
 
 
@@ -161,7 +168,8 @@ DECLARE_ENUM(ryujin::Boundary,
                   {ryujin::Boundary::dirichlet, "dirichlet"},
                   {ryujin::Boundary::dynamic, "dynamic"},
                   {ryujin::Boundary::dirichlet_momentum,
-                   "dirichlet momentum"}));
+                   "dirichlet momentum"},
+                  {ryujin::Boundary::object, "object"}));
 
 DECLARE_ENUM(ryujin::Ansatz,
              LIST({ryujin::Ansatz::cg_q1, "cG Q1"},
@@ -222,6 +230,13 @@ namespace ryujin
      * Constructor.
      */
     Discretization(const MPI_Comm &mpi_communicator,
+                   const std::string &subsection = "/Discretization");
+
+    /**
+     * Constructor where user specifies the refinement.
+     */
+    Discretization(const MPI_Comm &mpi_communicator,
+                   const unsigned int refinement,
                    const std::string &subsection = "/Discretization");
 
     /**
