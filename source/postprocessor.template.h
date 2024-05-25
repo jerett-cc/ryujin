@@ -200,7 +200,7 @@ namespace ryujin
               const auto normal = std::get<0>(it->second);
               const auto id = std::get<3>(it->second);
 
-              if (id == Boundary::slip || id == Boundary::no_slip) {
+              if (id == Boundary::slip || id == Boundary::no_slip || id == Boundary::object) {
                 /* Remove normal component of schlieren values at slip
                  * and no-slip boundaries: */
                 for (auto &it : local_schlieren_values) {
@@ -311,5 +311,5 @@ namespace ryujin
       it.update_ghost_values();
     }
   }
-
+  
 } // namespace ryujin

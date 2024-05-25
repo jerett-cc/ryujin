@@ -167,7 +167,7 @@ namespace ryujin
 
 
   template <int dim, typename Number>
-  void OfflineData<dim, Number>::setup(const unsigned int problem_dimension)
+  void OfflineData<dim, Number>::setup(const unsigned int problem_dimension, const bool exists_in_hierarchy)
   {
 #ifdef DEBUG_OUTPUT
     std::cout << "OfflineData<dim, Number>::setup()" << std::endl;
@@ -183,6 +183,8 @@ namespace ryujin
     auto &dof_handler = *dof_handler_;
 
     dof_handler.distribute_dofs(discretization_->finite_element());
+    if (exists_in_hierarchy)
+      dof_handler.distribute_mg_dofs();
 
     n_locally_owned_ = dof_handler.locally_owned_dofs().n_elements();
 
