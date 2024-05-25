@@ -77,6 +77,20 @@ namespace ryujin
     Geometries::populate_geometry_list<dim>(geometry_list_, subsection);
   }
 
+  /**
+   * This constructor takes a @p mpi_communicator and @p refinement and
+   * sets the refinement to be the user specified one, rather than the one
+   * the input file specifies.
+   */
+  template <int dim>
+   Discretization<dim>::Discretization(const MPI_Comm &mpi_communicator,
+                                       const unsigned int refinement,
+                                       const std::string &subsection)
+       : Discretization(mpi_communicator, subsection)
+   {
+     refinement_ = refinement;
+   }
+
 
   template <int dim>
   void Discretization<dim>::prepare(const std::string &base_name)

@@ -308,7 +308,7 @@ namespace ryujin
           const auto id = std::get<4>(entry);
           const auto position = std::get<5>(entry);
 
-          if (id == Boundary::slip) {
+          if (id == Boundary::slip || id == Boundary::object) {
             /* Remove normal component of velocity: */
             Tensor<1, dim, Number> V_i;
             Tensor<1, dim, Number> RHS_i;

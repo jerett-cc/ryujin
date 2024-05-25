@@ -275,7 +275,7 @@ namespace ryujin
           const dealii::Tensor<1, dim, Number> normal = std::get<1>(entry);
           const auto id = std::get<4>(entry);
 
-          if (id == Boundary::slip) {
+          if (id == Boundary::slip || id == Boundary::object) {
             dealii::Tensor<1, dim, Number> V_i;
             for (unsigned int d = 0; d < dim; ++d)
               V_i[d] = dst.block(d).local_element(i);
@@ -370,7 +370,7 @@ namespace ryujin
           const dealii::Tensor<1, dim, Number> normal = std::get<1>(entry);
           const auto id = std::get<4>(entry);
 
-          if (id == Boundary::slip) {
+          if (id == Boundary::slip || id == Boundary::object) {
             dealii::Tensor<1, dim, Number> V_i;
             for (unsigned int d = 0; d < dim; ++d)
               V_i[d] = vector.block(d).local_element(i);
