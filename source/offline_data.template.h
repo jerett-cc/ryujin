@@ -204,7 +204,7 @@ namespace ryujin
     auto &dof_handler = *dof_handler_;
 
     dof_handler.distribute_dofs(discretization_->finite_element());
-
+    
     n_locally_owned_ = dof_handler.locally_owned_dofs().n_elements();
 
     /*

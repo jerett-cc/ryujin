@@ -279,5 +279,5 @@ namespace ryujin
       it.update_ghost_values();
     }
   }
-
+  
 } // namespace ryujin

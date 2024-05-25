@@ -81,6 +81,11 @@ namespace ryujin
       return *ensemble_payload_;
     }
 
+    T &unsafe_get()
+    {
+      return *ensemble_payload_;
+    }
+
   private:
     std::vector<std::unique_ptr<T>> payload_;
     T *ensemble_payload_;
