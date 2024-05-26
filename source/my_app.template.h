@@ -465,27 +465,31 @@ namespace mgrit{
          i++) {
       const bool is_admissible =
           hs_view_level.is_admissible(u.template get_tensor(i));
-      Assert(is_admissible,
-             dealii::ExcMessage("The state at index i=" + std::to_string(i) +
-                                "is not admissible."));
+#ifdef DEBUG_OUTPUT
       if (!is_admissible) {
         std::cout << "The state at index i=" + std::to_string(i) +
                          "is not admissible.\n"
                   << "State: " << u.template get_tensor(i) << std::endl;
       }
+  #endif
+      Assert(is_admissible,
+             dealii::ExcMessage("The state at index i=" + std::to_string(i) +
+                                "is not admissible."));
 
       const bool pressure_no_nans =
           (hs_view_level.pressure(u.template get_tensor(i)) ==
            hs_view_level.pressure(u.template get_tensor(i)));
-      Assert(
-          pressure_no_nans,
-          dealii::ExcMessage("Pressure has a nan in one of the `lanes' at i= " +
-                             std::to_string(i)));
+#ifdef 
       if (!pressure_no_nans) {
         std::cout << "Pressure is: "
                   << hs_view_level.pressure(u.template get_tensor(i))
                   << std::endl;
       }
+#endif
+      Assert(
+          pressure_no_nans,
+          dealii::ExcMessage("Pressure has a nan in one of the `lanes' at i= " +
+                             std::to_string(i)));
 
       if (!pressure_no_nans || !is_admissible) {
         exit(EXIT_FAILURE);
