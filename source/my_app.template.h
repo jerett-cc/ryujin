@@ -580,9 +580,13 @@ namespace mgrit{
 
     std::cout << "norm of initialized u_to_step: " << std::get<0>(u_to_step->U).l2_norm() << std::endl;
 
-    // interpolainterpolate_between_levels(te between levels, put data from u (fine level) onto the
-    // u_to_step (coarse level)
-    interpolate_between_levels(std::get<0>(u_to_step->U), level, std::get<0>(u_->U), 0);
+    // Interpolate between levels, put data from u (fine level) onto the
+    // u_to_step (coarse level), if the level is not zero (this is because all
+    // the vectors are assumed to be at the finest level spatially.) This allows
+    // computations which are naturally faster on the coarser levels, due to a
+    // larger mesh size.
+    if(level != finest_level)
+      interpolate_between_levels(std::get<0>(u_to_step->U), level, std::get<0>(u_->U), 0);
 
 #ifdef CHECK_BOUNDS
     // Test physicality of interpolated vector.
@@ -629,8 +633,9 @@ namespace mgrit{
       std::cout << "Norm was " << norm << std::endl;
       // exit(EXIT_FAILURE);
     }
-    // interpolate this back to the fine level
-    interpolate_between_levels(std::get<0>(u_->U), 0, std::get<0>(u_to_step->U), level);
+    // interpolate this back to the fine level, is we need to.
+    if(level != finest_level)
+      interpolate_between_levels(std::get<0>(u_->U), 0, std::get<0>(u_to_step->U), level);
 
 #ifdef CHECK_BOUNDS
     // Test physicality of interpolated vector on fine level, after the step.
