@@ -120,6 +120,7 @@ namespace mgrit{
   template<typename Number, typename Description, int dim>
   void MyApp<Number, Description, dim>::initialize(std::string prm_file)
   {
+    ryujin::Scope scope(computing_timer, "initialize");
     // Reorder refinement levels in descending order of refinement,
     // this matches the fact that Xbraid has the finest level of MG
     // as 0. I.E. the most refined data is accessed with refinement_levels[0]
@@ -276,6 +277,7 @@ namespace mgrit{
            dealii::ExcMessage("You cannot interpolate to or from a level that "
                               "is negaitve, all levels are non-negative."));
 
+    ryujin::Scope scope(computing_timer, "interpolate_between_levels");
     scalar_type next_component, curr_component;
 
     // First, set up a vector of pointers to vectors which will correspond to
@@ -340,12 +342,16 @@ namespace mgrit{
         {
           // Extract comonent from curr_v
           curr_v->extract_component(curr_component, c);
+          // A scope here to independently time the interpolation function.
+          {
+          ryujin::Scope scope(computing_timer, "interpolate_to_coarser_mesh");
           // Up also means we are interpolating to a coarser mesh.
           dealii::VectorTools::interpolate_to_coarser_mesh(curr_dof_handl,
                                                            curr_component,
                                                            next_dof_handl,
                                                            next_constraints,
                                                            next_component);
+          }
           // Place component in next_v
           next_v->insert_component(next_component,c);
         }
@@ -415,12 +421,15 @@ namespace mgrit{
         {
           // Extract comonent from curr_v
           curr_v->extract_component(curr_component, c);
+          {
+          ryujin::Scope scope(computing_timer, "interpolate_to_finer_mesh");
           // Down means we are interpolating to a finer mesh.
           dealii::VectorTools::interpolate_to_finer_mesh(curr_dof_handl,
                                                          curr_component,
                                                          next_dof_handl,
                                                          next_constraints,
                                                          next_component);
+          }
           // Place component in next_v
           next_v->insert_component(next_component,c);
         }
@@ -442,6 +451,7 @@ namespace mgrit{
                                const int level,
                                std::string where)
   {
+    ryujin::Scope scope(computing_timer, "test_physicality");
     std::cout << "Testing Physicality in location " + where << std::endl;
     const auto hs_view_level =
         levels[level]->hyperbolic_system->template view<dim, Number>();
@@ -519,6 +529,9 @@ namespace mgrit{
     // grab the MG level for this step
     int level;
     pstatus.GetLevel(&level);
+    // Start a timer for step::level
+    ryujin::Scope scope(computing_timer, "step::" + std::to_string(level));
+
     // grab the start time and end time
     double lvl_tstart;
     double lvl_tstop;
@@ -529,7 +542,8 @@ namespace mgrit{
         enforce_physicality_bounds<Description, dim, Number>(
             *u_, finest_level, *this, lvl_tstart);
 
-    if (1 /*this was a mpi comm id check before FIXME*/) {
+#ifdef DEBUG_OUTPUT
+    if (dealii::Utilities::MPI::this_mpi_process() == 0) {
       std::cout << "[INFO] Stepping on level: " + std::to_string(level) +
                        "\non interval: [" + std::to_string(lvl_tstart) + ", " +
                        std::to_string(lvl_tstop) + "]\n" +
@@ -537,6 +551,7 @@ namespace mgrit{
                        std::to_string(num_step_calls)
                 << std::endl;
     }
+#endif
 
     std::string fname = "step" + std::to_string(num_step_calls) + "_cycle" +
                         std::to_string(n_cycles) + "_level_" +
@@ -656,6 +671,7 @@ namespace mgrit{
       std::cout << "[INFO] Cloning XBraid vectors" << std::endl;
     }
 #endif
+    ryujin::Scope scope(computing_timer, "clone");
     my_vector *u_ = (my_vector *) u;
     my_vector *v = new (my_vector);
     // all vectors are 'fine level' vectors
@@ -671,7 +687,7 @@ namespace mgrit{
   braid_Int MyApp<Number, Description, dim>::Init(braid_Real t, braid_Vector *u_ptr)
   {
     std::cout << "[INFO] Initializing XBraid vectors at t=" << t << std::endl;
-
+    
     // We first define a coarse vector, at the coarsest level, which will be
     // stepped, then restricted down to the fine level and interpolate the fine
     // initial state into the coarse vector, then interpolates it up to the
