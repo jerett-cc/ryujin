@@ -5,8 +5,8 @@
 
 //ryujin includes
 #include <compile_time_options.h>
-#include "euler/description.h"
 #include "time_loop.h"
+#include "scope.h"
 
 
 //MPI
@@ -263,5 +263,6 @@ namespace mgrit{
     std::vector<std::shared_ptr<OfflineDataType>> offline_data_vec;
     // A map that stores the index in the levels in the consistend
     std::map<int, int> level_map;
+    std::map<std::string, dealii::Timer> computing_timer;
   };
 }// Namespace mgrit
