@@ -691,7 +691,7 @@ namespace mgrit{
   braid_Int MyApp<Number, Description, dim>::Init(braid_Real t, braid_Vector *u_ptr)
   {
     std::cout << "[INFO] Initializing XBraid vectors at t=" << t << std::endl;
-    
+
     // We first define a coarse vector, at the coarsest level, which will be
     // stepped, then restricted down to the fine level and interpolate the fine
     // initial state into the coarse vector, then interpolates it up to the
