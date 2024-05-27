@@ -464,7 +464,7 @@ namespace mgrit{
          i++) {
       const bool is_admissible =
           hs_view_level.is_admissible(u.template get_tensor(i));
-#ifdef DEBUG_OUTPUT
+#ifdef DEBUG
       if (!is_admissible) {
         std::cout << "The state at index i=" + std::to_string(i) +
                          "is not admissible.\n"
@@ -478,7 +478,7 @@ namespace mgrit{
       const bool pressure_no_nans =
           (hs_view_level.pressure(u.template get_tensor(i)) ==
            hs_view_level.pressure(u.template get_tensor(i)));
-#ifdef 
+#ifdef DEBUG
       if (!pressure_no_nans) {
         std::cout << "Pressure is: "
                   << hs_view_level.pressure(u.template get_tensor(i))
@@ -548,8 +548,8 @@ namespace mgrit{
         enforce_physicality_bounds<Description, dim, Number>(
             *u_, finest_level, *this, lvl_tstart);
 
-#ifdef DEBUG_OUTPUT
-    if (dealii::Utilities::MPI::this_mpi_process() == 0) {
+#ifdef DEBUG
+    if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
       std::cout << "[INFO] Stepping on level: " + std::to_string(level) +
                        "\non interval: [" + std::to_string(lvl_tstart) + ", " +
                        std::to_string(lvl_tstop) + "]\n" +
@@ -677,7 +677,7 @@ namespace mgrit{
   template<typename Number, typename Description, int dim>
   braid_Int MyApp<Number, Description, dim>::Clone(braid_Vector u, braid_Vector *v_ptr)
   {
-#ifdef DEBUG_OUTPUT
+#ifdef DEBUG
     if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
       std::cout << "[INFO] Cloning XBraid vectors" << std::endl;
     }
@@ -754,7 +754,7 @@ namespace mgrit{
   template<typename Number, typename Description, int dim>
   braid_Int MyApp<Number, Description, dim>::Free(braid_Vector u)
   {
-#ifdef DEBUG_OUTPUT
+#ifdef DEBUG
     if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
       std::cout << "[INFO] Freeing XBraid vectors" << std::endl;
     }
@@ -777,7 +777,7 @@ namespace mgrit{
     my_vector *x_ = (my_vector *) x;
     my_vector *y_ = (my_vector *) y;
 
-#ifdef DEBUG_OUTPUT
+#ifdef DEBUG
     if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
       std::cout << "[INFO] Summing XBraid vectors" << std::endl;
       std::cout << alpha << "x + " << beta << "y" << std::endl;
@@ -794,7 +794,7 @@ namespace mgrit{
   template<typename Number, typename Description, int dim>
   braid_Int MyApp<Number, Description, dim>::SpatialNorm(braid_Vector u, braid_Real *norm_ptr)
   {
-#ifdef DEBUG_OUTPUT
+#ifdef DEBUG
     if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
       std::cout << "[INFO] Calculating XBraid vector spatial norm" << std::endl;
     }
@@ -884,7 +884,7 @@ namespace mgrit{
   braid_Int MyApp<Number, Description, dim>::BufSize(braid_Int *size_ptr,
                            BraidBufferStatus &bstatus)
   {
-#ifdef DEBUG_OUTPUT
+#ifdef DEBUG
     if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
       std::cout << "[INFO] Buf_size Called" << std::endl;
     }
