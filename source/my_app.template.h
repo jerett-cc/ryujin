@@ -863,7 +863,7 @@ namespace mgrit{
         }
         // calculate drag (at end of cycle...)
         dealii::Tensor<1, dim> forces =
-            mgrit_functions::calculate_drag_and_lift<Number, Description, dim>(this, *u_, t);
+            mgrit_functions::calculate_drag_and_lift<Number, Description>(this, *u_, t);
         std::cout << "cycle." + std::to_string(mgCycle) + " drag." +
                          std::to_string(forces[0]) + " lift." +
                          std::to_string(forces[1]) + " time." +
