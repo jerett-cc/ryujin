@@ -94,9 +94,9 @@ namespace ryujin
      * precomputed MultiComponentVector.
      */
     void prepare(const unsigned int problem_dimension,
-                 const unsigned int n_precomputed_values, const bool exists_in_hierarchy = false)
+                 const unsigned int n_precomputed_values)
     {
-      setup(problem_dimension, n_precomputed_values, exists_in_hierarchy);
+      setup(problem_dimension, n_precomputed_values);
       assemble();
       create_multigrid_data();
     }
