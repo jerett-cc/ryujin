@@ -265,19 +265,24 @@ namespace mgrit{
                             problem_dimension),
         dealii::ExcMessage("Trying to interpolate to a vector and level where "
                            "the n_dofs do not match will not work."));
-    Assert(
-        (to_level != from_level),
-        dealii::ExcMessage(
-            "Levels you want to interpolate between are the same. to_level=" +
-            std::to_string(to_level) +
-            " from_level=" + std::to_string(from_level) +
-            "this is a waste of time, just use the same vector, or make a "
-            "copy."));
     Assert(((to_level >= 0) && (from_level >= 0)),
            dealii::ExcMessage("You cannot interpolate to or from a level that "
                               "is negaitve, all levels are non-negative."));
 
     ryujin::Scope scope(computing_timer, "interpolate_between_levels");
+
+    // If both levels are equal, we simply copy the data from_vector and put it in to_vector.
+    // Otherwise, we actually need to do some computation.
+    if(to_level == from_level)
+    {
+      // Copy the data using the dealii::operator= for distributed vectors, and
+      // nothing else.
+      // TODO: does this do what I think, leaving the from_v alone? Is it better
+      // to have the else case wrapped in an else statement? Ask Wolfgang.
+      to_v = from_v;
+      return;
+    }
+
     scalar_type next_component, curr_component;
 
     // First, set up a vector of pointers to vectors which will correspond to
@@ -574,7 +579,8 @@ namespace mgrit{
     // translate the fine level u coming in to the coarse level
     // this uses a function from DEALII interpolate to different mesh
 
-    // new, coarse vector
+    // new, coarse vector if levels are not the same, or, a copy of the fine
+    // vector, if levels are both finest_level.
     my_vector *u_to_step = new (my_vector);
     reinit_to_level(u_to_step, level);
 
@@ -585,8 +591,8 @@ namespace mgrit{
     // the vectors are assumed to be at the finest level spatially.) This allows
     // computations which are naturally faster on the coarser levels, due to a
     // larger mesh size.
-    if(level != finest_level)
-      interpolate_between_levels(std::get<0>(u_to_step->U), level, std::get<0>(u_->U), 0);
+
+    interpolate_between_levels(std::get<0>(u_to_step->U), level, std::get<0>(u_->U), 0);
 
 #ifdef CHECK_BOUNDS
     // Test physicality of interpolated vector.
@@ -633,9 +639,8 @@ namespace mgrit{
       std::cout << "Norm was " << norm << std::endl;
       // exit(EXIT_FAILURE);
     }
-    // interpolate this back to the fine level, is we need to.
-    if(level != finest_level)
-      interpolate_between_levels(std::get<0>(u_->U), 0, std::get<0>(u_to_step->U), level);
+    // Interpolate the updated state back to the fine level.
+    interpolate_between_levels(std::get<0>(u_->U), 0, std::get<0>(u_to_step->U), level);
 
 #ifdef CHECK_BOUNDS
     // Test physicality of interpolated vector on fine level, after the step.
