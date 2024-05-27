@@ -716,7 +716,7 @@ namespace mgrit{
     // If T is not zero, we step on the coarsest level until we are done.
     // Otherwise we have no need to step any because the assumtion is that T=0
     // TODO: implicit assumption that T>0 always here except for T=0.
-    if (std::fabs(t) > 0) {
+    if (std::fabs(t) > 0.0) {
       // interpolate the initial conditions up to the coarsest mesh
       interpolate_between_levels(
           std::get<0>(temp_coarse->U), coarsest_level, std::get<0>(u->U), finest_level);
