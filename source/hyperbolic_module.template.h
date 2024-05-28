@@ -425,7 +425,8 @@ namespace ryujin
 
         const auto d_ij = dij_matrix_.get_entry(i, col_idx);
 
-        const auto lambda_max = riemann_solver.compute(U_j, U_i, j, &i, n_ji);
+        const unsigned int i_as_uint = i;
+        const auto lambda_max = riemann_solver.compute(U_j, U_i, j, &i_as_uint, n_ji);
         const auto d_ji = norm_ji * lambda_max;
 
         dij_matrix_.write_entry(std::max(d_ij, d_ji), i, col_idx);
