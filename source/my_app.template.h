@@ -193,7 +193,7 @@ namespace mgrit{
                     << std::endl;
         }
         discretization_vec[most_refinement-lvl]->prepare();
-        offline_data_vec[most_refinement-lvl]->prepare(problem_dimension, false);
+        offline_data_vec[most_refinement-lvl]->prepare(problem_dimension, n_precomputed_values);
       }
     }
 

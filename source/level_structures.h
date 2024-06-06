@@ -85,6 +85,8 @@ namespace ryujin{
         //node in the mesh.
         static constexpr unsigned int problem_dimension
           = HyperbolicSystemView::problem_dimension;
+        static constexpr unsigned int n_precomputed_values 
+          = HyperbolicSystemView::n_precomputed_values;
 
         //TODO: do I need this timer?
         //A map that is used to time different sections of code
@@ -169,7 +171,7 @@ namespace ryujin{
     void LevelStructures<Description, dim, Number>::prepare()
     {
       discretization->prepare();
-      offline_data->prepare(problem_dimension, false /*exists_in_mg_hierarchy*/);
+      offline_data->prepare(problem_dimension, n_precomputed_values);
       initial_values->parse_parameters_callback();
       hyperbolic_module->prepare();
       parabolic_module->prepare();
