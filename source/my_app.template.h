@@ -245,6 +245,177 @@ namespace mgrit{
   }
 
   template<typename Number, typename Description, int dim>
+  void MyApp<Number, Description, dim>::print_times()
+  {
+    // Sum across spatial processors, sum across temporal processors, and Print
+    // only if we are a specific processor.
+    for(auto &it : computing_timer)
+    {
+      const auto statistics_space =
+          dealii::Utilities::MPI::min_max_avg(it.second.cpu_time(), comm_x);
+      const double sum_space = statistics_space.sum;
+      const auto statistics_space_time =
+          dealii::Utilities::MPI::min_max_avg(sum_space, comm_t);
+      const double sum_space_time = statistics_space_time.sum;
+      
+      if(dealii::Utilities::MPI::this_mpi_process(comm_x) == 0 )
+        std::cout << "Total time for " << it.first << ": "
+                  << std::setprecision(4) << std::fixed << std::setw(9)
+                  << sum_space_time << std::endl;
+    }
+    //A collection of ostreams we will output one at a time.
+    // std::vector<std::ostream> streams_by_commt(dealii::Utilities::MPI::n_processes());
+
+    // Communicate all times across each group of spatial processors, and then output the values for each of these based on the group to a separate stream
+    // for(auto &it : computing_timer)
+    // {
+    //   const auto wall_time_statistics = dealii::Utilities::MPI::min_max_avg(
+    //       it.second.wall_time(), comm_x);
+    // 
+    // }
+//     /* Update statistics: */
+
+//     {
+//       previous = current;
+
+//       current.cycle = cycle;
+//       current.t = t;
+
+//       const auto wall_time_statistics = Utilities::MPI::min_max_avg(
+//           computing_timer_["time loop"].wall_time(), mpi_communicator_);
+//       current.wall_time = wall_time_statistics.max;
+
+//       const auto cpu_time_statistics = Utilities::MPI::min_max_avg(
+//           computing_timer_["time loop"].cpu_time(), mpi_communicator_);
+//       current.cpu_time_sum = cpu_time_statistics.sum;
+//       current.cpu_time_avg = cpu_time_statistics.avg;
+//       current.cpu_time_min = cpu_time_statistics.min;
+//       current.cpu_time_max = cpu_time_statistics.max;
+//     }
+
+//     if (final_time)
+//       previous = Data();
+
+//     /* Take averages: */
+
+//     double delta_cycles = current.cycle - previous.cycle;
+//     const double cycles_per_second =
+//         delta_cycles / (current.wall_time - previous.wall_time);
+
+//     const auto efficiency = time_integrator_->efficiency();
+//     const auto n_dofs =
+//         static_cast<double>(offline_data_->dof_handler().n_dofs());
+
+//     const double wall_m_dofs_per_sec =
+//         delta_cycles * n_dofs / 1.e6 /
+//         (current.wall_time - previous.wall_time) * efficiency;
+
+//     double cpu_m_dofs_per_sec = delta_cycles * n_dofs / 1.e6 /
+//                                 (current.cpu_time_sum - previous.cpu_time_sum) *
+//                                 efficiency;
+// #ifdef WITH_OPENMP
+//     if (terminal_show_rank_throughput_)
+//       cpu_m_dofs_per_sec *= MultithreadInfo::n_threads();
+// #endif
+
+//     double cpu_time_skew = (current.cpu_time_max - current.cpu_time_min - //
+//                             previous.cpu_time_max + previous.cpu_time_min) /
+//                            delta_cycles;
+//     /* avoid printing small negative numbers: */
+//     cpu_time_skew = std::max(0., cpu_time_skew);
+
+//     const double cpu_time_skew_percentage =
+//         cpu_time_skew * delta_cycles /
+//         (current.cpu_time_avg - previous.cpu_time_avg);
+
+//     const double delta_time =
+//         (current.t - previous.t) / (current.cycle - previous.cycle);
+//     const double time_per_second =
+//         (current.t - previous.t) / (current.wall_time - previous.wall_time);
+
+//     /* Print Jean-Luc and Martin metrics: */
+
+//     std::ostringstream output;
+
+//     /* clang-format off */
+//     output << std::endl;
+
+//     output << "Throughput:\n  "
+//            << (terminal_show_rank_throughput_? "RANK: " : "CPU : ")
+//            << std::setprecision(4) << std::fixed << cpu_m_dofs_per_sec
+//            << " MQ/s  ("
+//            << std::scientific << 1. / cpu_m_dofs_per_sec * 1.e-6
+//            << " s/Qdof/substep)" << std::endl;
+
+//     output << "        [cpu time skew: "
+//            << std::setprecision(2) << std::scientific << cpu_time_skew
+//            << "s/cycle ("
+//            << std::setprecision(1) << std::setw(4) << std::setfill(' ') << std::fixed
+//            << 100. * cpu_time_skew_percentage
+//            << "%)]" << std::endl;
+
+//     output << "  WALL: "
+//            << std::setprecision(4) << std::fixed << wall_m_dofs_per_sec
+//            << " MQ/s  ("
+//            << std::scientific << 1. / wall_m_dofs_per_sec * 1.e-6
+//            << " s/Qdof/substep)  ("
+//            << std::setprecision(2) << std::fixed << cycles_per_second
+//            << " cycles/s)" << std::endl;
+
+//     const auto &scheme = time_integrator_->time_stepping_scheme();
+//     output << "        [ "
+//            << Patterns::Tools::Convert<TimeSteppingScheme>::to_string(scheme)
+//            << " with CFL = "
+//            << std::setprecision(2) << std::fixed << hyperbolic_module_->cfl()
+//            << " ("
+//            << std::setprecision(0) << std::fixed << hyperbolic_module_->n_restarts()
+//            << "/"
+//            << std::setprecision(0) << std::fixed << parabolic_module_->n_restarts()
+//            << " rsts) ("
+//            << std::setprecision(0) << std::fixed << hyperbolic_module_->n_warnings()
+//            << "/"
+//            << std::setprecision(0) << std::fixed << parabolic_module_->n_warnings()
+//            << " warn) ]" << std::endl;
+
+//     if constexpr (!ParabolicSystem::is_identity)
+//       parabolic_module_->print_solver_statistics(output);
+
+//     output << "        [ dt = "
+//            << std::scientific << std::setprecision(2) << delta_time
+//            << " ( "
+//            << time_per_second
+//            << " dt/s) ]" << std::endl;
+//     /* clang-format on */
+
+//     /* and print an ETA */
+//     time_per_second_exp = 0.8 * time_per_second_exp + 0.2 * time_per_second;
+//     auto eta = static_cast<unsigned int>(std::max(t_final_ - t, Number(0.)) /
+//                                          time_per_second_exp);
+
+//     output << "\n  ETA : ";
+
+//     const unsigned int days = eta / (24 * 3600);
+//     if (days > 0) {
+//       output << days << " d  ";
+//       eta %= 24 * 3600;
+//     }
+
+//     const unsigned int hours = eta / 3600;
+//     if (hours > 0) {
+//       output << hours << " h  ";
+//       eta %= 3600;
+//     }
+
+//     const unsigned int minutes = eta / 60;
+//     output << minutes << " min";
+
+//     if (mpi_rank_ != 0)
+//       return;
+
+    // stream << output.str() << std::endl;
+  }
+
+  template<typename Number, typename Description, int dim>
   void MyApp<Number, Description, dim>::reinit_to_level(my_vector *u, const int level)
   {
     Assert(levels.size() > static_cast<unsigned int>(level),

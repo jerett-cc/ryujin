@@ -62,4 +62,8 @@ int main(int argc, char* argv[])
 
   // Run Simulation
   core.Drive();
+
+  std::cout << "End of simulation." << std::endl;
+  app.print_times();
+
 }

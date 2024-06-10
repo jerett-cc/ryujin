@@ -172,6 +172,9 @@ namespace mgrit{
     void create_mg_levels();
     /// Calls prepare on all objects ryujin needs to run.
     void prepare_mg_objects();
+  public:
+    /// Print walltime for various pieces of code.
+    void print_times();
 
   public: // Braid Required Routines
           /** @brief Apply the time stepping routine to the input vector @a u
