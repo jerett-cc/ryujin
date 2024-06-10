@@ -282,7 +282,7 @@ namespace ryujin
      * sized vector partitioner for the MultiComponentVector.
      */
     void setup(const unsigned int problem_dimension,
-               const unsigned int n_precomputed_values, const bool exists_in_hierarchy);
+               const unsigned int n_precomputed_values);
 
     /**
      * Assemble all matrices.
