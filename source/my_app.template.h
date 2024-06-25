@@ -290,6 +290,7 @@ namespace mgrit{
 
     // First, set up a vector of pointers to vectors which will correspond to
     // data at each level, inclusive of th e level we start interpolation.
+    // TODO: refactor into shared_ptr, then use .get() or something to set then when you use new below.
     std::vector<vector_type*> level_vectors(std::abs(level_map[from_level]-level_map[to_level])+1);
     
     // Initialize each of these TODO: memory unsafe? see end of function.

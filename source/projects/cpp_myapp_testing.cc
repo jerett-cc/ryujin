@@ -7,6 +7,7 @@
 
 int main(int argc, char* argv[])
 {
+  // TODO: make this a parameter file option or a cmd line option.
   using Description = ryujin::Euler::Description;
   //scoped MPI object, no need to call finalize at the end.
   dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);  //create objects
