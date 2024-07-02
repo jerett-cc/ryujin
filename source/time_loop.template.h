@@ -968,6 +968,8 @@ namespace ryujin
       Number t,
       unsigned int cycle)
   {
+    // We want to output, so we overwrite the printing parameters
+    enable_output_full_ = true;
     output(U,fname,t,cycle);
   }
 
