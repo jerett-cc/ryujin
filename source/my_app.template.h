@@ -115,6 +115,8 @@ namespace mgrit{
     add_parameter("base name",
         base_name,
         "The name used in printing in ryujin");
+
+    // drag_history()//TODO: how to init? need this to have max_iter num of vectors, each of size n_coarse_points(at least the ones I am printing.)
   };
 
   template<typename Number, typename Description, int dim>
@@ -508,17 +510,11 @@ namespace mgrit{
                              const double t,
                              const int level,
                              const std::string fname,
-                             const bool time_in_fname,
                              const unsigned int cycle)
   {
     std::cout << "printing solution" << std::endl;
     const auto time_loop = time_loops[level];
-    if (time_in_fname) {
-      time_loop->output_wrapper(
-          v, fname + std::to_string(t), t /*current time*/, 0 /*cycle*/);
-    } else {
-      time_loop->output_wrapper(v, fname, t /*current time*/, cycle /*cycle*/);
-    }
+    time_loop->output_wrapper(v, fname, t /*current time*/, cycle /*cycle*/);
   }
 
   template<typename Number, typename Description, int dim>
@@ -608,7 +604,6 @@ namespace mgrit{
                      lvl_tstart,
                      level,
                      fname,
-                     false,
                      n_cycles);
 
 
@@ -652,7 +647,6 @@ namespace mgrit{
                      lvl_tstop,
                      0 /*level, always needs to be zero, to be fixed*/,
                      fname_post,
-                     false,
                      n_cycles);
 
     num_step_calls++;
@@ -734,7 +728,6 @@ namespace mgrit{
                      t,
                      finest_level,
                      str,
-                     false,
                      -1); // prints the interpolated state.
     // delete the temporary coarse U. f
     delete temp_coarse;
@@ -852,7 +845,7 @@ namespace mgrit{
              std::abs(t - 5.0) <
                  1e-6)) { // FIXME: this only prints for the [0,5] time interval
                           // at specific points. Make this more general.
-          print_solution(u_->U, t, finest_level /*level that u lives on*/, fname, print_solution_bool, t_idx);
+          print_solution(u_->U, t, finest_level /*level that u lives on*/, fname, t_idx);
         }
         if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
           std::cout << "Cycles done: " << mgCycle << std::endl;
@@ -865,6 +858,7 @@ namespace mgrit{
                          std::to_string(forces[1]) + " time." +
                          std::to_string(t)
                   << std::endl;
+        
 
         n_cycles = mgCycle;
         break;
