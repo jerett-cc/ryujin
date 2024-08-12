@@ -159,7 +159,6 @@ namespace mgrit{
                         const double t = 0,
                         const int level = 0,
                         const std::string fname = "./test-output",
-                        const bool time_in_fname = true,
                         const unsigned int cycle = 0);
 
     /// @brief Returns the number of locally owned dofs at the specified level.
@@ -268,5 +267,6 @@ namespace mgrit{
 
     std::string base_name;
     std::map<std::string, dealii::Timer> computing_timer;
+    std::vector<std::vector<dealii::Tensor<1, dim>>> drag_history;
   };
 }// Namespace mgrit
