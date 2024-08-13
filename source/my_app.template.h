@@ -535,9 +535,19 @@ namespace mgrit{
     // is passed to run_with_initial_data
     static unsigned int num_step_calls = 0;
 
+
     // grab the MG level for this step
-    int level;
+    int level, t_idx, iter;
     pstatus.GetLevel(&level);
+    pstatus.GetTIndex(&t_idx);
+    pstatus.GetIter(&iter);
+
+
+    if(level == finest_level)
+    {
+      std::pair<int,int> tidx_iter(t_idx, iter);
+      f_brick_relaxation_count[tidx_iter] += 1;
+    }
     // Start a timer for step::level
     ryujin::Scope scope(computing_timer, "step::" + std::to_string(level));
 
@@ -807,12 +817,14 @@ namespace mgrit{
     static int mgCycle = 0;
     double t = 0;
     braid_Int t_idx;
+    braid_Int level;
 
     // state what iteration we are on, and what time t we are at.
     astatus.GetCallingFunction(&caller_id);
     astatus.GetIter(&mgCycle);
     astatus.GetT(&t);
     astatus.GetTIndex(&t_idx);
+    astatus.GetLevel(&level);
 
    std::string fname = "./cycle" + std::to_string(mgCycle);
 
@@ -821,7 +833,7 @@ namespace mgrit{
       case braid_ASCaller_FInterp_Projection:
       {
         fname = fname + "caller_FInterp_Projection";
-        std::cout << "Access called for " + fname
+        std::cout << "[INFO] Access called for " + fname
                   << " enforcing physicality bounds after summing in FInterp."
                   << std::endl;
         // Call the stability projection function.
@@ -838,12 +850,12 @@ namespace mgrit{
         if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
           std::cout << "[INFO] Access Called" << std::endl;
         }
-
-        if (print_solution_bool &&
-            (std::abs(t - 0) < 1e-6 || std::abs(t - 1.25) < 1e-6 ||
-             std::abs(t - 2.5) < 1e-6 || std::abs(t - 3.75) < 1e-6 ||
-             std::abs(t - 5.0) <
-                 1e-6)) { // FIXME: this only prints for the [0,5] time interval
+        if (_braid_IsCPoint(t_idx, cfactor)){
+        // if (print_solution_bool &&
+        //     (std::abs(t - 0) < 1e-6 || std::abs(t - 1.25) < 1e-6 ||
+        //      std::abs(t - 2.5) < 1e-6 || std::abs(t - 3.75) < 1e-6 ||
+        //      std::abs(t - 5.0) <
+        //          1e-6)) { // FIXME: this only prints for the [0,5] time interval
                           // at specific points. Make this more general.
           print_solution(u_->U, t, finest_level /*level that u lives on*/, fname, t_idx);
         }
@@ -959,7 +971,7 @@ namespace mgrit{
 
     Number *dbuffer = (Number *)buffer;
     // todo: use this for a range check. Make sure we are not indexing outside of bounds of the buffer.
-    unsigned int buf_size = static_cast<unsigned int>(dbuffer[0]); // TODO: is this dangerous?
+    [[maybe_unused]] unsigned int buf_size = static_cast<unsigned int>(dbuffer[0]); // TODO: is this dangerous?
 
     // The vector should be size (dim + 2) X n_dofs at finest level.
     my_vector *u = new (my_vector); // TODO: where does this get deleted? Probably
