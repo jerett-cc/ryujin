@@ -268,5 +268,6 @@ namespace mgrit{
     std::string base_name;
     std::map<std::string, dealii::Timer> computing_timer;
     std::vector<std::vector<dealii::Tensor<1, dim>>> drag_history;
+    std::map<std::pair<int/*t_idx*/, int/*iteration*/>, int/*count*/> f_brick_relaxation_count;
   };
 }// Namespace mgrit
