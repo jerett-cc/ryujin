@@ -120,7 +120,10 @@ namespace mgrit{
   };
 
   template<typename Number, typename Description, int dim>
-  MyApp<Number, Description, dim>::~MyApp(){};
+  MyApp<Number, Description, dim>::~MyApp(){
+    print_times();
+    print_bricks_relaxation_count();
+  };
 
   template<typename Number, typename Description, int dim>
   void MyApp<Number, Description, dim>::initialize(std::string prm_file)
@@ -247,6 +250,40 @@ namespace mgrit{
     // set the last variables in app.
     n_fine_dofs = levels[0]->offline_data->dof_handler().n_dofs();
     n_locally_owned_dofs = levels[0]->offline_data->n_locally_owned();
+  }
+
+  template<typename Number, typename Description, int dim>
+  void MyApp<Number, Description, dim>::print_times()
+  {
+    // Sum across spatial processors, sum across temporal processors, and Print
+    // only if we are a specific processor.
+    for(auto &it : computing_timer)
+    {
+      const auto statistics_space =
+          dealii::Utilities::MPI::min_max_avg(it.second.cpu_time(), comm_x);
+      const double sum_space = statistics_space.sum;
+      const auto statistics_space_time =
+          dealii::Utilities::MPI::min_max_avg(sum_space, comm_t);
+      const double sum_space_time = statistics_space_time.sum;
+      
+      if(dealii::Utilities::MPI::this_mpi_process(comm_x) == 0 )
+        std::cout << "Total time for " << it.first << ": "
+                  << std::setprecision(4) << std::fixed << std::setw(9)
+                  << sum_space_time << std::endl;
+    }
+  }
+
+  template<typename Number, typename Description, int dim>
+  void MyApp<Number, Description, dim>::print_bricks_relaxation_count()
+  {
+    // Sum across spatial processors, sum across temporal processors, and Print
+    // only if we are a specific processor.
+    for(auto &it : f_brick_relaxation_count)
+    { 
+      if(dealii::Utilities::MPI::this_mpi_process(comm_x) == 0 )
+        std::cout << "Count for brick " << it.first.first << " on iteration " << it.first.second << ": "
+                  << it.second << std::endl;
+    }
   }
 
   template<typename Number, typename Description, int dim>
