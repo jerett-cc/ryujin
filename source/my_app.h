@@ -173,17 +173,23 @@ namespace mgrit{
     void prepare_mg_objects();
 
   public: // Braid Required Routines
-          /** @brief Apply the time stepping routine to the input vector @a u
-               corresponding to time @a tstart, and return in the same vector @a u the
-               computed result for time @a tstop. The values of @a tstart and @a tstop
-               can be obtained from @a pstatus.
-      
-               @param[in,out] u Input: approximate solution at time @a tstart.
-                                 Output: computed solution at time @a tstop.
-               @param[in] ustop Previous approximate solution at @a tstop?
-               @param[in] fstop Additional source at time @a tstop. May be set to
-             NULL,       indicating no additional source.
-          */
+
+    /// Print walltime for various pieces of code.
+    void print_times();
+
+    void print_bricks_relaxation_count();
+
+    /** @brief Apply the time stepping routine to the input vector @a u
+         corresponding to time @a tstart, and return in the same vector @a u the
+          computed result for time @a tstop. The values of @a tstart and @a tstop
+          can be obtained from @a pstatus.
+
+          @param[in,out] u Input: approximate solution at time @a tstart.
+                            Output: computed solution at time @a tstop.
+          @param[in] ustop Previous approximate solution at @a tstop?
+          @param[in] fstop Additional source at time @a tstop. May be set to
+        NULL,       indicating no additional source.
+    */
     braid_Int Step(braid_Vector u,
                    braid_Vector ustop,
                    braid_Vector fstop,
