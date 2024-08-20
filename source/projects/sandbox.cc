@@ -139,6 +139,7 @@ int main(int argc, char *argv[]){
       "Here, tstart=" + std::to_string(tstart)));
   // calls update_ghost_values() and reinits U and precomputed from the state_vector.
   std::get<0>(U) = app.levels[0]->initial_values->interpolate_hyperbolic_vector(0.0);
+  std::get<1>(U) = app.levels[0]->initial_values->interpolate_initial_precomputed_vector();
 
   app.time_loops[0]->change_base_name(restart_fname);
   //now that we have the data, we call the run function
