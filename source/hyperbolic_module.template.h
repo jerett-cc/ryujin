@@ -239,7 +239,8 @@ namespace ryujin
           stage_state_vectors,
       const std::array<Number, stages> stage_weights,
       StateVector &new_state_vector,
-      Number tau /*= 0.*/) const
+      Number tau /*= 0.*/,
+      const Number DT /*=(numeric_limits::max()-t)/num_stages*/) const
   {
 #ifdef DEBUG_OUTPUT
     std::cout << "HyperbolicModule<Description, dim, Number>::step()"
@@ -577,6 +578,10 @@ namespace ryujin
               "I'm sorry, Dave. I'm afraid I can't do that.\nWe crashed."));
 
       tau = (tau == Number(0.) ? tau_max.load() : tau);
+      // If the time step is greater than the maximum time step we want to take, we 
+      if( tau > DT){
+	tau = DT;
+      }
 
 #ifdef DEBUG_OUTPUT
       std::cout << "        computed tau_max = " << tau_max << std::endl;
@@ -1207,8 +1212,8 @@ namespace ryujin
       }
     }
 
-    /* Return tau_max: */
-    return tau_max;
+    /* Return tau, the time step actually taken.: */
+    return tau;
   }
 
 } /* namespace ryujin */

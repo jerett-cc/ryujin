@@ -187,7 +187,7 @@ namespace ryujin
   template <typename Description, int dim, typename Number>
   Number
   TimeIntegrator<Description, dim, Number>::step(StateVector &state_vector,
-                                                 Number t)
+                                                 Number t, const Number t_final)
   {
 #ifdef DEBUG_OUTPUT
     std::cout << "TimeIntegrator<dim, Number>::step()" << std::endl;
@@ -204,7 +204,7 @@ namespace ryujin
       case TimeSteppingScheme::erk_22:
         return step_erk_22(state_vector, t);
       case TimeSteppingScheme::erk_33:
-        return step_erk_33(state_vector, t);
+        return step_erk_33(state_vector, t, t_final);
       case TimeSteppingScheme::erk_43:
         return step_erk_43(state_vector, t);
       case TimeSteppingScheme::erk_54:
@@ -344,21 +344,24 @@ namespace ryujin
 
   template <typename Description, int dim, typename Number>
   Number TimeIntegrator<Description, dim, Number>::step_erk_33(
-      StateVector &state_vector, Number t)
+      StateVector &state_vector, Number t, const Number t_final)
   {
 #ifdef DEBUG_OUTPUT
     std::cout << "TimeIntegrator<dim, Number>::step_erk_33()" << std::endl;
 #endif
 
     /* Step 1: T0 <- {U_old, 1} at time t -> t + tau */
+    /* Based on t_final and the current t, we make sure that 3*tau < t_final-t
+     * if not, then we return tau = (t_final-t)/3 where 3 is the number of stages.
+     */
     hyperbolic_module_->prepare_state_vector(state_vector, t);
     Number tau =
-        hyperbolic_module_->template step<0>(state_vector, {}, {}, temp_[0]);
+      hyperbolic_module_->template step<0>(state_vector, {}, {}, temp_[0], (t_final-t)/3.0);
 
     /* Step 2: T1 <- {T0, 2} and {U_old, -1} at time t + 1*tau -> t + 2*tau */
     hyperbolic_module_->prepare_state_vector(temp_[0], t + 1.0 * tau);
     hyperbolic_module_->template step<1>(
-        temp_[0], {{state_vector}}, {{Number(-1.)}}, temp_[1], tau);
+		      temp_[0], {{state_vector}}, {{Number(-1.)}}, temp_[1], tau);
 
     /* Step 3: T2 <- {T1, 9/4} and {T0, -2} and {U_old, 3/4}
      * at time t + 2*tau -> t + 3*tau */

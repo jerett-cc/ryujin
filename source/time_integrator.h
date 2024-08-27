@@ -13,6 +13,8 @@
 #include "parabolic_module.h"
 #include "patterns_conversion.h"
 
+#include <limits>
+
 namespace ryujin
 {
   /**
@@ -231,7 +233,7 @@ namespace ryujin
      * adaptation and recovery strategies for invariant domain violations
      * are used.
      */
-    Number step(StateVector &state_vector, Number t);
+    Number step(StateVector &state_vector, Number t, const Number t_final=std::numeric_limits<Number>::max());
 
     /**
      * The selected time-stepping scheme.
@@ -290,7 +292,7 @@ namespace ryujin
      * third-order Runge-Kutta ERK(3,3;1) time step (and store the result
      * in U). The function returns the chosen time step size tau.
      */
-    Number step_erk_33(StateVector &state_vector, Number t);
+    Number step_erk_33(StateVector &state_vector, Number t, const Number t_final);
 
     /**
      * Given a reference to a previous state vector U performs an explicit
