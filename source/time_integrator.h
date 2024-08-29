@@ -233,7 +233,7 @@ namespace ryujin
      * adaptation and recovery strategies for invariant domain violations
      * are used.
      */
-    Number step(StateVector &state_vector, Number t, const Number t_final=std::numeric_limits<Number>::max());
+    Number step(StateVector &state_vector, Number t, const Number t_final = -1.0);
 
     /**
      * The selected time-stepping scheme.
@@ -292,7 +292,7 @@ namespace ryujin
      * third-order Runge-Kutta ERK(3,3;1) time step (and store the result
      * in U). The function returns the chosen time step size tau.
      */
-    Number step_erk_33(StateVector &state_vector, Number t, const Number t_final);
+    Number step_erk_33(StateVector &state_vector, Number t, const Number t_final);//TODO: make a default here?
 
     /**
      * Given a reference to a previous state vector U performs an explicit

@@ -349,14 +349,32 @@ namespace ryujin
 #ifdef DEBUG_OUTPUT
     std::cout << "TimeIntegrator<dim, Number>::step_erk_33()" << std::endl;
 #endif
-
+    
     /* Step 1: T0 <- {U_old, 1} at time t -> t + tau */
     /* Based on t_final and the current t, we make sure that 3*tau < t_final-t
      * if not, then we return tau = (t_final-t)/3 where 3 is the number of stages.
      */
+    Number DT = 0.0;
+    bool limit_time_step = false;
+    // If t_final is less than the current time, it must be that the user
+    // did not specify the final time, so must not care if we overshoot
+    // the final time which exists in other parts of the code.
+    // Therefore, we set DT, the maximum time step we allow to the max value Number
+    // can take. This has the effect in hyperbolic module of allowing tau_max to be
+    // used for the time step size.
+
+    // FIXME: this always assumes that t_final should be bigger than zero.
+    //        when it is concievable that a person could shift the time
+    //        domain to start at some negative t, however unlikely.
+    if(t_final > 0.0){
+      Assert(t_final - t > Number(0.),
+	     "t_final is not greater than t, so your DT is going to be negative.");
+      DT = (t_final-t)/3.0;
+    }
+    
     hyperbolic_module_->prepare_state_vector(state_vector, t);
     Number tau =
-      hyperbolic_module_->template step<0>(state_vector, {}, {}, temp_[0], (t_final-t)/3.0);
+      hyperbolic_module_->template step<0>(state_vector, {}, {}, temp_[0], DT, limit_time_step);
 
     /* Step 2: T1 <- {T0, 2} and {U_old, -1} at time t + 1*tau -> t + 2*tau */
     hyperbolic_module_->prepare_state_vector(temp_[0], t + 1.0 * tau);

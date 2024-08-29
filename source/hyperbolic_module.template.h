@@ -240,7 +240,8 @@ namespace ryujin
       const std::array<Number, stages> stage_weights,
       StateVector &new_state_vector,
       Number tau /*= 0.*/,
-      const Number DT /*=(numeric_limits::max()-t)/num_stages*/) const
+      const Number DT /*=-1.*/,
+      const bool limit_tau /*=false*/) const
   {
 #ifdef DEBUG_OUTPUT
     std::cout << "HyperbolicModule<Description, dim, Number>::step()"
@@ -578,8 +579,12 @@ namespace ryujin
               "I'm sorry, Dave. I'm afraid I can't do that.\nWe crashed."));
 
       tau = (tau == Number(0.) ? tau_max.load() : tau);
-      // If the time step is greater than the maximum time step we want to take, we 
-      if( tau > DT){
+      // If the time step is greater than the maximum time step we want to take
+      // and the user specified some DT limit, we use the DT limit. 
+      if(limit_tau){
+	Assert(DT > 0.0,
+	       ExcMessage("You requested to limit the time step size, but DT limit you"
+			  " used was negative with value:" + std::to_string(DT)));
 	tau = DT;
       }
 
