@@ -187,7 +187,9 @@ namespace ryujin
   template <typename Description, int dim, typename Number>
   Number
   TimeIntegrator<Description, dim, Number>::step(StateVector &state_vector,
-                                                 Number t, const Number t_final)
+                                                 Number t,
+						 const Number t_final,
+						 const bool limit)
   {
 #ifdef DEBUG_OUTPUT
     std::cout << "TimeIntegrator<dim, Number>::step()" << std::endl;
@@ -204,7 +206,7 @@ namespace ryujin
       case TimeSteppingScheme::erk_22:
         return step_erk_22(state_vector, t);
       case TimeSteppingScheme::erk_33:
-        return step_erk_33(state_vector, t, t_final);
+        return step_erk_33(state_vector, t, t_final, limit);
       case TimeSteppingScheme::erk_43:
         return step_erk_43(state_vector, t);
       case TimeSteppingScheme::erk_54:
@@ -344,7 +346,7 @@ namespace ryujin
 
   template <typename Description, int dim, typename Number>
   Number TimeIntegrator<Description, dim, Number>::step_erk_33(
-      StateVector &state_vector, Number t, const Number t_final)
+	  StateVector &state_vector, Number t, const Number t_final, const bool limit)
   {
 #ifdef DEBUG_OUTPUT
     std::cout << "TimeIntegrator<dim, Number>::step_erk_33()" << std::endl;
@@ -354,28 +356,19 @@ namespace ryujin
     /* Based on t_final and the current t, we make sure that 3*tau < t_final-t
      * if not, then we return tau = (t_final-t)/3 where 3 is the number of stages.
      */
-    Number DT = 0.0;
-    bool limit_time_step = false;
-    // If t_final is less than the current time, it must be that the user
-    // did not specify the final time, so must not care if we overshoot
-    // the final time which exists in other parts of the code.
-    // Therefore, we set DT, the maximum time step we allow to the max value Number
-    // can take. This has the effect in hyperbolic module of allowing tau_max to be
-    // used for the time step size.
-
-    // FIXME: this always assumes that t_final should be bigger than zero.
-    //        when it is concievable that a person could shift the time
-    //        domain to start at some negative t, however unlikely.
-    if(t_final > 0.0){
-      Assert(t_final - t > Number(0.),
-	     "t_final is not greater than t, so your DT is going to be negative.");
-      DT = (t_final-t)/3.0;
-    }
-    
     hyperbolic_module_->prepare_state_vector(state_vector, t);
     Number tau =
-      hyperbolic_module_->template step<0>(state_vector, {}, {}, temp_[0], DT, limit_time_step);
+      hyperbolic_module_->template step<0>(state_vector, {}, {}, temp_[0]);
 
+    // Now that we have a tau step, we check if it is too large. i.e. 3*tau + t cannot
+    // be larger than t_final, if it is, we re-run the above with tau = (t_final - t) / 3.0
+    if ( t + 3.0*tau > t_final && limit ){
+      Assert(t_final > 0.0,
+	     "Final time is not positive, to limit tau, you need to have specified a final time.");
+      tau =
+	hyperbolic_module_->template step<0>(state_vector, {}, {}, temp_[0], (t_final - t)/3.0);
+    }
+    
     /* Step 2: T1 <- {T0, 2} and {U_old, -1} at time t + 1*tau -> t + 2*tau */
     hyperbolic_module_->prepare_state_vector(temp_[0], t + 1.0 * tau);
     hyperbolic_module_->template step<1>(
