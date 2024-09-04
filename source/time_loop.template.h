@@ -500,7 +500,7 @@ namespace ryujin
       break;
 
     /* Take a step: */
-    const auto tau = time_integrator_->step(U, t);
+    const auto tau = time_integrator_->step(U, t, end_time);
     t += tau;
 
     /*Optional Postprocess Step*/
