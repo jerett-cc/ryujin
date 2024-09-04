@@ -470,13 +470,15 @@ namespace ryujin
 #endif
 
   const bool write_output_files = mgrit_specified_print;// If the user specifies other printing option, we default to that choice.
+  //enable_output_full_ = mgrit_specified_print;
  
   Number t = start_time;
   unsigned int timer_cycle = 0;
   unsigned int cycle = 1;
 
   /* Loop: */
-
+  //std::vector<Number> print_times({0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0});
+  //auto next_t = print_times[timer_cycle];
   for (;; ++cycle) {
 
     /* Accumulate quantities of interest: */
@@ -488,10 +490,13 @@ namespace ryujin
     /* Perform output: */
 
     if (t >= timer_cycle * timer_granularity_) {
+      //if (std::abs(t-next_t) < 1e-10) {
       if (write_output_files) {
         output(U, base_name_ + "-solution", t, timer_cycle);
       }
       ++timer_cycle;
+      //next_t = print_times[timer_cycle];
+      //std::cout << "Next t is " << next_t << std::endl;
     }
 
     /* Break if we have reached the final time: */
