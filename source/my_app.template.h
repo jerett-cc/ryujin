@@ -631,7 +631,7 @@ namespace mgrit{
     my_vector *u_to_step = new (my_vector);
     reinit_to_level(u_to_step, level);
 
-    std::cout << "norm of initialized u_to_step: " << std::get<0>(u_to_step->U).l2_norm() << std::endl;
+    //std::cout << "norm of initialized u_to_step: " << std::get<0>(u_to_step->U).l2_norm() << std::endl;
 
     // Interpolate between levels, put data from u (fine level) onto the
     // u_to_step (coarse level), if the level is not zero (this is because all
@@ -646,12 +646,12 @@ namespace mgrit{
     test_physicality(std::get<0>(u_to_step->U), level, "before step.");
 #endif
 
-    if (print_solution_bool)
-      print_solution(u_to_step->U,
-                     lvl_tstart,
-                     level,
-                     fname,
-                     n_cycles);
+    // if (print_solution_bool)
+    //   print_solution(u_to_step->U,
+    //                  lvl_tstart,
+    //                  level,
+    //                  fname,
+    //                  n_cycles);
 
 
     // step the function on this level
@@ -689,12 +689,12 @@ namespace mgrit{
     std::string fname_post = "FcOnLevel_" + std::to_string(level) +
                              "on_interval_[" + std::to_string(lvl_tstart) + "_" +
                              std::to_string(lvl_tstop) + "]";
-    if (print_solution_bool)
-      print_solution(u_->U,
-                     lvl_tstop,
-                     0 /*level, always needs to be zero, to be fixed*/,
-                     fname_post,
-                     n_cycles);
+    // if (print_solution_bool)
+    //   print_solution(u_->U,
+    //                  lvl_tstop,
+    //                  0 /*level, always needs to be zero, to be fixed*/,
+    //                  fname_post,
+    //                  n_cycles);
 
     num_step_calls++;
     // done.
