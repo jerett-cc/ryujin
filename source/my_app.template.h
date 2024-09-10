@@ -764,8 +764,8 @@ namespace mgrit{
           std::get<0>(temp_coarse->U), coarsest_level, std::get<0>(u->U), finest_level);
       // steps to the correct end time on the coarse level to end time t
       time_loops[coarsest_level]->run_with_initial_data(temp_coarse->U, t);
-      if (print_solution_bool)
-        print_solution(temp_coarse->U, t, coarsest_level, str);
+      //if (print_solution_bool)
+      //  print_solution(temp_coarse->U, t, coarsest_level, str);
 
       interpolate_between_levels(
           std::get<0>(u->U), finest_level, std::get<0>(temp_coarse->U), coarsest_level);
@@ -822,6 +822,7 @@ namespace mgrit{
       std::cout << alpha << "x + " << beta << "y" << std::endl;
     }
 #endif
+    ryujin::Scope scope(computing_timer, "sum");
 
     ryujin::sadd(y_->U, beta, alpha, x_->U);
 
@@ -840,6 +841,8 @@ namespace mgrit{
 #endif
 
     my_vector *u_ = (my_vector *)u;
+    ryujin::Scope scope(computing_timer, "spatial_norm");
+
     *norm_ptr = std::get<0>(u_->U).l2_norm();
 
     return 0;
@@ -855,6 +858,7 @@ namespace mgrit{
     double t = 0;
     braid_Int t_idx;
     braid_Int level;
+    ryujin::Scope scope(computing_timer, "access::" + std::to_string(level));
 
     // state what iteration we are on, and what time t we are at.
     astatus.GetCallingFunction(&caller_id);
@@ -964,6 +968,7 @@ namespace mgrit{
     if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
       std::cout << "[INFO] BufPack Called" << std::endl;
     }
+    ryujin::Scope scope(computing_timer, "buf_pack");
 
     Number *dbuffer = (Number *)buffer;
     unsigned int n_locally_owned =
@@ -988,10 +993,9 @@ namespace mgrit{
                    std::to_string(problem_dimension * node + component)));
       }
     }
-    bstatus.SetSize(
-        (buf_size + 1) *
-        sizeof(Number)); // set the number of bytes stored in this buffer (TODO:
-                         // this is off since the dbuffer[0] is a integer.)
+    bstatus.SetSize((buf_size + 1) * sizeof(Number));
+    // set the number of bytes stored in this buffer (TODO:
+    // this is off since the dbuffer[0] is a integer.)
     return 0;
   }
 
@@ -1005,6 +1009,7 @@ namespace mgrit{
     }
 
     UNUSED(bstatus);
+    ryujin::Scope scope(computing_timer, "buf_unpack");
 
     Number *dbuffer = (Number *)buffer;
     // todo: use this for a range check. Make sure we are not indexing outside of bounds of the buffer.
