@@ -860,7 +860,6 @@ namespace mgrit{
     double t = 0;
     braid_Int t_idx;
     braid_Int level;
-    ryujin::Scope scope(computing_timer, "access::" + std::to_string(level));
 
     // state what iteration we are on, and what time t we are at.
     astatus.GetCallingFunction(&caller_id);
@@ -869,7 +868,9 @@ namespace mgrit{
     astatus.GetTIndex(&t_idx);
     astatus.GetLevel(&level);
 
-   std::string fname = "./cycle" + std::to_string(mgCycle);
+    ryujin::Scope scope(computing_timer, "access::" + std::to_string(level));
+
+    std::string fname = "./cycle" + std::to_string(mgCycle);
 
     switch (caller_id) 
     {
