@@ -266,10 +266,12 @@ namespace mgrit{
           dealii::Utilities::MPI::min_max_avg(sum_space, comm_t);
       const double sum_space_time = statistics_space_time.sum;
       
-      if(dealii::Utilities::MPI::this_mpi_process(comm_x) == 0 )
+      if(dealii::Utilities::MPI::this_mpi_process(comm_x) == 0
+	 && dealii::Utilities::MPI::this_mpi_process(comm_t) == 0){
         std::cout << "Total time for " << it.first << ": "
                   << std::setprecision(4) << std::fixed << std::setw(9)
                   << sum_space_time << std::endl;
+      }
     }
   }
 
