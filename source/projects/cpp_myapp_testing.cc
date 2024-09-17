@@ -63,4 +63,6 @@ int main(int argc, char* argv[])
 
   // Run Simulation
   core.Drive();
+  app.print_times();
+  //app.print_bricks_relaxation_count();
 }
