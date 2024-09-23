@@ -520,11 +520,7 @@ namespace mgrit{
                          "is not admissible.\n"
                   << "State: " << u.template get_tensor(i) << std::endl;
       }
-  #endif
-      Assert(is_admissible,
-             dealii::ExcMessage("The state at index i=" + std::to_string(i) +
-                                "is not admissible."));
-
+#endif
       const bool pressure_no_nans =
           (hs_view_level.pressure(u.template get_tensor(i)) ==
            hs_view_level.pressure(u.template get_tensor(i)));
@@ -774,12 +770,13 @@ namespace mgrit{
       interpolate_between_levels(
           std::get<0>(u->U), finest_level, std::get<0>(temp_coarse->U), coarsest_level);
     }
-    if (print_solution_bool)
-      print_solution(u->U,
-                     t,
-                     finest_level,
-                     str,
-                     -1); // prints the interpolated state.
+    // if (print_solution_bool)
+    //   print_solution(u->U,
+    //                  t,
+    //                  finest_level,
+    //                  str,
+    //                  -1);
+    // prints the interpolated state.
     // delete the temporary coarse U. f
     delete temp_coarse;
 
@@ -975,6 +972,10 @@ namespace mgrit{
     }
     ryujin::Scope scope(computing_timer, "buf_pack");
 
+    mgrit_functions::
+        enforce_physicality_bounds<Description, dim, Number>(
+            *u_, finest_level, *this, 0.0);
+    
     Number *dbuffer = (Number *)buffer;
     unsigned int n_locally_owned =
         n_locally_owned_dofs; // number of dofs at finest level
