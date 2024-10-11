@@ -870,9 +870,11 @@ namespace mgrit{
       case braid_ASCaller_FInterp_Projection:
       {
         fname = fname + "caller_FInterp_Projection";
+#ifdef DEBUG
         std::cout << "[INFO] Access called for " + fname
                   << " enforcing physicality bounds after summing in FInterp."
                   << std::endl;
+#endif
         // Call the stability projection function.
         mgrit_functions::enforce_physicality_bounds<Description, dim, Number>(
             *u_, finest_level, *this, t);
@@ -902,11 +904,14 @@ namespace mgrit{
         // calculate drag (at end of cycle...)
         dealii::Tensor<1, dim> forces =
             mgrit_functions::calculate_drag_and_lift<Number, Description>(this, *u_, t);
-        std::cout << "cycle." + std::to_string(mgCycle) + " drag." +
+
+	if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0){
+	std::cout << "cycle." + std::to_string(mgCycle) + " drag." +
                          std::to_string(forces[0]) + " lift." +
                          std::to_string(forces[1]) + " time." +
                          std::to_string(t)
                   << std::endl;
+	}
         
 
         n_cycles = mgCycle;
@@ -944,13 +949,13 @@ namespace mgrit{
     *size_ptr =
         (size + 1) * sizeof(Number); //+1 is for the size of the buffers being
                                      // stored in the first component.
-    if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
-      std::cout << "Size in bytes of the Number: " << sizeof(Number)
-                << std::endl;
-      std::cout << "Problem_dimension: " << problem_dimension
-                << " n_dofs: " << n_fine_dofs << std::endl;
-      std::cout << "buf_size: " << *size_ptr << std::endl;
-    }
+    // if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
+    //   std::cout << "Size in bytes of the Number: " << sizeof(Number)
+    //             << std::endl;
+    //   std::cout << "Problem_dimension: " << problem_dimension
+    //             << " n_dofs: " << n_fine_dofs << std::endl;
+    //   std::cout << "buf_size: " << *size_ptr << std::endl;
+    // }
 
     return 0;
   }
@@ -996,6 +1001,9 @@ namespace mgrit{
     bstatus.SetSize((buf_size + 1) * sizeof(Number));
     // set the number of bytes stored in this buffer (TODO:
     // this is off since the dbuffer[0] is a integer.)
+    if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
+      std::cout << "[INFO] BufPack Finished." << std::endl;
+    }
     return 0;
   }
 
