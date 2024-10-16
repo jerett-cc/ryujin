@@ -555,6 +555,38 @@ namespace mgrit{
   }
 
   template<typename Number, typename Description, int dim>
+  bool MyApp<Number, Description, dim>::brick_converged(const int level, const int brick, const int iter)
+  {
+    // We base this test on what sort of relaxation we use. We posit that
+    // if FC-relaxation is used, then one brick at each level should be exact, as in Parareal.
+    // On the flipside, if FCF-relaxation is used, then two bricks will be converged each iteration
+    // on each level. TODO: verify that this is true.
+
+    // TODO: does this depend also on the cycle structure?
+
+
+    // In all other cases, we default to false, since we need to think more carefully about
+    // what bricks are converged.
+
+    switch(n_relax)
+    {
+      case 1:
+	{
+	  // FC relaxation
+	  return (brick < iter) ? true: false;
+	}
+      case 2:
+	{
+	  // FCF relaxation
+	  return (brick < 2*iter) ? true : false;
+	}
+      default:
+        return false;
+	
+    }
+  }
+
+  template<typename Number, typename Description, int dim>
   braid_Int MyApp<Number, Description, dim>::Step(braid_Vector u,
                         braid_Vector ustop,
                         braid_Vector fstop,
@@ -566,13 +598,18 @@ namespace mgrit{
     // is passed to run_with_initial_data
     static unsigned int num_step_calls = 0;
 
-
     // grab the MG level for this step
     int level, t_idx, iter;
     pstatus.GetLevel(&level);
     pstatus.GetTIndex(&t_idx);
     pstatus.GetIter(&iter);
 
+    // skip this brick if it is exact already
+    if(brick_converged(level, t_idx, iter))
+    {
+      return 0; 
+    }
+    
 
     if(level == finest_level)
     {
