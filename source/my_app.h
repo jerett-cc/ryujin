@@ -166,6 +166,12 @@ namespace mgrit{
     /// @return Number of dofs owned on this process, at this level.
     unsigned int n_locally_owned_at_level(const int level) const;
 
+    /// @brief Return whether a brick we wish to integrate is exact yet.
+    /// @param level the level of MGRIT we are stepping on.
+    /// @param brick the brick we are integrating on this level, typically specified with the t_idx
+    /// @param iter the MG iteration we are currently on.
+    bool brick_converged(const int level, const int brick, const int iter);
+
   private:
     /// Creates all objects ryujin needs to run.
     void create_mg_levels();
