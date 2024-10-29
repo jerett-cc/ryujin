@@ -702,7 +702,6 @@ namespace mgrit{
 #ifdef CHECK_BOUNDS
     // Test physicality of vector after it has been stepped.
     test_physicality(std::get<0>(u_to_step->U), level, "after step.");
-#endif
 
     double norm = std::get<0>(u_to_step->U).l1_norm();
 
@@ -714,6 +713,7 @@ namespace mgrit{
       std::cout << "Norm was " << norm << std::endl;
       // exit(EXIT_FAILURE);
     }
+#endif
     // Interpolate the updated state back to the fine level.
     interpolate_between_levels(std::get<0>(u_->U), 0, std::get<0>(u_to_step->U), level);
 
