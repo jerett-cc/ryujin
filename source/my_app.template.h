@@ -892,7 +892,7 @@ namespace mgrit{
     my_vector *u_ = (my_vector *) u;
 
     braid_Int caller_id;
-    static int mgCycle = 0;
+    braid_Int mgCycle = 0;
     double t = 0;
     braid_Int t_idx;
     braid_Int level;
