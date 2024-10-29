@@ -906,13 +906,12 @@ namespace mgrit{
 
     ryujin::Scope scope(computing_timer, "access::" + std::to_string(level));
 
-    std::string fname = "./cycle" + std::to_string(mgCycle);
+    std::string fname = "./" + base_name +"_cycle" + std::to_string(mgCycle);
 
     switch (caller_id) 
     {
       case braid_ASCaller_FInterp_Projection:
       {
-        fname = fname + "caller_FInterp_Projection";
 #ifdef DEBUG
         std::cout << "[INFO] Access called for " + fname
                   << " enforcing physicality bounds after summing in FInterp."
