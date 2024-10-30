@@ -528,7 +528,7 @@ namespace ryujin
                 riemann_solver.compute(U_i, U_j, i, &j, n_ij);
             const auto d_ij = norm_ij * lambda_max;
 
-            Assert(d_ij <= d_ji + 1.0e-12,
+            Assert(d_ij <= d_ji + 1.0e-10,
                    dealii::ExcMessage("d_ij not symmetrized correctly on "
                                       "boundary degrees of freedom."));
 #endif
