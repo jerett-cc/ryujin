@@ -527,6 +527,7 @@ namespace ryujin
             const auto d_ij = norm_ij * lambda_max;
 	    if(d_ij > d_ji +1.0e-10){
 	      std::cout << std::setprecision(16) << "d_ij not symmetrized with d_ij=" << d_ij << " and d_ji=" << d_ji << " diff=" << std::abs(d_ji-d_ij) << " with tolerance " << 1.0e-10 << std::endl;
+	      std::cout << "positioni:" << std::get<5>((offline_data_->boundary_map())[i]) << " positionj:" << std::get<5>((offline_data_->boundary_map())[j]) << std::endl;
 	    }
             // Assert(d_ij <= d_ji + 1.0e-10,
             //        dealii::ExcMessage("d_ij not symmetrized correctly on "
