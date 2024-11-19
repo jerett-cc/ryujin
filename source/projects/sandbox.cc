@@ -38,7 +38,8 @@ int main(int argc, char *argv[]){
     const auto hyperbolic_system_view =
       app.levels[app.finest_level]->hyperbolic_system->template view<2,NUMBER>();
 
-    NUMBER total_entropy = 0;
+    NUMBER total_entropy = 0.0;
+    NUMBER total_harten_entropy = 0.0;
 
     const auto comm_x = app.comm_x;
     const auto od     = app.levels[app.finest_level]->offline_data;
@@ -58,11 +59,15 @@ int main(int argc, char *argv[]){
 	      {
 		const auto state = std::get<0>(U).get_tensor(q_idx);
 		const NUMBER point_entropy = hyperbolic_system_view.specific_entropy(state);
+		const NUMBER point_harten_entropy = hyperbolic_system_view.harten_entropy(state);
 		for (const unsigned int i: fe_vals.dof_indices())
 		  {
 		    total_entropy += (fe_vals.shape_value(i,q_idx) *
 				      point_entropy *
 				      fe_vals.JxW(q_idx));
+		    total_harten_entropy += (fe_vals.shape_value(i,q_idx) *
+					     point_harten_entropy *
+					     fe_vals.JxW(q_idx));
 		  }// dof contributions for each cell
 	      } // quadrature points in cell
 	  } // locally owned
@@ -70,8 +75,11 @@ int main(int argc, char *argv[]){
    
     // communicate across space
     dealii::Utilities::MPI::sum(total_entropy, comm_x);
-    if(dealii::Utilities::MPI::this_mpi_process(comm_x)==0)
-      std::cout << "Total entropy at time t= " << time << " is " << total_entropy << std::endl;
+    dealii::Utilities::MPI::sum(total_harten_entropy, comm_x);
+    if(dealii::Utilities::MPI::this_mpi_process(comm_x)==0){
+      std::cout << "Total entropy at time t= " << time << " is " << std::setprecision(16) << total_entropy << std::endl;
+      std::cout << "Total harten entropy at time t= " << time << " is " << std::setprecision(16) << total_harten_entropy << std::endl;
+    }
   };
   
     [[maybe_unused]] const auto calculate_drag_and_lift = [&](const StateVector U, double t){
@@ -181,6 +189,8 @@ int main(int argc, char *argv[]){
   // calls update_ghost_values() and reinits U and precomputed from the state_vector.
   ryujin::Vectors::reinit_state_vector<ryujin::Euler::Description>(U, *(app.levels[0]->offline_data));
   std::get<0>(U) = app.levels[0]->initial_values->interpolate_hyperbolic_vector(0.0);
+
+  calculate_entropy(U,0.0);
 
   app.time_loops[0]->change_base_name(restart_fname);
   //now that we have the data, we call the run function
