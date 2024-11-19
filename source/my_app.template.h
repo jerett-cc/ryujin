@@ -953,6 +953,8 @@ namespace mgrit{
                          std::to_string(forces[1]) + " time." +
                          std::to_string(t)
                   << std::endl;
+	// calculate the entropy
+	mgrit_functions::total_entropy_in_system<Description,dim,Number>(*u_, this, finest_level, t);
 	}
         
 

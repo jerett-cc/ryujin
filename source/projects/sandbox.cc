@@ -31,9 +31,50 @@ int main(int argc, char *argv[]){
 
   using StateVector = mgrit::MyApp<NUMBER, ryujin::Euler::Description, 2>::StateVector;
   /**
-   * Deifne the postprocess lambda
+   * Deifne the postprocess lambdas
    */
-    const auto calculate_drag_and_lift = [&](const StateVector U, double t){
+  [[maybe_unused]] const auto calculate_entropy = [&](const StateVector U, double time){
+    // Calculate the entropy in the system
+    const auto hyperbolic_system_view =
+      app.levels[app.finest_level]->hyperbolic_system->template view<2,NUMBER>();
+
+    NUMBER total_entropy = 0;
+
+    const auto comm_x = app.comm_x;
+    const auto od     = app.levels[app.finest_level]->offline_data;
+    const auto &fe    = od->discretization().finite_element();
+    const auto &quad  = od->discretization().quadrature();
+
+    dealii::FEValues<2> fe_vals(fe,
+				quad,
+				dealii::update_values | dealii::update_JxW_values);
+    
+    for (const auto &cell: od->dof_handler().active_cell_iterators())
+      {
+	fe_vals.reinit(cell);
+	if(cell->is_locally_owned())
+	  {
+	    for (const unsigned int q_idx: fe_vals.quadrature_point_indices())
+	      {
+		const auto state = std::get<0>(U).get_tensor(q_idx);
+		const NUMBER point_entropy = hyperbolic_system_view.specific_entropy(state);
+		for (const unsigned int i: fe_vals.dof_indices())
+		  {
+		    total_entropy += (fe_vals.shape_value(i,q_idx) *
+				      point_entropy *
+				      fe_vals.JxW(q_idx));
+		  }// dof contributions for each cell
+	      } // quadrature points in cell
+	  } // locally owned
+      } //cells
+   
+    // communicate across space
+    dealii::Utilities::MPI::sum(total_entropy, comm_x);
+    if(dealii::Utilities::MPI::this_mpi_process(comm_x)==0)
+      std::cout << "Total entropy at time t= " << time << " is " << total_entropy << std::endl;
+  };
+  
+    [[maybe_unused]] const auto calculate_drag_and_lift = [&](const StateVector U, double t){
     using scalar_type = dealii::LinearAlgebra::distributed::Vector<NUMBER>;
     unsigned int dim = 2;
     const auto hyperbolic_system_view = app.levels[0]->hyperbolic_system->get().template view<2/*dim*/, NUMBER>();
@@ -144,7 +185,11 @@ int main(int argc, char *argv[]){
 
   app.time_loops[0]->change_base_name(restart_fname);
   //now that we have the data, we call the run function
-  app.time_loops[0]->run_with_initial_data(U, tstop, tstart, /*mgrit_specified_printing*/true, calculate_drag_and_lift);
+  app.time_loops[0]->run_with_initial_data(U,
+					   tstop,
+					   tstart,
+					   /*mgrit_specified_printing*/true,
+					   calculate_entropy);
 
   return 1;
 }
