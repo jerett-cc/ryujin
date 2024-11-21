@@ -684,15 +684,7 @@ namespace mgrit{
     // Test physicality of interpolated vector.
     test_physicality(std::get<0>(u_to_step->U), level, "before step.");
 #endif
-
-    // if (print_solution_bool)
-    //   print_solution(u_to_step->U,
-    //                  lvl_tstart,
-    //                  level,
-    //                  fname,
-    //                  n_cycles);
-
-
+    
     // step the function on this level
     time_loops[level]->change_base_name(fname);
     time_loops[level]->run_with_initial_data(
@@ -724,16 +716,6 @@ namespace mgrit{
     test_physicality(
         std::get<0>(u_->U), 0, "after step, after interpolation.");
 #endif
-
-    std::string fname_post = "FcOnLevel_" + std::to_string(level) +
-                             "on_interval_[" + std::to_string(lvl_tstart) + "_" +
-                             std::to_string(lvl_tstop) + "]";
-    // if (print_solution_bool)
-    //   print_solution(u_->U,
-    //                  lvl_tstop,
-    //                  0 /*level, always needs to be zero, to be fixed*/,
-    //                  fname_post,
-    //                  n_cycles);
 
     num_step_calls++;
     // done.
@@ -803,19 +785,11 @@ namespace mgrit{
           std::get<0>(temp_coarse->U), coarsest_level, std::get<0>(u->U), finest_level);
       // steps to the correct end time on the coarse level to end time t
       time_loops[coarsest_level]->run_with_initial_data(temp_coarse->U, t);
-      //if (print_solution_bool)
-      //  print_solution(temp_coarse->U, t, coarsest_level, str);
-
+      
       interpolate_between_levels(
           std::get<0>(u->U), finest_level, std::get<0>(temp_coarse->U), coarsest_level);
     }
-    // if (print_solution_bool)
-    //   print_solution(u->U,
-    //                  t,
-    //                  finest_level,
-    //                  str,
-    //                  -1);
-    // prints the interpolated state.
+    
     // delete the temporary coarse U. f
     delete temp_coarse;
 
@@ -934,12 +908,6 @@ namespace mgrit{
           std::cout << "[INFO] Access Called" << std::endl;
         }
         if (_braid_IsCPoint(t_idx, cfactor)){
-        // if (print_solution_bool &&
-        //     (std::abs(t - 0) < 1e-6 || std::abs(t - 1.25) < 1e-6 ||
-        //      std::abs(t - 2.5) < 1e-6 || std::abs(t - 3.75) < 1e-6 ||
-        //      std::abs(t - 5.0) <
-        //          1e-6)) { // FIXME: this only prints for the [0,5] time interval
-                          // at specific points. Make this more general.
           print_solution(u_->U, t, finest_level /*level that u lives on*/, fname, t_idx);
         }
         if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
