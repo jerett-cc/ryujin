@@ -561,7 +561,9 @@ namespace mgrit{
   }
 
   template<typename Number, typename Description, int dim>
-  bool MyApp<Number, Description, dim>::brick_converged([[maybe_unused]] const int level, const int brick, const int iter)
+  bool MyApp<Number, Description, dim>::brick_converged([[maybe_unused]] const braid_Int level,
+							const braid_Int brick,
+							const braid_Int iter)
   {
     // We base this test on what sort of relaxation we use. We posit that
     // if FC-relaxation is used, then one brick at each level should be exact, as in Parareal.

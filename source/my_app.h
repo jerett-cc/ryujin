@@ -173,7 +173,9 @@ namespace mgrit{
     /// @param level the level of MGRIT we are stepping on.
     /// @param brick the brick we are integrating on this level, typically specified with the t_idx
     /// @param iter the MG iteration we are currently on.
-    bool brick_converged(const int level, const int brick, const int iter);
+    bool brick_converged(const braid_Int level,
+			 const braid_Int brick,
+			 const braid_Int iter);
 
   private:
     /// Creates all objects ryujin needs to run.
