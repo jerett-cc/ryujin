@@ -620,6 +620,17 @@ namespace mgrit{
     // skip this brick if it is exact already
     if(brick_converged(level, t_idx, iter))
     {
+#ifdef DEBUG
+      if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
+	std::string info = "Level " + std::to_string(level) +
+	  " Brick #" + std::to_string(t_idx) +
+	  " with interval [" + std::to_string(lvl_tstart) +
+	  ", " + std::to_string(lvl_tstop) +
+	  "] skipped.";
+	  
+	std::cout << info << std::endl;
+      }
+#endif
       return 0; 
     }
     

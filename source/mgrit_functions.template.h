@@ -224,7 +224,7 @@ namespace mgrit_functions{
       primitive_state[0] = std::max(primitive_state[0], Number(1e-8));
       primitive_state[dim + 1] = std::max(primitive_state[dim + 1], Number(1e-8));
       // disallow very large pressures.
-      if(std::abs(primitive_state[dim+1]/average_pressure) > 1e2)
+      if(std::abs(primitive_state[dim+1]/average_pressure) > 1e1)
 	primitive_state[dim+1] = average_pressure;
 
       // Translate new state to conserved, then place in to spot.
@@ -295,51 +295,64 @@ namespace mgrit_functions{
     std::cout << "Total entropy at time t= " << time << " is " << total_entropy << std::endl;
   }
 
-    Assert((level == app->finest_level),
-	   dealii::ExcMessage("Can only calculate entropy on finest level."));
-    Assert((n_dofs == n_vector_dof),
-	   dealii::ExcMessage("Total entropy can only be calculated when dofs match on mesh and u."
-			      "Here, level="+ std::to_string(level)+ " which has "+
-		      std::to_string(n_vector_dof)+ " when the expected "+
-		      "number of dofs on the finest level is "+
-		      std::to_string(n_dofs)));
-    // Calculate the entropy in the system
-    const auto hyperbolic_system_view =
-      app->levels[level]->hyperbolic_system->template view<dim,Number>();
+  template <typename Description, int dim, typename Number>
+  void print_conserved_in_system(const mgrit::MyVector<Number, Description, dim> &u,
+				 const mgrit::MyApp<Number, Description, dim> *app,
+				 const unsigned int level,
+				 const Number time)
+  {
+    // [[maybe_unused]] int n_dofs       = app->n_locally_owned_at_level(level);
+    // [[maybe_unused]] int n_components = app->problem_dimension;
+    // [[maybe_unused]] int n_vector_dof = std::get<0>(u.U).locally_owned_size()/n_components;
 
-    Number total_entropy = 0;
+    // Assert((level == app->finest_level),
+    // 	   dealii::ExcMessage("Can only calculate conserved quantities on finest level."));
+    // Assert((n_dofs == n_vector_dof),
+    // 	   dealii::ExcMessage("Conserved quantitiescan only be calculated when dofs match on mesh and u."
+    // 			      "Here, level="+ std::to_string(level)+ " which has "+
+    // 		      std::to_string(n_vector_dof)+ " when the expected "+
+    // 		      "number of dofs on the finest level is "+
+    // 		      std::to_string(n_dofs)));
+    // // Calculate the entropy in the system
+    // const auto hyperbolic_system_view =
+    //   app->levels[level]->hyperbolic_system->template view<dim,Number>();
 
-    const auto comm_x = app->comm_x;
-    const auto od     = app->levels[app->finest_level]->offline_data;
-    const auto &fe    = od->discretization().finite_element();
-    const auto &quad  = od->discretization().quadrature();
+    // Number density = 0.0;
+    // Number E       = 0.0;
+    // // TODO NOV19th 2024: need to get the Energy and density and MOMENTUM?
+    // // Then calculate the integral of these in the entire domain.
 
-    dealii::FEValues<dim> fe_vals(fe,
-				  quad,
-				  dealii::update_values | dealii::update_JxW_values);
+    // const auto comm_x = app->comm_x;
+    // const auto od     = app->levels[app->finest_level]->offline_data;
+    // const auto &fe    = od->discretization().finite_element();
+    // const auto &quad  = od->discretization().quadrature();
+
+    // dealii::FEValues<dim> fe_vals(fe,
+    // 				  quad,
+    // 				  dealii::update_values | dealii::update_JxW_values);
     
-    for (const auto &cell: od->dof_handler().active_cell_iterators())
-      {
-	fe_vals.reinit(cell);
-	if(cell->is_locally_owned())
-	  {
-	    for (const unsigned int q_idx: fe_vals.quadrature_point_indices())
-	      {
-		const auto state = std::get<0>(u.U).get_tensor(q_idx);
-		const Number point_entropy = hyperbolic_system_view.specific_entropy(state);
-		for (const unsigned int i: fe_vals.dof_indices())
-		  {
-		    total_entropy += (fe_vals.shape_value(i,q_idx) *
-				      point_entropy *
-				      fe_vals.JxW(q_idx));
-		  }// dof contributions for each cell
-	      } // quadrature points in cell
-	  } // locally owned
-      } //cells
+    // for (const auto &cell: od->dof_handler().active_cell_iterators())
+    //   {
+    // 	fe_vals.reinit(cell);
+    // 	if(cell->is_locally_owned())
+    // 	  {
+    // 	    for (const unsigned int q_idx: fe_vals.quadrature_point_indices())
+    // 	      {
+    // 		const auto state = std::get<0>(u.U).get_tensor(q_idx);
+    // 		const Number point_entropy = hyperbolic_system_view.specific_entropy(state);
+    // 		for (const unsigned int i: fe_vals.dof_indices())
+    // 		  {
+    // 		    total_entropy += (fe_vals.shape_value(i,q_idx) *
+    // 				      point_entropy *
+    // 				      fe_vals.JxW(q_idx));
+    // 		  }// dof contributions for each cell
+    // 	      } // quadrature points in cell
+    // 	  } // locally owned
+    //   } //cells
    
-    // communicate across space
-    dealii::Utilities::MPI::sum(total_entropy, comm_x);
-    std::cout << "Total entropy at time t= " << time << " is " << total_entropy << std::endl;
+    // // communicate across space
+    // dealii::Utilities::MPI::sum(total_entropy, comm_x);
+    // std::cout << "Total entropy at time t= " << time << " is " << total_entropy << std::endl;
   }
 
 
