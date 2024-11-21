@@ -606,6 +606,11 @@ namespace mgrit{
     // is passed to run_with_initial_data
     static unsigned int num_step_calls = 0;
 
+    // grab the start time and end time
+    double lvl_tstart;
+    double lvl_tstop;
+    pstatus.GetTstartTstop(&lvl_tstart, &lvl_tstop);
+
     // grab the MG level for this step
     int level, t_idx, iter;
     pstatus.GetLevel(&level);
@@ -626,12 +631,7 @@ namespace mgrit{
     }
     // Start a timer for step::level
     ryujin::Scope scope(computing_timer, "step::" + std::to_string(level));
-
-    // grab the start time and end time
-    double lvl_tstart;
-    double lvl_tstop;
-    pstatus.GetTstartTstop(&lvl_tstart, &lvl_tstop);
-
+    
     // Ensure this is a physical vector.
     mgrit_functions::
         enforce_physicality_bounds<Description, dim, Number>(
