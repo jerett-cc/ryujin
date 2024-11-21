@@ -283,51 +283,22 @@ namespace mgrit_functions{
     std::cout << "Total entropy at time t= " << time << " is " << total_entropy << std::endl;
   }
 
-    Assert((level == app->finest_level),
-	   dealii::ExcMessage("Can only calculate entropy on finest level."));
-    Assert((n_dofs == n_vector_dof),
-	   dealii::ExcMessage("Total entropy can only be calculated when dofs match on mesh and u."
-			      "Here, level="+ std::to_string(level)+ " which has "+
-		      std::to_string(n_vector_dof)+ " when the expected "+
-		      "number of dofs on the finest level is "+
-		      std::to_string(n_dofs)));
-    // Calculate the entropy in the system
-    const auto hyperbolic_system_view =
-      app->levels[level]->hyperbolic_system->template view<dim,Number>();
+  template <typename Description, int dim, typename Number>
+  bool has_too_large_E(const mgrit::MyVector<Number, Description, dim> &u,
+		       const mgrit::MyApp<Number, Description, dim> &app,
+		       const unsigned int level,
+		       const Number max_E)
+  {
+    // Create Hyperbolic System View, where we can compute functions like pressure.
+    const auto view = app.levels[level]->hyperbolic_system->template view<dim,Number>();
 
-    Number total_entropy = 0;
-
-    const auto comm_x = app->comm_x;
-    const auto od     = app->levels[app->finest_level]->offline_data;
-    const auto &fe    = od->discretization().finite_element();
-    const auto &quad  = od->discretization().quadrature();
-
-    dealii::FEValues<dim> fe_vals(fe,
-				  quad,
-				  dealii::update_values | dealii::update_JxW_values);
-    
-    for (const auto &cell: od->dof_handler().active_cell_iterators())
-      {
-	fe_vals.reinit(cell);
-	if(cell->is_locally_owned())
-	  {
-	    for (const unsigned int q_idx: fe_vals.quadrature_point_indices())
-	      {
-		const auto state = std::get<0>(u.U).get_tensor(q_idx);
-		const Number point_entropy = hyperbolic_system_view.specific_entropy(state);
-		for (const unsigned int i: fe_vals.dof_indices())
-		  {
-		    total_entropy += (fe_vals.shape_value(i,q_idx) *
-				      point_entropy *
-				      fe_vals.JxW(q_idx));
-		  }// dof contributions for each cell
-	      } // quadrature points in cell
-	  } // locally owned
-      } //cells
-   
-    // communicate across space
-    dealii::Utilities::MPI::sum(total_entropy, comm_x);
-    std::cout << "Total entropy at time t= " << time << " is " << total_entropy << std::endl;
+    for(unsigned int node=0; node < app.n_locally_owned_at_level(level); node++)
+    {
+      const auto E = std::get<0>(u.U).get_tensor(node)[dim+1];
+      if(E > max_E)
+	return true;
+    }
+    return false;
   }
 
 

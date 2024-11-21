@@ -84,5 +84,22 @@ namespace mgrit_functions{
 			       const mgrit::MyApp<Number, Description, dim> &app,
 			       const unsigned int level,
 			       const Number time);
+
+  /// @brief This function's purpose is to identify when we have a situation where
+  ///        the energy density E is larger than a specified tolerance. For, debugging
+  ///        or sanity-checking purposes. Returns true if the solution disbehaves.
+  /// @tparam Description A description of the equation of state.
+  /// @tparam dim         The spatial dimension.
+  /// @tparam Number      The numerical expression of a real number.
+  /// @param u            A reference to a solution state on our mesh.
+  /// @param app          A reference to the my_app structure which contains
+  ///                     mesh specific data.
+  /// @param level        Required to specify the level in this function.
+  /// @param time         The time at which we calculate the entropy.
+  template <typename Description, int dim, typename Number>
+  bool has_too_large_E(const mgrit::MyVector<Number, Description, dim> &u,
+		       const mgrit::MyApp<Number, Description, dim> &app,
+		       const unsigned int level,
+		       const Number time);
   
 }// Namespace mgrit_functions
