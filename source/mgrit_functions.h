@@ -69,8 +69,8 @@ namespace mgrit_functions{
 				  const mgrit::MyApp<Number, Description, dim> &app,
 				  const Number t);
   
-  /// @brief This function measures the total entropy in the system, only works for
-  ///        the most accurate MGRIT level.
+  /// @brief This function measures the conserved quantities and entropy in the system,
+  ///        only works for the most accurate MGRIT level.
   /// @tparam Description A description of the equation of state.
   /// @tparam dim         The spatial dimension.
   /// @tparam Number      The numerical expression of a real number.
@@ -80,26 +80,9 @@ namespace mgrit_functions{
   /// @param level        Required to specify the level in this function.
   /// @param time         The time at which we calculate the entropy.
   template <typename Description, int dim, typename Number>
-  void total_entropy_in_system(const mgrit::MyVector<Number, Description, dim> &u,
-			       const mgrit::MyApp<Number, Description, dim> &app,
-			       const unsigned int level,
-			       const Number time);
-
-  /// @brief This function measures the density, momentum, and energy density
-  ///        for the system and prints these out. This is to allow the user to
-  ///        keep track of the conserved quantities as the flow evolves.
-  /// @tparam Description A description of the equation of state.
-  /// @tparam dim         The spatial dimension.
-  /// @tparam Number      The numerical expression of a real number.
-  /// @param u            A reference to a solution state on our mesh.
-  /// @param app          A reference to the my_app structure which contains
-  ///                     mesh specific data.
-  /// @param level        Required to specify the level in this function.
-  /// @param time         The time at which we calculate the entropy.
-  template <typename Description, int dim, typename Number>
-  void print_conserved_in_system(const mgrit::MyVector<Number, Description, dim> &u,
-				 const mgrit::MyApp<Number, Description, dim> &app,
-				 const unsigned int level,
-				 const Number time);
+  void conserved_and_entropy_in_system(const mgrit::MyVector<Number, Description, dim> &u,
+				       const mgrit::MyApp<Number, Description, dim> &app,
+				       const unsigned int level,
+				       const Number time);
   
 }// Namespace mgrit_functions

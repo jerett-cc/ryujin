@@ -33,13 +33,16 @@ int main(int argc, char *argv[]){
   /**
    * Deifne the postprocess lambdas
    */
-  [[maybe_unused]] const auto calculate_entropy = [&](const StateVector U, double time){
+  [[maybe_unused]] const auto calculate_conserved_and_entropy = [&](const StateVector U, double time){
     // Calculate the entropy in the system
     const auto hyperbolic_system_view =
       app.levels[app.finest_level]->hyperbolic_system->template view<2,NUMBER>();
 
     NUMBER total_entropy = 0.0;
     NUMBER total_harten_entropy = 0.0;
+    NUMBER mass = 0.0;
+    NUMBER momentum_sqr = 0.0;
+    NUMBER E = 0.0;
 
     const auto comm_x = app.comm_x;
     const auto od     = app.levels[app.finest_level]->offline_data;
@@ -60,6 +63,11 @@ int main(int argc, char *argv[]){
 		const auto state = std::get<0>(U).get_tensor(q_idx);
 		const NUMBER point_entropy = hyperbolic_system_view.specific_entropy(state);
 		const NUMBER point_harten_entropy = hyperbolic_system_view.harten_entropy(state);
+		const NUMBER point_rho = state[0];
+		NUMBER point_mom_sqr = 0;
+		for (int d=0; d<2; d++)
+		  point_mom_sqr += state[1+d]*state[1+d];
+		const NUMBER point_E = state[2+1];
 		for (const unsigned int i: fe_vals.dof_indices())
 		  {
 		    total_entropy += (fe_vals.shape_value(i,q_idx) *
@@ -68,6 +76,15 @@ int main(int argc, char *argv[]){
 		    total_harten_entropy += (fe_vals.shape_value(i,q_idx) *
 					     point_harten_entropy *
 					     fe_vals.JxW(q_idx));
+		    mass          += (fe_vals.shape_value(i,q_idx) *
+				      point_rho *
+				      fe_vals.JxW(q_idx));
+		    momentum_sqr  += (fe_vals.shape_value(i,q_idx) *
+				      point_mom_sqr *
+				      fe_vals.JxW(q_idx));
+		    E             += (fe_vals.shape_value(i,q_idx) *
+				      point_E *
+				      fe_vals.JxW(q_idx));
 		  }// dof contributions for each cell
 	      } // quadrature points in cell
 	  } // locally owned
@@ -76,9 +93,16 @@ int main(int argc, char *argv[]){
     // communicate across space
     dealii::Utilities::MPI::sum(total_entropy, comm_x);
     dealii::Utilities::MPI::sum(total_harten_entropy, comm_x);
+    dealii::Utilities::MPI::sum(mass, comm_x);
+    dealii::Utilities::MPI::sum(momentum_sqr, comm_x);
+    dealii::Utilities::MPI::sum(E, comm_x);
     if(dealii::Utilities::MPI::this_mpi_process(comm_x)==0){
       std::cout << "Total entropy at time t= " << time << " is " << std::setprecision(16) << total_entropy << std::endl;
       std::cout << "Total harten entropy at time t= " << time << " is " << std::setprecision(16) << total_harten_entropy << std::endl;
+      std::cout << "Total Mass at time t= " << time << " is " << mass << std::endl;
+      std::cout << "Total Momentum Squared at time t= " << time << " is " << momentum_sqr << std::endl;
+      std::cout << "Total E at time t= " << time << " is " << E << std::endl;
+      
     }
   };
   
@@ -191,7 +215,7 @@ int main(int argc, char *argv[]){
   std::get<0>(U) = app.levels[0]->initial_values->get().interpolate_hyperbolic_vector(0.0);
 
 
-  calculate_entropy(U,0.0);
+  calculate_conserved_and_entropy(U,0.0);
 
   app.time_loops[0]->change_base_name(restart_fname);
   //now that we have the data, we call the run function
@@ -199,7 +223,7 @@ int main(int argc, char *argv[]){
 					   tstop,
 					   tstart,
 					   /*mgrit_specified_printing*/true,
-					   calculate_entropy);
+					   calculate_conserved_and_entropy);
 
   return 1;
 }

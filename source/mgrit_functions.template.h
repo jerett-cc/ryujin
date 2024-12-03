@@ -239,10 +239,10 @@ namespace mgrit_functions{
   }
 
   template <typename Description, int dim, typename Number>
-  void total_entropy_in_system(const mgrit::MyVector<Number, Description, dim> &u,
-			       const mgrit::MyApp<Number, Description, dim> *app,
-			       const unsigned int level,
-			       const Number time)
+  void conserved_and_entropy_in_system(const mgrit::MyVector<Number, Description, dim> &u,
+				       const mgrit::MyApp<Number, Description, dim> *app,
+				       const unsigned int level,
+				       const Number time)
   {
     [[maybe_unused]] int n_dofs       = app->n_locally_owned_at_level(level);
     [[maybe_unused]] int n_components = app->problem_dimension;
@@ -261,6 +261,9 @@ namespace mgrit_functions{
       app->levels[level]->hyperbolic_system->template view<dim,Number>();
 
     Number total_entropy = 0;
+    Number mass          = 0;
+    Number momentum_sqr  = 0;
+    Number E             = 0;
 
     const auto comm_x = app->comm_x;
     const auto od     = app->levels[app->finest_level]->offline_data;
@@ -280,10 +283,25 @@ namespace mgrit_functions{
 	      {
 		const auto state = std::get<0>(u.U).get_tensor(q_idx);
 		const Number point_entropy = hyperbolic_system_view.specific_entropy(state);
+		const Number point_rho = state[0];
+		Number point_mom_sqr = 0;
+		for (int d=0; d<dim; d++)
+		  point_mom_sqr += state[1+d]*state[1+d];
+		const Number point_E = state[dim+1];
+		
 		for (const unsigned int i: fe_vals.dof_indices())
 		  {
 		    total_entropy += (fe_vals.shape_value(i,q_idx) *
 				      point_entropy *
+				      fe_vals.JxW(q_idx));
+		    mass          += (fe_vals.shape_value(i,q_idx) *
+				      point_rho *
+				      fe_vals.JxW(q_idx));
+		    momentum_sqr  += (fe_vals.shape_value(i,q_idx) *
+				      point_mom_sqr *
+				      fe_vals.JxW(q_idx));
+		    E             += (fe_vals.shape_value(i,q_idx) *
+				      point_E *
 				      fe_vals.JxW(q_idx));
 		  }// dof contributions for each cell
 	      } // quadrature points in cell
@@ -292,68 +310,15 @@ namespace mgrit_functions{
    
     // communicate across space
     dealii::Utilities::MPI::sum(total_entropy, comm_x);
-    std::cout << "Total entropy at time t= " << time << " is " << total_entropy << std::endl;
+    dealii::Utilities::MPI::sum(mass, comm_x);
+    dealii::Utilities::MPI::sum(momentum_sqr, comm_x);
+    dealii::Utilities::MPI::sum(E, comm_x);
+    if(dealii::Utilities::MPI::this_mpi_process(app->comm_x)==0){
+      std::cout << "Total entropy at time t= " << time << " is " << total_entropy << std::endl;
+      std::cout << "Total Mass at time t= " << time << " is " << mass << std::endl;
+      std::cout << "Total Momentum Squared at time t= " << time << " is " << momentum_sqr << std::endl;
+      std::cout << "Total E at time t= " << time << " is " << E << std::endl;
+    }
   }
-
-  template <typename Description, int dim, typename Number>
-  void print_conserved_in_system(const mgrit::MyVector<Number, Description, dim> &u,
-				 const mgrit::MyApp<Number, Description, dim> *app,
-				 const unsigned int level,
-				 const Number time)
-  {
-    // [[maybe_unused]] int n_dofs       = app->n_locally_owned_at_level(level);
-    // [[maybe_unused]] int n_components = app->problem_dimension;
-    // [[maybe_unused]] int n_vector_dof = std::get<0>(u.U).locally_owned_size()/n_components;
-
-    // Assert((level == app->finest_level),
-    // 	   dealii::ExcMessage("Can only calculate conserved quantities on finest level."));
-    // Assert((n_dofs == n_vector_dof),
-    // 	   dealii::ExcMessage("Conserved quantitiescan only be calculated when dofs match on mesh and u."
-    // 			      "Here, level="+ std::to_string(level)+ " which has "+
-    // 		      std::to_string(n_vector_dof)+ " when the expected "+
-    // 		      "number of dofs on the finest level is "+
-    // 		      std::to_string(n_dofs)));
-    // // Calculate the entropy in the system
-    // const auto hyperbolic_system_view =
-    //   app->levels[level]->hyperbolic_system->template view<dim,Number>();
-
-    // Number density = 0.0;
-    // Number E       = 0.0;
-    // // TODO NOV19th 2024: need to get the Energy and density and MOMENTUM?
-    // // Then calculate the integral of these in the entire domain.
-
-    // const auto comm_x = app->comm_x;
-    // const auto od     = app->levels[app->finest_level]->offline_data;
-    // const auto &fe    = od->discretization().finite_element();
-    // const auto &quad  = od->discretization().quadrature();
-
-    // dealii::FEValues<dim> fe_vals(fe,
-    // 				  quad,
-    // 				  dealii::update_values | dealii::update_JxW_values);
-    
-    // for (const auto &cell: od->dof_handler().active_cell_iterators())
-    //   {
-    // 	fe_vals.reinit(cell);
-    // 	if(cell->is_locally_owned())
-    // 	  {
-    // 	    for (const unsigned int q_idx: fe_vals.quadrature_point_indices())
-    // 	      {
-    // 		const auto state = std::get<0>(u.U).get_tensor(q_idx);
-    // 		const Number point_entropy = hyperbolic_system_view.specific_entropy(state);
-    // 		for (const unsigned int i: fe_vals.dof_indices())
-    // 		  {
-    // 		    total_entropy += (fe_vals.shape_value(i,q_idx) *
-    // 				      point_entropy *
-    // 				      fe_vals.JxW(q_idx));
-    // 		  }// dof contributions for each cell
-    // 	      } // quadrature points in cell
-    // 	  } // locally owned
-    //   } //cells
-   
-    // // communicate across space
-    // dealii::Utilities::MPI::sum(total_entropy, comm_x);
-    // std::cout << "Total entropy at time t= " << time << " is " << total_entropy << std::endl;
-  }
-
 
 } // Namespace mgrit_functions
