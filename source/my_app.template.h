@@ -61,8 +61,8 @@ namespace mgrit{
 
   template<typename Number, typename Description, int dim>
   MyApp<Number, Description, dim>::MyApp(const MPI_Comm comm_x,
-               const MPI_Comm comm_t,
-               const std::vector<int> a_refinement_levels)
+					 const MPI_Comm comm_t,
+					 const std::vector<int> a_refinement_levels)
       : BraidApp(comm_t)
       , ParameterAcceptor("/App")
       , comm_x(comm_x)
@@ -235,8 +235,7 @@ namespace mgrit{
 	   dealii::ExcMessage("Print factor must be at least one, and less than the number of "
 			      "time points total."));
     //   initialized = true; // now the user can access data in app. TODO:
-    //   implement a
-    // check for getter functions.
+    //   implement a check for getter functions.
   }
   
   template<typename Number, typename Description, int dim>
@@ -338,7 +337,7 @@ namespace mgrit{
                            "the n_dofs do not match will not work."));
     Assert(((to_level >= 0) && (from_level >= 0)),
            dealii::ExcMessage("You cannot interpolate to or from a level that "
-                              "is negaitve, all levels are non-negative."));
+                              "is negative, all levels are non-negative."));
 
     ryujin::Scope scope(computing_timer, "interpolate_between_levels");
 
@@ -926,10 +925,12 @@ namespace mgrit{
       {
 #ifdef DEBUG
         std::cout << "[INFO] Access called for " + fname
-                  << " enforcing physicality bounds after summing in FInterp."
+                  << " enforcing physicality bounds after summing in FInterp"
+		  << " on level " + std::to_string(level)
                   << std::endl;
 #endif
-        // Call the stability projection function.
+        // Call the stability projection function. Note that ALL the data
+	// lives in memory at the finest level.
         mgrit_functions::enforce_physicality_bounds<Description, dim, Number>(
             *u_, finest_level, *this, t);
 #ifdef CHECK_BOUNDS
@@ -940,6 +941,8 @@ namespace mgrit{
       }
       case braid_ASCaller_FAccess: 
       {
+	// This function is called at the end of a cycle, if access_level >= 2, and only
+	// on the finest level, per XBraid CHANGELOG:Version 2.0.0, 05/25/2016 section.
         if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
           std::cout << "[INFO] Access Called" << std::endl;
         }
