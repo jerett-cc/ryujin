@@ -79,9 +79,9 @@ namespace mgrit{
     add_parameter("print_solution_bool",
                   print_solution_bool,
                   "Optional to print the solution in Init and Access.");
-    ntime = 10; // This is the default value in BraidApp(...)
+    num_bricks = 10; // This is the default value in BraidApp(...)
     add_parameter("Time Bricks",
-                  ntime,
+                  num_bricks,
                   "Number of time bricks total on the fine level.");
     tstart = 0.0;
     add_parameter("Start Time", tstart);
@@ -91,8 +91,8 @@ namespace mgrit{
                  // matches that of XBRAID.
     add_parameter(
         "cfactor", cfactor, "The coarsening factor between time levels.");
-    max_iter = ntime; // In theory, mgrit should converge after the number of
-                      // cycles equal to the number of time points it has.
+    max_iter = num_bricks; // In theory, mgrit should converge after the number of
+    // cycles equal to the number of time points it has.
     add_parameter(
         "max_iter", max_iter, "The maximum number of MGRIT iterations.");
     use_fmg = false;
@@ -117,6 +117,16 @@ namespace mgrit{
     add_parameter("base name",
         base_name,
         "The name used in printing in ryujin");
+    minimal_tpoints_coarsest_level = 3;
+    add_parameter("min_num_coarsest_points",
+		  minimal_tpoints_coarsest_level,
+		  "The smallest number of allowable time points the "
+		  "user defines on the most coarse level. Must be >=1.");
+    print_factor = 1;
+    add_parameter("print factor",
+		  print_factor,
+		  "Contols how many cpoints to output, 1 means all, 2 means skip every other, "
+		  "and so on.");
 
     // drag_history()//TODO: how to init? need this to have max_iter num of vectors, each of size n_coarse_points(at least the ones I am printing.)
   };
@@ -208,7 +218,22 @@ namespace mgrit{
 						       n_parabolic_state);
       }
     }
+    // Set the number of time points based on the number of bricks.
+    for(braid_Int l = 0; l < coarsest_level; l++)
+      total_cfactor *= cfactor;
+    if(dealii::Utilities::MPI::this_mpi_process(comm_x)==0)
+      std::cout << "Cumulative coarsening by a factor of " << total_cfactor << std::endl;
 
+    Assert(minimal_tpoints_coarsest_level >=1,
+	   dealii::ExcMessage("Your choice of " + std::to_string(minimal_tpoints_coarsest_level)+
+			      " time points on the coarsest level needs to be >=1,"
+			      " which is the default."));
+    // Now that we know the total coarsening, we need to determine the ntime variable
+    // giving the correct number of coarse time points.
+    ntime = num_bricks * total_cfactor * minimal_tpoints_coarsest_level;
+    Assert((print_factor >=1 && print_factor < ntime),
+	   dealii::ExcMessage("Print factor must be at least one, and less than the number of "
+			      "time points total."));
     //   initialized = true; // now the user can access data in app. TODO:
     //   implement a
     // check for getter functions.
@@ -918,7 +943,9 @@ namespace mgrit{
         if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
           std::cout << "[INFO] Access Called" << std::endl;
         }
-        if (_braid_IsCPoint(t_idx, cfactor)){
+	// FIXME: this always prints the brick, change.
+	// Want that if t_idx is a multiple of total_cfactor, we print.
+        if (t_idx % print_factor == 0){
           print_solution(u_->U, t, finest_level /*level that u lives on*/, fname, t_idx);
         }
         if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {

@@ -270,6 +270,10 @@ namespace mgrit{
     braid_Int n_relax;
     unsigned int n_cycles = 0;
     braid_Int access_level;
+    braid_Int num_bricks; // We use this to calculate the number of time points later.
+    braid_Int total_cfactor = 1; // total factor of coarsening from finest to coarsest level.
+    braid_Int minimal_tpoints_coarsest_level;
+    braid_Int print_factor;
 
     // A vector used to store ALL levels of refinement offline_data for when we
     // need to interpolate vectors between levels.
