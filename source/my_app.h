@@ -156,13 +156,12 @@ namespace mgrit{
     /// @param t The time.
     /// @param level The level at which this vector lives.
     /// @param fname Filenams to print.
-    /// @param time_in_fname Do we include the time in the fname.
-    /// @param cycle The Multigrid Cycle in which the vector is in.
+    /// @param t_idx The index of the time point we are printing.
     void print_solution(StateVector &v,
                         const double t = 0,
                         const int level = 0,
                         const std::string fname = "./test-output",
-                        const unsigned int cycle = 0);
+                        const unsigned int t_idx = 0);
 
     /// @brief Returns the number of locally owned dofs at the specified level.
     /// @param level Level we are querying.

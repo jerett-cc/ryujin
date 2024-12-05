@@ -544,14 +544,14 @@ namespace mgrit{
 
   template<typename Number, typename Description, int dim>
   void MyApp<Number, Description, dim>::print_solution(StateVector &v,
-                             const double t,
-                             const int level,
-                             const std::string fname,
-                             const unsigned int cycle)
+						       const double t,
+						       const int level,
+						       const std::string fname,
+						       const unsigned int t_idx)
   {
     std::cout << "printing solution" << std::endl;
     const auto time_loop = time_loops[level];
-    time_loop->output_wrapper(v, fname, t /*current time*/, cycle /*cycle*/);
+    time_loop->output_wrapper(v, fname, t /*current time*/, t_idx /*brick*/);
   }
 
   template<typename Number, typename Description, int dim>
