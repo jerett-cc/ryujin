@@ -31,7 +31,7 @@ int main(int argc, char *argv[]){
 
   // Initialize data needs to be at t = 0.
   ryujin::Vectors::reinit_state_vector<ryujin::Euler::Description>(U, *(app.levels[0]->offline_data));
-  std::get<0>(U) = app.levels[0]->initial_values->interpolate_hyperbolic_vector(0.0);
+  std::get<0>(U) = app.levels[0]->initial_values->get().interpolate_hyperbolic_vector(0.0);
 
    //pretend that we are on cycle 2, check that all bricks which should not step on this cycle don't;
   
