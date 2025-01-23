@@ -102,7 +102,7 @@ namespace ryujin
                  const unsigned int n_precomputed_values,
                  const unsigned int n_parabolic_state_vectors)
     {
-      setup(problem_dimension, n_precomputed_values, exists_in_hierarchy);
+      setup(problem_dimension, n_precomputed_values);
       assemble();
       create_multigrid_data();
 
@@ -295,7 +295,7 @@ namespace ryujin
      * sized vector partitioner for the MultiComponentVector.
      */
     void setup(const unsigned int problem_dimension,
-               const unsigned int n_precomputed_values, const bool exists_in_hierarchy);
+               const unsigned int n_precomputed_values);
 
     /**
      * Assemble all matrices.
