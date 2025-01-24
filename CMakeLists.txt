@@ -147,7 +147,7 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
   string(REPLACE "-Qunused-arguments" "" DEAL_II_CXX_FLAGS "${DEAL_II_CXX_FLAGS}")
   string(REPLACE "-Qunused-arguments" "" DEAL_II_WARNING_FLAGS "${DEAL_II_WARNING_FLAGS}")
   string(REPLACE "-ffp-exception-behavior=strict" "" DEAL_II_CXX_FLAGS_DEBUG "${DEAL_II_CXX_FLAGS_DEBUG}")
-  string(APPEND DEAL_II_CXX_FLAGS " -Wno-missing-braces -Wno-unknown-pragmas")
+  string(APPEND DEAL_II_CXX_FLAGS " -Wno-missing-braces -Wno-unknown-pragmas -Wfatal-errors")
 
   if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 12.0)
     string(APPEND DEAL_II_CXX_FLAGS " -Wno-overloaded-virtual")
