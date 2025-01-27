@@ -36,7 +36,7 @@ int main(int argc, char *argv[]){
   [[maybe_unused]] const auto calculate_conserved_and_entropy = [&](const StateVector U, double time){
     // Calculate the entropy in the system
     const auto hyperbolic_system_view =
-      app.levels[app.finest_level]->hyperbolic_system->template view<2,NUMBER>();
+      app.levels[app.finest_level]->hyperbolic_system->get().template view<2,NUMBER>();
 
     NUMBER total_entropy = 0.0;
     NUMBER total_harten_entropy = 0.0;

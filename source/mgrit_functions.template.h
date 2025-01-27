@@ -21,13 +21,6 @@ namespace mgrit_functions{
     // We do not care what t is in this case.
     UNUSED(t);
 
-    // Establish the data structures which know about the system we are about to do computations.
-    const auto offline_data = app->levels[app->finest_level]->offline_data;
-    const auto mpi_communicator = app->comm_x;
-    const auto hyperbolic_system_view =
-        app->levels[app->finest_level]
-            ->hyperbolic_system->template view<2, Number>();
-
       const auto offline_data = app->levels[app->finest_level]->offline_data;
       const auto mpi_communicator = app->comm_x;
       const auto hyperbolic_system_view =
@@ -258,7 +251,7 @@ namespace mgrit_functions{
 		      std::to_string(n_dofs)));
     // Calculate the entropy in the system
     const auto hyperbolic_system_view =
-      app->levels[level]->hyperbolic_system->template view<dim,Number>();
+      app->levels[level]->hyperbolic_system->get().template view<dim,Number>();
 
     Number total_entropy = 0;
     Number mass          = 0;
