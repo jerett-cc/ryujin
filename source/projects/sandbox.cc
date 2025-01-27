@@ -23,8 +23,7 @@ int main(int argc, char *argv[]){
   std::cout << "Restarting computation with file " << restart_fname << "\nending at time t in [" << tstart << ", " <<  tstop << "]." << std::endl;
 
   dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);  //create objects
-  const MPI_Comm comm_world = MPI_COMM_WORLD;
-  mgrit::MyApp<NUMBER, ryujin::Euler::Description, 2> app(comm_world, comm_world, {(int)refinement});
+  mgrit::MyApp<NUMBER, ryujin::Euler::Description, 2> app(MPI_COMM_WORLD, MPI_COMM_WORLD, {(int)refinement});
   std::cout << "Initializing with prm = " + prm_name << std::endl;
 
   app.initialize(prm_name);
