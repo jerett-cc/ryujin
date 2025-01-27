@@ -239,7 +239,7 @@ namespace ryujin
     /**
      * Constructor where user specifies the refinement.
      */
-    Discretization(const MPI_Comm &mpi_communicator,
+    Discretization(const MPIEnsemble &mpi_ensemble,
                    const unsigned int refinement,
                    const std::string &subsection = "/Discretization");
 

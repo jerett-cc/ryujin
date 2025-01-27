@@ -130,7 +130,7 @@ namespace ryujin{
         , parabolic_system(std::make_shared<MPIEnsembleContainer<ParabolicSystem>>(mpi_ensemble_,
 										   "/B - Equation"))
         , discretization(std::make_shared<Discretization>(
-              level_comm_x, level_refinement, "/C - Discretization"))
+              mpi_ensemble_, level_refinement, "/C - Discretization"))
         , offline_data(std::make_shared<OfflineData>(
               mpi_ensemble_, *discretization, "/OfflineData"))
         , initial_values(std::make_shared<MPIEnsembleContainer<InitialValues>>(mpi_ensemble_,

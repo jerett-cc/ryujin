@@ -187,8 +187,8 @@ namespace mgrit{
       } else {
         std::cout << "does not exist" << std::endl;
         discretization_vec[most_refinement-lvl] = std::make_shared<DiscretizationType>(
-            comm_x, lvl, "/C - Discretization");
-        offline_data_vec[most_refinement-lvl] = std::make_shared<OfflineDataType>(comm_x, 
+            mpi_ensemble_x, lvl, "/C - Discretization");
+        offline_data_vec[most_refinement-lvl] = std::make_shared<OfflineDataType>(mpi_ensemble_x, 
                                                                 *discretization_vec[most_refinement-lvl],
                                                                 "/OfflineData");
       }

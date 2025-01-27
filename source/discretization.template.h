@@ -65,10 +65,10 @@ namespace ryujin
    * the input file specifies.
    */
   template <int dim>
-   Discretization<dim>::Discretization(const MPI_Comm &mpi_communicator,
+   Discretization<dim>::Discretization(const MPIEnsemble &mpi_ensemble,
                                        const unsigned int refinement,
                                        const std::string &subsection)
-     : Discretization(MPIEnsemble(mpi_communicator), subsection)
+     : Discretization(mpi_ensemble, subsection)
    {
      refinement_ = refinement;
    }
