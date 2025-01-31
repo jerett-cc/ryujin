@@ -42,8 +42,10 @@ int main(int argc, char *argv[]){
     NUMBER mass = 0.0;
     NUMBER momentum_sqr = 0.0;
     NUMBER E = 0.0;
+    NUMBER maxE_pointwise = 0.0;
+    NUMBER minE_pointwise = std::numeric_limits<NUMBER>::max();
 
-    const auto comm_x = app.comm_x;
+    const auto comm_x = MPI_COMM_WORLD;
     const auto od     = app.levels[app.finest_level]->offline_data;
     const auto &fe    = od->discretization().finite_element();
     const auto &quad  = od->discretization().quadrature();
@@ -67,6 +69,10 @@ int main(int argc, char *argv[]){
 		for (int d=0; d<2; d++)
 		  point_mom_sqr += state[1+d]*state[1+d];
 		const NUMBER point_E = state[2+1];
+		// update min E
+		minE_pointwise = (point_E < minE_pointwise) ? point_E : minE_pointwise;
+		// update max E
+		maxE_pointwise = (point_E > maxE_pointwise) ? point_E : maxE_pointwise ;
 		for (const unsigned int i: fe_vals.dof_indices())
 		  {
 		    total_entropy += (fe_vals.shape_value(i,q_idx) *
@@ -90,18 +96,23 @@ int main(int argc, char *argv[]){
       } //cells
    
     // communicate across space
-    dealii::Utilities::MPI::sum(total_entropy, comm_x);
-    dealii::Utilities::MPI::sum(total_harten_entropy, comm_x);
-    dealii::Utilities::MPI::sum(mass, comm_x);
-    dealii::Utilities::MPI::sum(momentum_sqr, comm_x);
-    dealii::Utilities::MPI::sum(E, comm_x);
+    total_entropy = dealii::Utilities::MPI::sum(total_entropy, comm_x);
+    total_harten_entropy = dealii::Utilities::MPI::sum(total_harten_entropy, comm_x);
+    mass = dealii::Utilities::MPI::sum(mass, comm_x);
+    momentum_sqr = dealii::Utilities::MPI::sum(momentum_sqr, comm_x);
+    E = dealii::Utilities::MPI::sum(E, comm_x);
+    // communicate the largest and smallest values for E in this group
+    maxE_pointwise = dealii::Utilities::MPI::max(maxE_pointwise, comm_x);
+    minE_pointwise = dealii::Utilities::MPI::min(minE_pointwise, comm_x);
     if(dealii::Utilities::MPI::this_mpi_process(comm_x)==0){
       std::cout << "Total entropy at time t= " << time << " is " << std::setprecision(16) << total_entropy << std::endl;
       std::cout << "Total harten entropy at time t= " << time << " is " << std::setprecision(16) << total_harten_entropy << std::endl;
       std::cout << "Total Mass at time t= " << time << " is " << mass << std::endl;
       std::cout << "Total Momentum Squared at time t= " << time << " is " << momentum_sqr << std::endl;
       std::cout << "Total E at time t= " << time << " is " << E << std::endl;
-      
+
+      std::cout << "Maximum E at time t= " << time << " is " << maxE_pointwise << std::endl;
+      std::cout << "Minimum E at time t= " << time << " is " << minE_pointwise << std::endl;
     }
   };
   
@@ -132,9 +143,15 @@ int main(int argc, char *argv[]){
         dealii::update_values | dealii::update_quadrature_points |
             dealii::update_gradients | dealii::update_JxW_values |
             dealii::update_normal_vectors); // the face values
+    // min and max E across the domain we will track
+    NUMBER maxE_pointwise = 0.0;
+    NUMBER minE_pointwise = std::numeric_limits<NUMBER>::max();
+    
     // Create vectors that store the locally owned parts on every process
     std::get<0>(U).extract_component(density, 0);        // extract density
-    std::get<0>(U).extract_component(pressure, dim + 1); // extract density
+    std::get<0>(U).extract_component(pressure, dim + 1); // extract
+
+    
     // extract momentum, and convert to velocity
     for (unsigned int c = 0; c < dim; c++) {
       int comp =
@@ -143,10 +160,14 @@ int main(int argc, char *argv[]){
     }
     // extract energy
     std::get<0>(U).extract_component(energy_density, dim + 1);
+ 
     // convert E to pressure
     for (unsigned int k = 0; k < app.levels[0]->offline_data->n_locally_owned(); k++) {
       // calculate momentum norm squared
       const double &E = energy_density.local_element(k);
+      //update mins and maxes
+      maxE_pointwise = std::max(E, maxE_pointwise);
+      minE_pointwise = std::min(E, minE_pointwise);
       const double &rho = density.local_element(k);
       double m_square = 0;
       for (unsigned int d = 0; d < dim; d++)
@@ -194,12 +215,18 @@ int main(int argc, char *argv[]){
     // now, sum the values across all processes.
     lift = dealii::Utilities::MPI::sum(lift, app.levels[0]->level_comm_x);
     drag = dealii::Utilities::MPI::sum(drag, app.levels[0]->level_comm_x);
+    maxE_pointwise = dealii::Utilities::MPI::max(maxE_pointwise, app.levels[0]->level_comm_x);
+    minE_pointwise = dealii::Utilities::MPI::min(minE_pointwise, app.levels[0]->level_comm_x);
     forces[0] = drag;
     forces[1] = lift;
     
     std::string message = "t: " + std::to_string(t) + " drag: " + std::to_string(drag) + " lift: " + std::to_string(lift);
+    std::string messageE = "t: " + std::to_string(t) + " minE: " + std::to_string(minE_pointwise) + " maxE: " + std::to_string(maxE_pointwise);
     if(dealii::Utilities::MPI::this_mpi_process(app.levels[0]->level_comm_x) == 0)
+    {
       std::cout << message << std::endl;
+      std::cout << messageE << std::endl;
+    }
   };
 
   // Set up data.
@@ -222,7 +249,7 @@ int main(int argc, char *argv[]){
 					   tstop,
 					   tstart,
 					   /*mgrit_specified_printing*/true,
-					   calculate_conserved_and_entropy);
+					   calculate_drag_and_lift);
 
   return 1;
 }
