@@ -641,6 +641,14 @@ namespace mgrit{
     pstatus.GetTIndex(&t_idx);
     pstatus.GetIter(&iter);
 
+    // determine if this is a brick we want to visualize on this cycle
+    const bool is_right_iteration = (iter == 1);
+    const bool is_in_range_of_bricks = ((lvl_tstart >= 1.45) || (lvl_tstop <= 1.55)); 
+    const bool print_this_brick = (is_right_iteration && is_in_range_of_bricks && level == finest_level);
+
+    std::string brick_name_prefix = "brick_iter_" + std::to_string(iter) +
+      "_tidx_" + std::to_string(t_idx); 
+
     // skip this brick if it is exact already
 //     if(brick_converged(level, t_idx, iter))
 //     {
@@ -666,11 +674,23 @@ namespace mgrit{
     }
     // Start a timer for step::level
     ryujin::Scope scope(computing_timer, "step::" + std::to_string(level));
+
+    if(print_this_brick)
+    {
+      print_solution(u_->U, lvl_tstart, finest_level, "before_projection_"+brick_name_prefix, t_idx);
+      time_loops[level]->write_checkpoint_wrapper(u_->U, "checkpoint_before_projection_"+brick_name_prefix,lvl_tstart, t_idx);
+    }
     
     // Ensure this is a physical vector.
     mgrit_functions::
         enforce_physicality_bounds<Description, dim, Number>(
             *u_, finest_level, *this, lvl_tstart);
+
+    if(print_this_brick)
+    {
+      print_solution(u_->U, lvl_tstart, finest_level, "after_projection_"+brick_name_prefix + "initial_condition", t_idx);
+      time_loops[level]->write_checkpoint_wrapper(u_->U, "checkpoint_after_projection_"+brick_name_prefix+"initial_condition", lvl_tstart, t_idx);
+    }
 
 #ifdef DEBUG
     if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
@@ -721,12 +741,12 @@ namespace mgrit{
 #endif
     
     // step the function on this level
-    time_loops[level]->change_base_name(fname);
+    time_loops[level]->change_base_name(brick_name_prefix);
     time_loops[level]->run_with_initial_data(
         u_to_step->U,
         lvl_tstop,
         lvl_tstart,
-        false /*print every step of this simulation*/);
+        print_this_brick /*print every step of this simulation*/);
 
 #ifdef CHECK_BOUNDS
     // Test physicality of vector after it has been stepped.
@@ -751,6 +771,11 @@ namespace mgrit{
     test_physicality(
         std::get<0>(u_->U), 0, "after step, after interpolation.");
 #endif
+
+    if(print_this_brick)
+    {
+      print_solution(u_->U, lvl_tstart, finest_level, "after_integration_"+brick_name_prefix, t_idx);
+    }
 
     num_step_calls++;
     // done.
