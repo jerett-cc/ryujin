@@ -974,6 +974,15 @@ namespace ryujin
     output(U,fname,t,cycle);
   }
 
+  template <typename Description, int dim, typename Number>
+  void TimeLoop<Description, dim, Number>::write_checkpoint_wrapper(const StateVector &state_vector,
+				const std::string &base_name,
+				const Number &t,
+				const unsigned int &output_cycle)
+  {
+    write_checkpoint(state_vector, base_name, t, output_cycle);
+  }
+
   /*
    * Output and logging related functions:
    */

@@ -105,6 +105,15 @@ namespace ryujin
      */
     void output_wrapper(StateVector &U, const std::string fname, Number t, unsigned int cycle);
 
+    /**
+     * Wrapper to the checkpoint function, as I need to call this in MGRIT.
+     * TODO: like above, probably unsafe, but here we are.
+     */
+    void write_checkpoint_wrapper(const StateVector &state_vector,
+				  const std::string &base_name,
+				  const Number &t,
+				  const unsigned int &output_cycle);
+
   protected:
     /**
      * @name Private methods for run()
