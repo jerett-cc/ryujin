@@ -181,6 +181,12 @@ namespace mgrit{
     /// @return Vector of Number which are the c-points.
     std::vector<Number> c_points();
 
+    /// @brief This function implements iteration 0 of MGRIT. It uses all the available
+    ///        processors to write checkpoint data at the c-points. Then, during the
+    ///        the app's Init, we simply read in the checkpoint data.
+    /// @param comm_world The world communicator at the coarsest level.
+    void write_coarse_points(std::string storage_name);
+
   private:
     /// Creates all objects ryujin needs to run.
     void create_mg_levels();

@@ -251,6 +251,7 @@ namespace ryujin
       , vtu_output_(ls.vtu_output)
       , quantities_(ls.quantities)
   {
+    already_prepared_ = true;
     declare_parameters();
   }
 
@@ -331,11 +332,11 @@ namespace ryujin
 
       } else {
         print_info("creating mesh and interpolating initial values");
+	if(!(already_prepared_)) {
+	  discretization_->prepare(base_name_ensemble_);
 
-        discretization_->prepare(base_name_ensemble_);
-
-        prepare_compute_kernels();
-
+	  prepare_compute_kernels();
+	}
         Vectors::reinit_state_vector<Description>(state_vector, *offline_data_);
         std::get<0>(state_vector) =
             initial_values_->get().interpolate_hyperbolic_vector();
@@ -981,6 +982,17 @@ namespace ryujin
 				const unsigned int &output_cycle)
   {
     write_checkpoint(state_vector, base_name, t, output_cycle);
+  }
+
+  template <typename Description, int dim, typename Number>
+  void TimeLoop<Description, dim, Number>::change_checkpoint_and_frequency_and_basename(
+							  const bool new_checkpoint,
+							  const Number dt_frequency,
+							  const std::string new_base_name)
+  {
+    enable_checkpointing_ = new_checkpoint;
+    timer_granularity_    = dt_frequency;
+    base_name_            = new_base_name;
   }
 
   /*

@@ -113,6 +113,12 @@ namespace ryujin
 				  const std::string &base_name,
 				  const Number &t,
 				  const unsigned int &output_cycle);
+    /**
+     *  Overwrite checkpointing and frequency
+     */
+    void change_checkpoint_and_frequency_and_basename(const bool new_checkpoint,
+					 const Number dt_frequency,
+					 const std::string new_base_name);
 
   protected:
     /**
@@ -255,6 +261,7 @@ namespace ryujin
 
     std::ofstream logfile_; /* log file */
 
+    bool already_prepared_ = false;
     //@}
   };
 

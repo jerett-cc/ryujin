@@ -650,6 +650,18 @@ namespace mgrit{
   }
 
   template<typename Number, typename Description, int dim>
+  void MyApp<Number, Description, dim>::write_coarse_points(std::string storage_name)
+  {
+    auto c_point = c_points();
+    auto dt = c_point[1]-c_point[0];
+    // change some printing parameters
+    time_loops[0]->change_checkpoint_and_frequency_and_basename(true, dt, storage_name);
+    
+    // with the time_loop, run on the coarsest level
+    time_loops[0]->run(tstart);
+  }
+
+  template<typename Number, typename Description, int dim>
   braid_Int MyApp<Number, Description, dim>::Step(braid_Vector u,
                         braid_Vector ustop,
                         braid_Vector fstop,
