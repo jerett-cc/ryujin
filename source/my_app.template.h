@@ -619,6 +619,37 @@ namespace mgrit{
   }
 
   template<typename Number, typename Description, int dim>
+  std::vector<Number> MyApp<Number, Description, dim>::c_points()
+  {
+    // The number of c-points is equal to the number of time points divided by the
+    // cfactor.
+
+    braid_Int num_cpoints = ntime/cfactor;
+    std::cout << "ntime = " << ntime << " num_cpoints = " << num_cpoints << std::endl;
+    Assert(num_cpoints > 0, dealii::ExcInternalError());
+// #ifdef DEBUG
+//     // Verify these are the same on the finest level
+//     BraidCore Core(MPI_COMM_WORLD, this);
+//     Core.
+//     _braid_Grid      **grids       = _braid_CoreElt(Core.GetCore(), grids);
+//     braid_Int          ncpoints    = _braid_GridElt(grids[finest_level], ncpoints);
+//     Assert((ncpoints == num_cpoints),
+// 	   dealii::ExcMessage("Used num_cpoints " + std::to_string(num_cpoints)+
+// 		      " XBraid ncpoints " + std::to_string(ncpoints) + "differ."));
+// #endif
+
+    std::vector<Number> c_points(num_cpoints+1);
+    Number dt = (tstop-tstart)/num_cpoints;
+    
+    for(int i = 0; i < num_cpoints+1; i++)
+    {
+      c_points[i] = tstart + i*dt;
+    }
+    
+    return c_points;
+  }
+
+  template<typename Number, typename Description, int dim>
   braid_Int MyApp<Number, Description, dim>::Step(braid_Vector u,
                         braid_Vector ustop,
                         braid_Vector fstop,

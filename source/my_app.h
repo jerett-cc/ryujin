@@ -176,6 +176,11 @@ namespace mgrit{
 			 const braid_Int brick,
 			 const braid_Int iter);
 
+    /// @brief Returns a vector representing the c points that the app will use, according
+    ///        to xbraid's definitions.
+    /// @return Vector of Number which are the c-points.
+    std::vector<Number> c_points();
+
   private:
     /// Creates all objects ryujin needs to run.
     void create_mg_levels();
