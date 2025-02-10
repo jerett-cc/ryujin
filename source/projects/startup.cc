@@ -24,10 +24,10 @@ int main(int argc, char* argv[])
 
   std::cout << "prm: " << prm_name << " refinement: " << refinement << std::endl;
   
-  // // First iteration of MGRIT, initializes the cpoints
-  // mgrit::MyApp<NUMBER, Description, 2> app_0(comm_world, comm_world, {refinement});
-  // app_0.initialize(prm_name);
-  // app_0.write_coarse_points("./initial_coarse/"+app_0.base_name);
+  // First iteration of MGRIT, initializes the cpoints
+  mgrit::MyApp<NUMBER, Description, 2> app_0(comm_world, comm_world, {refinement});
+  app_0.initialize(prm_name);
+  app_0.write_coarse_points("./initial_coarse/"+app_0.base_name);
 
   // std::vector<NUMBER>c_points =  app.c_points();
   // // Print out the vector

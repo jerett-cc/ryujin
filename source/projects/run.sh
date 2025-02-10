@@ -21,7 +21,7 @@ echo "${nx}"
 echo ${s_refinements}
 echo ${refinements[0]}
 
-mpirun -n "${nworld}" startup "${prm}" "${refinements[0]}" >> setup.log
+mpirun -n "${nworld}" startup "${prm}" "${refinements[0]}"
 
 # once the setupfiles are written, we start the regular program.
 

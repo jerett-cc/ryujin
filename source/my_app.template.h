@@ -656,6 +656,7 @@ namespace mgrit{
     auto dt = c_point[1]-c_point[0];
     // change some printing parameters
     time_loops[0]->change_checkpoint_and_frequency_and_basename(true, dt, storage_name);
+    time_loops[0]->set_use_cycle_in_name(true);
     
     // with the time_loop, run on the coarsest level
     time_loops[0]->run(tstart);

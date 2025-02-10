@@ -192,7 +192,9 @@ namespace ryujin
   public:
     void change_base_name(const std::string new_name)
     {base_name_ = new_name;};
-    //@}
+
+    void set_use_cycle_in_name(const bool use)
+    {use_cycle_in_name_ = use;};
 
   private:
     /**
@@ -262,6 +264,7 @@ namespace ryujin
     std::ofstream logfile_; /* log file */
 
     bool already_prepared_ = false;
+    bool use_cycle_in_name_ = false;
     //@}
   };
 

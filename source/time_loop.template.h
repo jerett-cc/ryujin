@@ -457,6 +457,12 @@ namespace ryujin
 
       t += tau;
 
+      // we also enforce that the checkpointing happens at exactly the
+      // checkpoint cycles, if the use_cycle_in_name_ is turned on
+      if(use_cycle_in_name_ && (t >= relax * timer_cycle * timer_granularity_))
+      {
+	t = relax * timer_cycle * timer_granularity_; 
+      }
       /* Print and record cycle statistics: */
       if (terminal_update_interval_ != Number(0.)) {
 
@@ -680,6 +686,9 @@ namespace ryujin
     solution_transfer_->reset_handle();
 
     std::string name = base_name + "-checkpoint";
+
+    if(use_cycle_in_name_)
+      name += std::to_string(output_cycle);
 
     if (mpi_ensemble_.ensemble_rank() == 0) {
       for (const std::string suffix :
