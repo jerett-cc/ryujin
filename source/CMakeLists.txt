@@ -146,3 +146,18 @@ foreach(_ccfile ${_ccfiles})
   
   install(TARGETS ${_fname} DESTINATION ${CMAKE_INSTALL_BINDIR})
 endforeach()
+
+
+#
+# Create symbolic link for run.sh file so that we can store run.sh in
+# the source folder, and it shows up in the binary /run.
+#
+
+file(CREATE_LINK
+  "${CMAKE_CURRENT_SOURCE_DIR}/projects/run.sh"
+  "${CMAKE_BINARY_DIR}/run/run.sh"
+  RESULT symres
+  SYMBOLIC
+)
+
+MESSAGE(STATUS "Result of run.sh symbolic link: ${symres}")
