@@ -44,14 +44,6 @@ int main(int argc, char* argv[])
                        &comm_x,
                        &comm_t);
 
-  // First iteration of MGRIT, initializes the cpoints
-  {
-    mgrit::MyApp<NUMBER, Description, 2> app_0(comm_world, comm_world, {refinement_levels[0]});
-    app_0.initialize(prm_name);
-
-    app_0.write_coarse_points("./initial_coarse/"+app_0.base_name);
-  }
-
   mgrit::MyApp<NUMBER, Description, 2> app(comm_x, comm_t, refinement_levels);
   app.initialize(prm_name);
 

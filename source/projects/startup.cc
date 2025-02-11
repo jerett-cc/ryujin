@@ -27,7 +27,7 @@ int main(int argc, char* argv[])
   // First iteration of MGRIT, initializes the cpoints
   mgrit::MyApp<NUMBER, Description, 2> app_0(comm_world, comm_world, {refinement});
   app_0.initialize(prm_name);
-  app_0.write_coarse_points("./initial_coarse/"+app_0.base_name);
+  app_0.write_coarse_points();
 
   // std::vector<NUMBER>c_points =  app.c_points();
   // // Print out the vector

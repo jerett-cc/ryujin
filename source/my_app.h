@@ -184,8 +184,7 @@ namespace mgrit{
     /// @brief This function implements iteration 0 of MGRIT. It uses all the available
     ///        processors to write checkpoint data at the c-points. Then, during the
     ///        the app's Init, we simply read in the checkpoint data.
-    /// @param comm_world The world communicator at the coarsest level.
-    void write_coarse_points(std::string storage_name);
+    void write_coarse_points();
 
   private:
     /// Creates all objects ryujin needs to run.
@@ -299,5 +298,7 @@ namespace mgrit{
     std::map<std::string, dealii::Timer> computing_timer;
     std::vector<std::vector<dealii::Tensor<1, dim>>> drag_history;
     std::map<std::pair<int/*t_idx*/, int/*iteration*/>, int/*count*/> f_brick_relaxation_count;
+
+    std::string storage_name;
   };
 }// Namespace mgrit

@@ -128,6 +128,11 @@ namespace mgrit{
 		  "Contols how many cpoints to output, 1 means all, 2 means skip every other, "
 		  "and so on.");
 
+    storage_name = "./initial_coarse/";
+    add_parameter("the location of where you wish to store the initial guesses",
+		  storage_name,
+		  "if you want it to be in the run directory, simply use './name_you_desire/' ");
+
     // drag_history()//TODO: how to init? need this to have max_iter num of vectors, each of size n_coarse_points(at least the ones I am printing.)
   };
 
@@ -234,6 +239,8 @@ namespace mgrit{
     Assert((print_factor >=1 && print_factor < ntime),
 	   dealii::ExcMessage("Print factor must be at least one, and less than the number of "
 			      "time points total."));
+
+    storage_name = storage_name + base_name;
     //   initialized = true; // now the user can access data in app. TODO:
     //   implement a check for getter functions.
   }
@@ -650,7 +657,7 @@ namespace mgrit{
   }
 
   template<typename Number, typename Description, int dim>
-  void MyApp<Number, Description, dim>::write_coarse_points(std::string storage_name)
+  void MyApp<Number, Description, dim>::write_coarse_points()
   {
     auto c_point = c_points();
     auto dt = c_point[1]-c_point[0];
@@ -864,6 +871,82 @@ namespace mgrit{
   {
     std::cout << "[INFO] Initializing XBraid vectors at t=" << t << std::endl;
 
+    // first, we figure out which C-point this time is. t is an indication. we take the global
+    // start and end and calculate the portion of the total time that t is.
+    // TODO: is this code safe?
+    const braid_Int num_cpoints = ntime/cfactor;
+    const braid_Int c_id = static_cast<braid_Int>(num_cpoints*t/(tstart - tstop));
+
+    // this c_id indicates the number of the checkpoint file we will wish to read
+    // so we make a string of where we will find the file.
+
+    const std::string c_file_prefix = storage_name + "-checkpoint" + std::to_string(c_id);
+
+    // We next define a coarse vector at the coarsest level, which will be
+    // stepped, then restricted down to the fine level and interpolate the fine
+    // initial state into the coarse vector, then interpolates it up to the
+    // coarse level and steps.
+    my_vector *u = new (my_vector);
+    my_vector *temp_coarse = new (my_vector);
+    reinit_to_level(
+        u,
+        finest_level); // this is the u that we will start each time brick with.
+    reinit_to_level(temp_coarse, coarsest_level); // coarse on the coarses
+                                                  // level.
+    // // sets up U data at t=0;
+    // std::get<0>(u->U) = levels[finest_level]->initial_values->get().interpolate_hyperbolic_vector(0.0); 
+    // std::get<0>(temp_coarse->U) = levels[coarsest_level]->initial_values->get().interpolate_hyperbolic_vector(0.0);
+    
+    /*
+     * Read in and broadcast metadata for the coarse data:
+     */
+    braid_Int output_cycle = 0;// this is ultimately unused, just needs to be here
+    // to read in metadata file
+
+    unsigned int transfer_handle;
+    if (mpi_ensemble_x.ensemble_rank() == 0) {
+      std::string meta = c_file_prefix + ".metadata";
+
+      std::ifstream file(meta, std::ios::binary);
+      boost::archive::binary_iarchive ia(file);
+      ia >> t >> output_cycle >> transfer_handle;
+    }
+
+    int ierr;
+    // if constexpr (std::is_same_v<Number, double>)
+    //   ierr = MPI_Bcast(
+    // 	       &t, 1, MPI_DOUBLE, 0, mpi_ensemble_x.ensemble_communicator());
+    // else
+    //   ierr =
+    //       MPI_Bcast(&t, 1, MPI_FLOAT, 0, mpi_ensemble__x.ensemble_communicator());
+    // AssertThrowMPI(ierr);
+
+    
+    // ierr = MPI_Bcast(&output_cycle,
+    //                  1,
+    //                  MPI_UNSIGNED,
+    //                  0,
+    //                  mpi_ensemble_.ensemble_communicator());
+    // AssertThrowMPI(ierr);
+
+    ierr = MPI_Bcast(&transfer_handle,
+                     1,
+                     MPI_UNSIGNED,
+                     0,
+                     mpi_ensemble_x.ensemble_communicator());
+    AssertThrowMPI(ierr);
+
+    /* Now read in the state vector: */
+
+    ryujin::Vectors::reinit_state_vector<Description>(temp_coarse->U, *(levels[coarsest_level]->offline_data));
+
+
+    levels[coarsest_level]->solution_transfer->set_handle(transfer_handle);
+    levels[coarsest_level]->solution_transfer->project(temp_coarse->U);
+    levels[coarsest_level]->solution_transfer->reset_handle();
+
+    ryujin::Vectors::reinit_state_vector<Description>(temp_coarse->U, *(levels[coarsest_level]->offline_data));
+    /********
     // We first define a coarse vector, at the coarsest level, which will be
     // stepped, then restricted down to the fine level and interpolate the fine
     // initial state into the coarse vector, then interpolates it up to the
@@ -889,10 +972,13 @@ namespace mgrit{
           std::get<0>(temp_coarse->U), coarsest_level, std::get<0>(u->U), finest_level);
       // steps to the correct end time on the coarse level to end time t
       time_loops[coarsest_level]->run_with_initial_data(temp_coarse->U, t);
-      
+    */
       interpolate_between_levels(
           std::get<0>(u->U), finest_level, std::get<0>(temp_coarse->U), coarsest_level);
+   /**
     }
+
+   */ //TODO: delete inside /*...*/?
     
     // delete the temporary coarse U. f
     delete temp_coarse;
