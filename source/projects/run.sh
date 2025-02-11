@@ -25,3 +25,4 @@ mpirun -n "${nworld}" startup "${prm}" "${refinements[0]}"
 
 # once the setupfiles are written, we start the regular program.
 
+mpirun -n "${nworld}" cpp_myapp_testing "${prm}" "${nx}" ${s_refinements}

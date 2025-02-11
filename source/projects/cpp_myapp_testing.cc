@@ -47,6 +47,12 @@ int main(int argc, char* argv[])
   mgrit::MyApp<NUMBER, Description, 2> app(comm_x, comm_t, refinement_levels);
   app.initialize(prm_name);
 
+  // std::vector<NUMBER>c_points =  app.c_points();
+  // // Print out the vector
+  // for (auto n : c_points)
+  //       std::cout << n << ' ';
+  //   std::cout << '\n';
+
   std::cout << "ntime in app: " << app.ntime << std::endl;
   BraidCore core(MPI_COMM_WORLD, &app);
   core.SetMaxLevels(app.refinement_levels.size());
