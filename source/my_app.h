@@ -265,7 +265,7 @@ namespace mgrit{
 
   public: // Public Data
     const MPI_Comm comm_x;
-    const ryujin::MPIEnsemble mpi_ensemble_x;
+    const std::shared_ptr<ryujin::MPIEnsemble> mpi_ensemble_x;
     std::vector<LevelType> levels; // instantiation
     std::vector<int> refinement_levels;
     std::vector<TimeLoopType> time_loops;

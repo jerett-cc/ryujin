@@ -80,7 +80,7 @@ namespace ryujin
     /**
      * Constructor with LevelStructures Object. 
      */
-    TimeLoop(const MPI_Comm &mpi_comm, const mgrit::LevelStructures<Description, dim, Number> &ls);
+    TimeLoop(const mgrit::LevelStructures<Description, dim, Number> &ls);
 
     /**
      * Run the high-level time loop.

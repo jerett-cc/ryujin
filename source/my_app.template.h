@@ -66,7 +66,7 @@ namespace mgrit{
       : BraidApp(comm_t)
       , ParameterAcceptor("/App")
       , comm_x(comm_x)
-      , mpi_ensemble_x(comm_x)
+      , mpi_ensemble_x(std::make_shared<ryujin::MPIEnsemble>(comm_x))
       , levels(a_refinement_levels.size())
       , refinement_levels(a_refinement_levels)
       , time_loops(a_refinement_levels.size())
@@ -192,8 +192,8 @@ namespace mgrit{
       } else {
         std::cout << "does not exist" << std::endl;
         discretization_vec[most_refinement-lvl] = std::make_shared<DiscretizationType>(
-            mpi_ensemble_x, lvl, "/C - Discretization");
-        offline_data_vec[most_refinement-lvl] = std::make_shared<OfflineDataType>(mpi_ensemble_x, 
+            *mpi_ensemble_x, lvl, "/C - Discretization");
+        offline_data_vec[most_refinement-lvl] = std::make_shared<OfflineDataType>(*mpi_ensemble_x, 
                                                                 *discretization_vec[most_refinement-lvl],
                                                                 "/OfflineData");
       }
@@ -226,7 +226,7 @@ namespace mgrit{
     // Set the number of time points based on the number of bricks.
     for(braid_Int l = 0; l < coarsest_level; l++)
       total_cfactor *= cfactor;
-    if(dealii::Utilities::MPI::this_mpi_process(comm_x)==0)
+    if(dealii::Utilities::MPI::this_mpi_process(mpi_ensemble_x->ensemble_communicator())==0)
       std::cout << "Cumulative coarsening by a factor of " << total_cfactor << std::endl;
 
     Assert(minimal_tpoints_coarsest_level >=1,
@@ -258,10 +258,9 @@ namespace mgrit{
       //  i.e. does app really ned to know all the level structures info?
       levels[i] = std::make_shared<
           ryujin::mgrit::LevelStructures<Description, dim, Number>>(
-          comm_x, refinement_levels[i]);
+          mpi_ensemble_x, refinement_levels[i]);
       time_loops[i] =
-          std::make_shared<ryujin::TimeLoop<Description, dim, Number>>(
-              comm_x, *(levels[i]));
+          std::make_shared<ryujin::TimeLoop<Description, dim, Number>>(*(levels[i]));
       std::cout << "Level " + std::to_string(refinement_levels[i]) + " created."
                 << std::endl;
     }
@@ -295,8 +294,8 @@ namespace mgrit{
     for(auto &it : computing_timer)
     {
       const auto statistics_space_time =
-          dealii::Utilities::MPI::min_max_avg(it.second.cpu_time(), comm_x);
-      if(dealii::Utilities::MPI::this_mpi_process(comm_x) == 0 &&
+          dealii::Utilities::MPI::min_max_avg(it.second.cpu_time(), mpi_ensemble_x->ensemble_communicator());
+      if(dealii::Utilities::MPI::this_mpi_process(mpi_ensemble_x->ensemble_communicator()) == 0 &&
 	 dealii::Utilities::MPI::this_mpi_process(comm_t) == 0){
 	std::cout << "Total time for " << it.first << ": "
 		  << std::setprecision(4) << std::fixed << std::setw(9)
@@ -312,7 +311,7 @@ namespace mgrit{
     // only if we are a specific processor.
     for(auto &it : f_brick_relaxation_count)
     { 
-      if(dealii::Utilities::MPI::this_mpi_process(comm_x) == 0 &&
+      if(dealii::Utilities::MPI::this_mpi_process(mpi_ensemble_x->ensemble_communicator()) == 0 &&
 	 dealii::Utilities::MPI::this_mpi_process(comm_t) == 0){
         std::cout << "Count for brick " << it.first.first
 		  << " on iteration " << it.first.second << ": "
@@ -406,8 +405,8 @@ namespace mgrit{
         // If we are not on the final level, we will need to reinit the temp vector.
         if(next_lvl != level_map[to_level])
           next_v->reinit_with_scalar_partitioner(next_od->scalar_partitioner());
-        curr_component.reinit(curr_od->scalar_partitioner(), comm_x);
-        next_component.reinit(next_od->scalar_partitioner(), comm_x);
+        curr_component.reinit(curr_od->scalar_partitioner(), mpi_ensemble_x->ensemble_communicator());
+        next_component.reinit(next_od->scalar_partitioner(), mpi_ensemble_x->ensemble_communicator());
 
         Assert(
             (curr_dof_handl.get_triangulation().n_levels() ==
@@ -479,8 +478,8 @@ namespace mgrit{
         // vector.
         if (next_lvl != level_map[to_level])
           next_v->reinit_with_scalar_partitioner(next_od->scalar_partitioner());
-        curr_component.reinit(curr_od->scalar_partitioner(), comm_x);
-        next_component.reinit(next_od->scalar_partitioner(), comm_x);
+        curr_component.reinit(curr_od->scalar_partitioner(), mpi_ensemble_x->ensemble_communicator());
+        next_component.reinit(next_od->scalar_partitioner(), mpi_ensemble_x->ensemble_communicator());
 
         // TODO: this assert is large, probably unnessesarily, refactor?
         // Check that we actually are interpolating between two levels who
@@ -697,7 +696,7 @@ namespace mgrit{
     const bool is_in_range_of_bricks = ((lvl_tstart >= 1.45) || (lvl_tstop <= 1.55)); 
     const bool print_this_brick = (is_right_iteration && is_in_range_of_bricks && level == finest_level);
 
-    std::string brick_name_prefix = "brick_iter_" + std::to_string(iter) +
+    std::string brick_name_prefix = "VMG_brick_80Brick_iter_" + std::to_string(iter) +
       "_tidx_" + std::to_string(t_idx); 
 
     // skip this brick if it is exact already
@@ -875,6 +874,7 @@ namespace mgrit{
     // start and end and calculate the portion of the total time that t is.
     // TODO: is this code safe?
     const braid_Int num_cpoints = ntime/cfactor;
+    std::cout << "Num_cpoints: " << num_cpoints << std::endl;
     const braid_Int c_id = static_cast<braid_Int>(num_cpoints*t/(tstart - tstop));
 
     // this c_id indicates the number of the checkpoint file we will wish to read
@@ -888,6 +888,19 @@ namespace mgrit{
     // coarse level and steps.
     my_vector *u = new (my_vector);
     my_vector *temp_coarse = new (my_vector);
+
+    std::cout << "Reading file " + c_file_prefix + ".mesh" << std::endl;
+    //assert that the comm_x has not changed at this point.
+    Assert(levels[finest_level]->offline_data->dof_handler().get_communicator() == levels[coarsest_level]->offline_data->dof_handler().get_communicator() ,
+	   dealii::ExcMessage("bad before load"));
+    // load the mesh onto the coarsest level structures. This is needed before the projection
+    // can happen below.
+    levels[coarsest_level]->discretization->triangulation().load(c_file_prefix+".mesh");
+
+    //assert that the comm_x has not changed at this point.
+    Assert(levels[finest_level]->offline_data->dof_handler().get_communicator() == levels[coarsest_level]->offline_data->dof_handler().get_communicator() ,
+	   dealii::ExcMessage("bad after load"));
+    
     reinit_to_level(
         u,
         finest_level); // this is the u that we will start each time brick with.
@@ -904,7 +917,7 @@ namespace mgrit{
     // to read in metadata file
 
     unsigned int transfer_handle;
-    if (mpi_ensemble_x.ensemble_rank() == 0) {
+    if (mpi_ensemble_x->world_rank() == 0) {
       std::string meta = c_file_prefix + ".metadata";
 
       std::ifstream file(meta, std::ios::binary);
@@ -915,10 +928,10 @@ namespace mgrit{
     int ierr;
     // if constexpr (std::is_same_v<Number, double>)
     //   ierr = MPI_Bcast(
-    // 	       &t, 1, MPI_DOUBLE, 0, mpi_ensemble_x.ensemble_communicator());
+    // 	       &t, 1, MPI_DOUBLE, 0, mpi_ensemble_x->ensemble_communicator());
     // else
     //   ierr =
-    //       MPI_Bcast(&t, 1, MPI_FLOAT, 0, mpi_ensemble__x.ensemble_communicator());
+    //       MPI_Bcast(&t, 1, MPI_FLOAT, 0, mpi_ensemble_x->ensemble_communicator());
     // AssertThrowMPI(ierr);
 
     
@@ -926,7 +939,7 @@ namespace mgrit{
     //                  1,
     //                  MPI_UNSIGNED,
     //                  0,
-    //                  mpi_ensemble_.ensemble_communicator());
+    //                  mpi_ensemble_->ensemble_communicator());
     // AssertThrowMPI(ierr);
 
     ierr = MPI_Bcast(&transfer_handle,
@@ -940,12 +953,12 @@ namespace mgrit{
 
     ryujin::Vectors::reinit_state_vector<Description>(temp_coarse->U, *(levels[coarsest_level]->offline_data));
 
-
+    //levels[coarsest_level]->solution_transfer->prepare_projection(temp_coarse->U);
     levels[coarsest_level]->solution_transfer->set_handle(transfer_handle);
     levels[coarsest_level]->solution_transfer->project(temp_coarse->U);
     levels[coarsest_level]->solution_transfer->reset_handle();
 
-    ryujin::Vectors::reinit_state_vector<Description>(temp_coarse->U, *(levels[coarsest_level]->offline_data));
+    ryujin::Vectors::reinit_state_vector<Description>(u->U, *(levels[finest_level]->offline_data));
     /********
     // We first define a coarse vector, at the coarsest level, which will be
     // stepped, then restricted down to the fine level and interpolate the fine
