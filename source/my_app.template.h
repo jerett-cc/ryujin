@@ -946,7 +946,7 @@ namespace mgrit{
                      1,
                      MPI_UNSIGNED,
                      0,
-                     mpi_ensemble_x.ensemble_communicator());
+                     mpi_ensemble_x->ensemble_communicator());
     AssertThrowMPI(ierr);
 
     /* Now read in the state vector: */
