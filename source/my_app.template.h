@@ -868,7 +868,10 @@ namespace mgrit{
   template<typename Number, typename Description, int dim>
   braid_Int MyApp<Number, Description, dim>::Init(braid_Real t, braid_Vector *u_ptr)
   {
-    std::cout << "[INFO] Initializing XBraid vectors at t=" << t << std::endl;
+    const auto &level_communicator = levels[coarsest_level]->offline_data->dof_handler().get_communicator();
+    std::cout << "[INFO] px:" +
+      std::to_string(dealii::Utilities::MPI::this_mpi_process(level_communicator))+
+      " Initializing XBraid vectors at t="+ std::to_string(t) << std::endl;
 
     // first, we figure out which C-point this time is. t is an indication. we take the global
     // start and end and calculate the portion of the total time that t is.
@@ -889,26 +892,39 @@ namespace mgrit{
     my_vector *u = new (my_vector);
     my_vector *temp_coarse = new (my_vector);
 
+    reinit_to_level(u, finest_level); // this is the u that we will start each time brick with.
+    reinit_to_level(temp_coarse, coarsest_level); // coarse on the coarses
+                                                  // level.
+    ryujin::Vectors::reinit_state_vector<Description>(temp_coarse->U,
+						      *(levels[coarsest_level]->offline_data));
+
     std::cout << "Reading file " + c_file_prefix + ".mesh" << std::endl;
     //assert that the comm_x has not changed at this point.
     Assert(levels[finest_level]->offline_data->dof_handler().get_communicator() == levels[coarsest_level]->offline_data->dof_handler().get_communicator() ,
 	   dealii::ExcMessage("bad before load"));
     // load the mesh onto the coarsest level structures. This is needed before the projection
-    // can happen below.
-    levels[coarsest_level]->discretization->triangulation().load(c_file_prefix+".mesh");
-
-    //assert that the comm_x has not changed at this point.
-    Assert(levels[finest_level]->offline_data->dof_handler().get_communicator() == levels[coarsest_level]->offline_data->dof_handler().get_communicator() ,
-	   dealii::ExcMessage("bad after load"));
+    // can happen below. We first copy the old triangulation into a new one. This is expensive,
+    // but since this only happens n_coarse_points times at the start of the
+    const auto smoothing =
+      dealii::Triangulation<dim>::limit_level_difference_at_vertices;//TODO: make this the same smoothing as the triangulaiton we create, right now this is just copied from ryujin/source/discretization.template.h
+    const auto settings =
+      ryujin::Discretization<dim>::Triangulation::Settings::construct_multigrid_hierarchy;//same story here, as above
     
-    reinit_to_level(
-        u,
-        finest_level); // this is the u that we will start each time brick with.
-    reinit_to_level(temp_coarse, coarsest_level); // coarse on the coarses
-                                                  // level.
-    // // sets up U data at t=0;
-    // std::get<0>(u->U) = levels[finest_level]->initial_values->get().interpolate_hyperbolic_vector(0.0); 
-    // std::get<0>(temp_coarse->U) = levels[coarsest_level]->initial_values->get().interpolate_hyperbolic_vector(0.0);
+    typename ryujin::Discretization<dim>::Triangulation tria_copy(level_communicator, smoothing, settings);
+    tria_copy.copy_triangulation(levels[coarsest_level]->offline_data->discretization().triangulation());
+    tria_copy.load(c_file_prefix+".mesh");
+
+    // create the solution_transfer object responsible for the der-serialization
+    const auto &od = *(levels[coarsest_level]->offline_data);
+    const auto &hs = *(levels[coarsest_level]->hyperbolic_system);
+    const auto &ps = *(levels[coarsest_level]->parabolic_system);
+    ryujin::SolutionTransfer<Description, dim, Number> solution_transfer(*mpi_ensemble_x,
+									 od,
+									 hs,
+									 ps);
+    
+    Assert(levels[finest_level]->offline_data->dof_handler().get_communicator() == level_communicator,
+	   dealii::ExcMessage("bad after load"));
     
     /*
      * Read in and broadcast metadata for the coarse data:
@@ -951,47 +967,15 @@ namespace mgrit{
 
     /* Now read in the state vector: */
 
-    ryujin::Vectors::reinit_state_vector<Description>(temp_coarse->U, *(levels[coarsest_level]->offline_data));
-
-    //levels[coarsest_level]->solution_transfer->prepare_projection(temp_coarse->U);
-    levels[coarsest_level]->solution_transfer->set_handle(transfer_handle);
-    levels[coarsest_level]->solution_transfer->project(temp_coarse->U);
-    levels[coarsest_level]->solution_transfer->reset_handle();
+    //solution_transfer.prepare_projection(temp_coarse->U,tria_copy);
+    solution_transfer.set_handle(transfer_handle);
+    solution_transfer.project(temp_coarse->U,tria_copy);
+    solution_transfer.reset_handle();
 
     ryujin::Vectors::reinit_state_vector<Description>(u->U, *(levels[finest_level]->offline_data));
-    /********
-    // We first define a coarse vector, at the coarsest level, which will be
-    // stepped, then restricted down to the fine level and interpolate the fine
-    // initial state into the coarse vector, then interpolates it up to the
-    // coarse level and steps.
-    my_vector *u = new (my_vector);
-    my_vector *temp_coarse = new (my_vector);
-    reinit_to_level(
-        u,
-        finest_level); // this is the u that we will start each time brick with.
-    reinit_to_level(temp_coarse, coarsest_level); // coarse on the coarses
-                                                  // level.
-    // sets up U data at t=0;
-    std::get<0>(u->U) = levels[finest_level]->initial_values->get().interpolate_hyperbolic_vector(0.0); 
-    std::get<0>(temp_coarse->U) = levels[coarsest_level]->initial_values->get().interpolate_hyperbolic_vector(0.0);
-
-    std::string str = "initialized_at_t=" + std::to_string(t);
-    // If T is not zero, we step on the coarsest level until we are done.
-    // Otherwise we have no need to step any because the assumtion is that T=0
-    // TODO: implicit assumption that T>0 always here except for T=0.
-    if (std::fabs(t) > 0.0) {
-      // interpolate the initial conditions up to the coarsest mesh
-      interpolate_between_levels(
-          std::get<0>(temp_coarse->U), coarsest_level, std::get<0>(u->U), finest_level);
-      // steps to the correct end time on the coarse level to end time t
-      time_loops[coarsest_level]->run_with_initial_data(temp_coarse->U, t);
-    */
-      interpolate_between_levels(
-          std::get<0>(u->U), finest_level, std::get<0>(temp_coarse->U), coarsest_level);
-   /**
-    }
-
-   */ //TODO: delete inside /*...*/?
+   
+    interpolate_between_levels(
+      std::get<0>(u->U), finest_level, std::get<0>(temp_coarse->U), coarsest_level);
     
     // delete the temporary coarse U. f
     delete temp_coarse;
@@ -1004,6 +988,10 @@ namespace mgrit{
 
     // reassign pointer XBraid will use
     *u_ptr = (braid_Vector)u;
+
+    
+    //done
+    std::cout << "[INFO] px:" + std::to_string(dealii::Utilities::MPI::this_mpi_process(levels[coarsest_level]->offline_data->dof_handler().get_communicator()))+" done at t=" +std::to_string(t) << std::endl;
     return 0;
   }
 
