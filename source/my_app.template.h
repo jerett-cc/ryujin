@@ -894,7 +894,9 @@ namespace mgrit{
     Assert(levels[finest_level]->offline_data->dof_handler().get_communicator() == levels[coarsest_level]->offline_data->dof_handler().get_communicator() ,
 	   dealii::ExcMessage("bad before load"));
     // load the mesh onto the coarsest level structures. This is needed before the projection
-    // can happen below.
+    // can happen below. Before doing so, just erase whatever happened to be in the
+    // triangulation.
+    levels[coarsest_level]->discretization->triangulation().clear();
     levels[coarsest_level]->discretization->triangulation().load(c_file_prefix+".mesh");
 
     //assert that the comm_x has not changed at this point.
