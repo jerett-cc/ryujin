@@ -13,14 +13,18 @@
 // ------------------------------------------------------------------------
 
 
-// check and illustrate the deserialization process into two vectors
+// Check and illustrate the deserialization process into two vectors
 // using the triangulation serialization procedure.
+
+// This should cause an issue if we try to deserialize two vectors with the same
+// triangulation.
 
 #include <deal.II/distributed/fully_distributed_tria.h>
 #include <deal.II/distributed/shared_tria.h>
 #include <deal.II/distributed/tria.h>
 
 #include <deal.II/dofs/dof_tools.h>
+#include <deal.II/fe/fe_q.h>
 
 #include <deal.II/grid/grid_generator.h>
 #include <deal.II/grid/grid_tools.h>
@@ -38,6 +42,8 @@
 #include <sstream>
 #include <memory>
 
+// Triangulation definitions to work wround dim=1 not having distributed triangulation.
+// Copied from ryujin.
 namespace
   {
     template <int dim>
@@ -52,6 +58,7 @@ namespace
 
   } // namespace
 
+// Initialize a distributed vector with a value.
 template <int dim, int spacedim>
 void initialize_vector_with_value(const std::shared_ptr<dealii::Utilities::MPI::Partitioner> part,
 				  const double val,
@@ -62,9 +69,92 @@ void initialize_vector_with_value(const std::shared_ptr<dealii::Utilities::MPI::
   // Use partitioner to reinit the vector
   U.reinit(part);
   // Fill the vector with the value.
-  for(auto &entry: U)
-    pout << entry << std::endl;
+  for(unsigned int i=0; i < U.locally_owned_size(); i++)
+    {
+      U.local_element(i) = val+i;
+      pout << U.local_element(i) << std::endl;
+    }
   
+}
+
+// For the triangulation given, register_data_attach the vector U.
+// Called before tr.save(...)
+template <int dim, int spacedim, typename DTria>
+unsigned int register_pack_vector(const dealii::LinearAlgebra::distributed::Vector<double> &U,
+				  DTria &tr,
+				  dealii::DoFHandler<dim> &dof_handler)
+{
+  const unsigned int handle = tr.register_data_attach(
+	    [&](const auto cell,
+	    const dealii::CellStatus status) {
+	      const auto n_dofs_per_cell = dof_handler.get_fe().n_dofs_per_cell();
+	  //The local values in this cell.
+	  std::vector<double> values(n_dofs_per_cell);
+	  
+	  //We must pack the doubles into a std::vector<char> for this cell.
+	  std::vector<char> buffer(sizeof(double)*values.size());
+	  
+          const auto dof_cell = typename dealii::DoFHandler<dim>::cell_iterator(
+              &cell->get_triangulation(),
+              cell->level(),
+              cell->index(),
+              &dof_handler);
+
+	  // Place relevant global values on this cell into the values vector. 
+	  std::vector<dealii::types::global_dof_index> dof_indices(
+                n_dofs_per_cell);
+	  dof_cell->get_dof_indices(dof_indices);
+
+	  std::transform(std::begin(dof_indices),
+			 std::end(dof_indices),
+			 std::begin(values),
+			 [&](const auto i) {
+			   return U(i);});
+
+	  // Pack the values into the buffer
+	  std::memcpy(buffer.data(), values.data(), buffer.size());
+
+	  return buffer;
+          },
+        /* returns_variable_size_data =*/false);
+  return handle;
+}
+
+template <int dim, int spacedim, typename DTria>
+void unpack_vector(dealii::LinearAlgebra::distributed::Vector<double> &U,
+		   DTria &tr,
+		   unsigned int handle,
+		   dealii::DoFHandler<dim> &dof_handler)
+{
+  tr.notify_ready_to_unpack(
+       handle,
+       [&](const auto &cell,
+            const dealii::CellStatus status,
+	   const auto &data_range) {
+	 const auto n_dofs_per_cell = dof_handler.get_fe().n_dofs_per_cell();
+	 const std::size_t n_bytes = data_range.size();
+	 std::vector<double> values(n_bytes /sizeof(double));
+	 std::memcpy(values.data(),
+		     &data_range[0],
+		     values.size() * sizeof(double));
+	 // Get the relevant indices.
+	 const auto dof_cell = typename dealii::DoFHandler<dim>::cell_iterator(
+              &cell->get_triangulation(),
+              cell->level(),
+              cell->index(),
+              &dof_handler);
+
+	  // Place relevant global values on this cell into the values vector. 
+	  std::vector<dealii::types::global_dof_index> dof_indices(
+                n_dofs_per_cell);
+	  dof_cell->get_dof_indices(dof_indices);
+
+	  for (unsigned int i = 0; i < n_dofs_per_cell; ++i) {
+	    const auto global_i = dof_indices[i];
+	    U(global_i) = values[i];
+	  }
+  
+       });
 }
 
 template <int dim, int spacedim>
@@ -76,18 +166,19 @@ test()
   // Generate fulllydistributed triangulation from serial triangulation
   dealii::Triangulation<dim, spacedim> basetria;
   dealii::GridGenerator::hyper_cube(basetria);
-  basetria.refine_global(2);
-
-  auto construction_data =
-    dealii::TriangulationDescription::Utilities::create_description_from_triangulation(
-      basetria, MPI_COMM_WORLD);
-
+  
   // Create distributed triangulation.
   DistributedTriangulation tr(MPI_COMM_WORLD);
-  tr.create_triangulation(construction_data);
+  tr.copy_triangulation(basetria);
+  tr.refine_global(2);
+
+  DistributedTriangulation tr2(MPI_COMM_WORLD);
+  tr2.copy_triangulation(basetria);
 
   // From the triangulation, create a DofHandler
   dealii::DoFHandler<dim> dof_handler(tr);
+  const dealii::FE_Q<dim> fe(1);
+  dof_handler.distribute_dofs(fe);
 
   // Generate two dealii::Distributed::Vector's with the mpi_partitioner, and fill them with
   // 'data'
@@ -102,38 +193,48 @@ test()
 							  locally_relevant,
 							  MPI_COMM_WORLD);
 
-  initialize_vector_with_value<dim,spacedim>(partitioner, 0.0, u0);
+  initialize_vector_with_value<dim,spacedim>(partitioner, 9.81, u0);
+  initialize_vector_with_value<dim,spacedim>(partitioner, 3.14, u1);
+
+  u0.update_ghost_values();
+  u1.update_ghost_values();
+
+  std::cout << "global size is " << u0.size() << " "  << u1.size() << std::endl;
+
+  unsigned int handle_0 = register_pack_vector<dim, spacedim, DistributedTriangulation>(u0,
+											tr,
+											dof_handler);
   
+  // save u0 data to archive
+  std::ostringstream oss;
+  {
+    boost::archive::text_oarchive oa(oss, boost::archive::no_header);
 
-  // // save data to archive
-  // std::ostringstream oss;
-  // {
-  //   boost::archive::text_oarchive oa(oss, boost::archive::no_header);
+    tr.save("checkpoint0");
+    oa << handle_0;
+    // archive and stream closed when
+    // destructors are called
+  }
+  deallog << oss.str() << std::endl;
 
-  //   oa << particle_handler;
-  //   tr.save("checkpoint");
+  
+  // Now remove all information in tr and particle_handler,
+  // this is like creating new objects after a restart
+  //tr.clear();
+  // tr.notify_ready_to_unpack
+  unpack_vector<dim,spacedim,DistributedTriangulation>(u1, tr, handle_0, dof_handler);
+  // verify correctness of the serialization. Note that the deserialization of
+  // the particle handler has to happen before the triangulation (otherwise it
+  // does not know if something was stored in the user data of the
+  // triangulation).
+  {
+    std::istringstream            iss(oss.str());
+    boost::archive::text_iarchive ia(iss, boost::archive::no_header);
 
-  //   // archive and stream closed when
-  //   // destructors are called
-  // }
-  // deallog << oss.str() << std::endl;
-
-  // // Now remove all information in tr and particle_handler,
-  // // this is like creating new objects after a restart
-  // tr.clear();
-
-  // // verify correctness of the serialization. Note that the deserialization of
-  // // the particle handler has to happen before the triangulation (otherwise it
-  // // does not know if something was stored in the user data of the
-  // // triangulation).
-  // {
-  //   std::istringstream            iss(oss.str());
-  //   boost::archive::text_iarchive ia(iss, boost::archive::no_header);
-
-  //   ia >> particle_handler;
-  //   tr.load("checkpoint");
-  //   particle_handler.deserialize();
-  // }
+    tr2.load("checkpoint0");)
+    ia >> tr2;
+    
+  }
 
   // for (auto particle = particle_handler.begin();
   //      particle != particle_handler.end();
