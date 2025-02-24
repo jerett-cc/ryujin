@@ -875,7 +875,7 @@ namespace mgrit{
     // TODO: is this code safe?
     const braid_Int num_cpoints = ntime/cfactor;
     std::cout << "Num_cpoints: " << num_cpoints << std::endl;
-    const braid_Int c_id = static_cast<braid_Int>(num_cpoints*t/(tstart - tstop));
+    const braid_Int c_id = static_cast<braid_Int>(num_cpoints*t/(tstop - tstart));
 
     // this c_id indicates the number of the checkpoint file we will wish to read
     // so we make a string of where we will find the file.
