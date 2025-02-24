@@ -110,6 +110,11 @@ namespace ryujin
     }
 
     /**
+     * Mutable access to the dof_handler, used for re-initializing. When reading in a coarse mesh. 
+     */
+    ACCESSOR(dof_handler);
+    
+    /**
      * The DofHandler for our (scalar) CG ansatz space in (deal.II typical)
      * global numbering.
      */
@@ -270,6 +275,11 @@ namespace ryujin
      */
     ACCESSOR_READ_ONLY(measure_of_omega)
 
+    /**
+     * Returns a mutable reference to the underlying Discretization object.
+     */
+    ACCESSOR(discretization)
+    
     /**
      * Returns a reference of the underlying Discretization object.
      */
