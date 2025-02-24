@@ -325,9 +325,7 @@ namespace mgrit{
   {
     Assert(levels.size() > static_cast<unsigned int>(level),
            dealii::ExcMessage("The level being reinitialized does not exist."));
-    std::get<0>(u->U).reinit(levels[level]->offline_data->hyperbolic_vector_partitioner());
-    std::get<1>(u->U).reinit(levels[level]->offline_data->precomputed_vector_partitioner());
-    std::get<0>(u->U).update_ghost_values(); // TODO: is this neccessary?
+    ryujin::Vectors::reinit_state_vector<Description>(u->U, *(levels[level]->offline_data));
   }
   
   template<typename Number, typename Description, int dim>
@@ -889,6 +887,10 @@ namespace mgrit{
     my_vector *u = new (my_vector);
     my_vector *temp_coarse = new (my_vector);
 
+    reinit_to_level(u, finest_level);
+    reinit_to_level(temp_coarse, coarsest_level);
+
+    
     std::cout << "Reading file " + c_file_prefix + ".mesh" << std::endl;
     //assert that the comm_x has not changed at this point.
     Assert(levels[finest_level]->offline_data->dof_handler().get_communicator() == levels[coarsest_level]->offline_data->dof_handler().get_communicator() ,
@@ -953,48 +955,16 @@ namespace mgrit{
 
     /* Now read in the state vector: */
 
-    ryujin::Vectors::reinit_state_vector<Description>(temp_coarse->U, *(levels[coarsest_level]->offline_data));
-
-    //levels[coarsest_level]->solution_transfer->prepare_projection(temp_coarse->U);
     levels[coarsest_level]->solution_transfer->set_handle(transfer_handle);
     levels[coarsest_level]->solution_transfer->project(temp_coarse->U);
     levels[coarsest_level]->solution_transfer->reset_handle();
 
-    ryujin::Vectors::reinit_state_vector<Description>(u->U, *(levels[finest_level]->offline_data));
-    /********
-    // We first define a coarse vector, at the coarsest level, which will be
-    // stepped, then restricted down to the fine level and interpolate the fine
-    // initial state into the coarse vector, then interpolates it up to the
-    // coarse level and steps.
-    my_vector *u = new (my_vector);
-    my_vector *temp_coarse = new (my_vector);
-    reinit_to_level(
-        u,
-        finest_level); // this is the u that we will start each time brick with.
-    reinit_to_level(temp_coarse, coarsest_level); // coarse on the coarses
-                                                  // level.
-    // sets up U data at t=0;
-    std::get<0>(u->U) = levels[finest_level]->initial_values->get().interpolate_hyperbolic_vector(0.0); 
-    std::get<0>(temp_coarse->U) = levels[coarsest_level]->initial_values->get().interpolate_hyperbolic_vector(0.0);
-
-    std::string str = "initialized_at_t=" + std::to_string(t);
-    // If T is not zero, we step on the coarsest level until we are done.
-    // Otherwise we have no need to step any because the assumtion is that T=0
-    // TODO: implicit assumption that T>0 always here except for T=0.
-    if (std::fabs(t) > 0.0) {
-      // interpolate the initial conditions up to the coarsest mesh
-      interpolate_between_levels(
-          std::get<0>(temp_coarse->U), coarsest_level, std::get<0>(u->U), finest_level);
-      // steps to the correct end time on the coarse level to end time t
-      time_loops[coarsest_level]->run_with_initial_data(temp_coarse->U, t);
-    */
-      interpolate_between_levels(
-          std::get<0>(u->U), finest_level, std::get<0>(temp_coarse->U), coarsest_level);
-   /**
-    }
-
-   */ //TODO: delete inside /*...*/?
-    
+   
+    interpolate_between_levels(std::get<0>(u->U),
+			       finest_level,
+			       std::get<0>(temp_coarse->U),
+			       coarsest_level);
+  
     // delete the temporary coarse U. f
     delete temp_coarse;
 
