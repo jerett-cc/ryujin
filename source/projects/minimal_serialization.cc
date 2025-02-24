@@ -19,7 +19,7 @@
 // This should cause an issue if we try to deserialize two vectors with the same
 // triangulation.
 
-#include <deal.II/distributed/fully_distributed_tria.h>
+#include <deal.II/distributed/solution_transfer.h>
 #include <deal.II/distributed/shared_tria.h>
 #include <deal.II/distributed/tria.h>
 
@@ -162,6 +162,9 @@ void
 test()
 {
   using DistributedTriangulation = typename Proxy<dim>::Triangulation;
+  using Vector = typename dealii::LinearAlgebra::distributed::Vector<double>;
+  using SolutionTransfer =
+    typename dealii::parallel::distributed::SolutionTransfer<dim, Vector, spacedim>;
   
   // Generate fulllydistributed triangulation from serial triangulation
   dealii::Triangulation<dim, spacedim> basetria;
@@ -179,11 +182,12 @@ test()
   dealii::DoFHandler<dim> dof_handler(tr);
   const dealii::FE_Q<dim> fe(1);
   dof_handler.distribute_dofs(fe);
-
+  
   // Generate two dealii::Distributed::Vector's with the mpi_partitioner, and fill them with
   // 'data'
-  dealii::LinearAlgebra::distributed::Vector<double> u0, u1;
+  Vector u0, u1;
 
+  // Create partitioner for the vectors.
   const dealii::IndexSet &locally_owned = dof_handler.locally_owned_dofs();
   dealii::IndexSet locally_relevant;
   dealii::DoFTools::extract_locally_relevant_dofs(dof_handler, locally_relevant);
@@ -193,56 +197,56 @@ test()
 							  locally_relevant,
 							  MPI_COMM_WORLD);
 
+  
   initialize_vector_with_value<dim,spacedim>(partitioner, 9.81, u0);
   initialize_vector_with_value<dim,spacedim>(partitioner, 3.14, u1);
 
   u0.update_ghost_values();
   u1.update_ghost_values();
 
-  std::cout << "global size is " << u0.size() << " "  << u1.size() << std::endl;
+  // Norms for test.
+  const auto norm0 = u0.l2_norm();
+  const auto norm1 = u1.l2_norm();
 
-  unsigned int handle_0 = register_pack_vector<dim, spacedim, DistributedTriangulation>(u0,
-											tr,
-											dof_handler);
-  
-  // save u0 data to archive
-  std::ostringstream oss;
   {
-    boost::archive::text_oarchive oa(oss, boost::archive::no_header);
-
+    // Get solution transfer set up.
+    SolutionTransfer transfer(dof_handler), transfer1(dof_handler);
+    // Save the vectors and clear them.
+    transfer.prepare_for_serialization(u0);
     tr.save("checkpoint0");
-    oa << handle_0;
-    // archive and stream closed when
-    // destructors are called
-  }
-  deallog << oss.str() << std::endl;
-
-  
-  // Now remove all information in tr and particle_handler,
-  // this is like creating new objects after a restart
-  //tr.clear();
-  // tr.notify_ready_to_unpack
-  unpack_vector<dim,spacedim,DistributedTriangulation>(u1, tr, handle_0, dof_handler);
-  // verify correctness of the serialization. Note that the deserialization of
-  // the particle handler has to happen before the triangulation (otherwise it
-  // does not know if something was stored in the user data of the
-  // triangulation).
-  {
-    std::istringstream            iss(oss.str());
-    boost::archive::text_iarchive ia(iss, boost::archive::no_header);
-
-    tr2.load("checkpoint0");)
-    ia >> tr2;
+    u0 = 0.0;
+    
+    transfer1.prepare_for_serialization(u1);
+    tr.save("checkpoint1");
+    u1 = 0.0;
     
   }
 
-  // for (auto particle = particle_handler.begin();
-  //      particle != particle_handler.end();
-  //      ++particle)
-  //   deallog << "After serialization particle id " << particle->get_id()
-  //           << " is in cell " << particle->get_surrounding_cell() << std::endl;
+  // Read in solution. 
+  {
+    tr2.load("checkpoint0");
+    dof_handler.reinit(tr2);
+    dof_handler.distribute_dofs(fe);
+    //or,
+    //dof_handler.prepare_for_serialization_of_active_fe_indices();
+    // Get solution transfer set up.
+    SolutionTransfer transfer(dof_handler);
+    // Load the vectors
+    transfer.deserialize(u0);
 
-  // deallog << "OK" << std::endl << std::endl;
+    tr2.copy_triangulation(basetria);
+    tr2.load("checkpoint1");
+    dof_handler.reinit(tr2);
+    dof_handler.distribute_dofs(fe);
+    transfer.deserialize(u1);
+  }
+
+  std::cout << "0 diff: " << std::abs(norm0 - u0.l2_norm()) << std::endl
+	    << "1 diff: " << std::abs(norm1 - u1.l2_norm()) << std::endl; 
+  
+  
+  
+  deallog << "OK" << std::endl << std::endl;
 }
 
 
