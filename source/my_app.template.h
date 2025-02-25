@@ -248,14 +248,20 @@ namespace mgrit{
   template<typename Number, typename Description, int dim>
   void MyApp<Number, Description, dim>::create_mg_levels()
   {
+    // Make the unrefined levels, so that we can use it in the Init()
+    // function.
+    unrefined_level = std::make_shared<
+	                ryujin::mgrit::LevelStructures<Description,
+						       dim,
+						       Number>>(mpi_ensemble_x,
+								0/*no refinement*/);
+    
     for (unsigned int i = 0; i < refinement_levels.size(); i++) {
       if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
         std::cout << "[INFO] Setting Structures in App at level "
                   << refinement_levels[i] << std::endl;
       }
-      // TODO: determine if I should just make a time loop object for each level
-      // and using only this.
-      //  i.e. does app really ned to know all the level structures info?
+      
       levels[i] = std::make_shared<
           ryujin::mgrit::LevelStructures<Description, dim, Number>>(
           mpi_ensemble_x, refinement_levels[i]);
