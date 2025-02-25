@@ -334,6 +334,12 @@ namespace ryujin
      */
     ACCESSOR_READ_ONLY(face_nodal_quadrature)
 
+    /**
+     * Return a read-only const reference to the nodal face quadrature rule
+     * (GaußLobatto).
+     */
+    ACCESSOR(coarse_triangulation_)
+
   protected:
     const MPIEnsemble &mpi_ensemble_;
 
@@ -344,6 +350,7 @@ namespace ryujin
     std::unique_ptr<const dealii::Quadrature<1>> quadrature_1d_;
     std::unique_ptr<const dealii::Quadrature<dim - 1>> face_quadrature_;
     std::unique_ptr<const dealii::Quadrature<dim - 1>> face_nodal_quadrature_;
+    std::unique_ptr<Triangulation> coarse_triangulation_;
 
   private:
     //@}
