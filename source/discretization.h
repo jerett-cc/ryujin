@@ -335,10 +335,9 @@ namespace ryujin
     ACCESSOR_READ_ONLY(face_nodal_quadrature)
 
     /**
-     * Return a read-only const reference to the nodal face quadrature rule
-     * (GaußLobatto).
+     * Return a mutable reference to the base coarse triangulation.
      */
-    ACCESSOR(coarse_triangulation_)
+    ACCESSOR(coarse_triangulation)
 
   protected:
     const MPIEnsemble &mpi_ensemble_;

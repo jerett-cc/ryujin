@@ -91,7 +91,7 @@ namespace ryujin
           mpi_ensemble_.ensemble_communicator(), smoothing, settings);
       // We store a coarse triangulation, initialized with same paramters, copied later.
       coarse_triangulation_ = std::make_unique<Triangulation>(
-	  mpi_ensemble_.emsemble_communicator(), smoothing, settings);
+	  mpi_ensemble_.ensemble_communicator(), smoothing, settings);
 
     } else {
       const auto settings = static_cast<typename Triangulation::Settings>(
