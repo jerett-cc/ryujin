@@ -898,27 +898,22 @@ namespace mgrit{
 
     
     std::cout << "Reading file " + c_file_prefix + ".mesh" << std::endl;
-    //assert that the comm_x has not changed at this point.
-    Assert(levels[finest_level]->offline_data->dof_handler().get_communicator() == levels[coarsest_level]->offline_data->dof_handler().get_communicator() ,
-	   dealii::ExcMessage("bad before load"));
-    // load the mesh onto the coarsest level structures. This is needed before the projection
-    // can happen below. Before doing so, just erase whatever happened to be in the
-    // triangulation.
-    levels[coarsest_level]->discretization->triangulation().clear();
-    levels[coarsest_level]->discretization->triangulation().load(c_file_prefix+".mesh");
-
-    //assert that the comm_x has not changed at this point.
-    Assert(levels[finest_level]->offline_data->dof_handler().get_communicator() == levels[coarsest_level]->offline_data->dof_handler().get_communicator() ,
-	   dealii::ExcMessage("bad after load"));
     
-    reinit_to_level(
-        u,
-        finest_level); // this is the u that we will start each time brick with.
-    reinit_to_level(temp_coarse, coarsest_level); // coarse on the coarses
-                                                  // level.
-    // // sets up U data at t=0;
-    // std::get<0>(u->U) = levels[finest_level]->initial_values->get().interpolate_hyperbolic_vector(0.0); 
-    // std::get<0>(temp_coarse->U) = levels[coarsest_level]->initial_values->get().interpolate_hyperbolic_vector(0.0);
+    // Copy of the triangulation, which we load back in to the triangulation in a hacky
+    // way to work around serialization problems.
+    const MPI_Comm &comm_x = mpi_ensemble_x->ensemble_communicator();
+    auto& coarse_tria = unrefined_level->discretization->triangulation();
+    auto& coarse_offline_data = *unrefined_level->offline_data;
+    
+    auto& init_coarse = coarse_offline_data.dof_handler();
+    //dealii::FE_Q<dim> fe_copy(coarse_offline_data.discretization().finite_element().degree);
+
+    //init_handler.reinit(coarse_tria);
+    //init_handler.distribute_dofs(fe_copy);
+
+    // load the mesh onto the coarsest mesh. This is needed before the projection
+    // can happen below.
+    coarse_tria.load(c_file_prefix+".mesh");
     
     /*
      * Read in and broadcast metadata for the coarse data:
@@ -936,22 +931,6 @@ namespace mgrit{
     }
 
     int ierr;
-    // if constexpr (std::is_same_v<Number, double>)
-    //   ierr = MPI_Bcast(
-    // 	       &t, 1, MPI_DOUBLE, 0, mpi_ensemble_x->ensemble_communicator());
-    // else
-    //   ierr =
-    //       MPI_Bcast(&t, 1, MPI_FLOAT, 0, mpi_ensemble_x->ensemble_communicator());
-    // AssertThrowMPI(ierr);
-
-    
-    // ierr = MPI_Bcast(&output_cycle,
-    //                  1,
-    //                  MPI_UNSIGNED,
-    //                  0,
-    //                  mpi_ensemble_->ensemble_communicator());
-    // AssertThrowMPI(ierr);
-
     ierr = MPI_Bcast(&transfer_handle,
                      1,
                      MPI_UNSIGNED,
@@ -960,12 +939,15 @@ namespace mgrit{
     AssertThrowMPI(ierr);
 
     /* Now read in the state vector: */
+    unrefined_level->solution_transfer->set_handle(transfer_handle);
+    unrefined_level->solution_transfer->project(temp_coarse->U);
+    unrefined_level->solution_transfer->reset_handle();
 
-    levels[coarsest_level]->solution_transfer->set_handle(transfer_handle);
-    levels[coarsest_level]->solution_transfer->project(temp_coarse->U);
-    levels[coarsest_level]->solution_transfer->reset_handle();
+    // Now that we are done, clear the coarse_tria and copy_triangulation from its exact copy.
+    coarse_tria.clear();
+    coarse_tria.copy_triangulation(unrefined_level->discretization->coarse_triangulation());
+    coarse_offline_data.dof_handler().reinit(coarse_tria);
 
-   
     interpolate_between_levels(std::get<0>(u->U),
 			       finest_level,
 			       std::get<0>(temp_coarse->U),
@@ -982,6 +964,7 @@ namespace mgrit{
 
     // reassign pointer XBraid will use
     *u_ptr = (braid_Vector)u;
+    std::cout << "Done with file " << c_file_prefix << std::endl;
     return 0;
   }
 
