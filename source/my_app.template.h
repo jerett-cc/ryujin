@@ -893,11 +893,11 @@ namespace mgrit{
     // stepped, then restricted down to the fine level and interpolate the fine
     // initial state into the coarse vector, then interpolates it up to the
     // coarse level and steps.
-    my_vector *u = new (my_vector);
-    my_vector *temp_coarse = new (my_vector);
+    std::unique_ptr<my_vector> u = std::make_unique<my_vector>();
+    std::unique_ptr<my_vector> temp_coarse = std::make_unique<my_vector>();
 
-    reinit_to_level(u, finest_level);
-    reinit_to_level(temp_coarse, coarsest_level);
+    reinit_to_level(u.get(), finest_level);
+    reinit_to_level(temp_coarse.get(), coarsest_level);
 
     
     std::cout << "Reading file " + c_file_prefix + ".mesh" << std::endl;
@@ -967,9 +967,6 @@ namespace mgrit{
 			       finest_level,
 			       std::get<0>(temp_coarse->U),
 			       coarsest_level);
-  
-    // delete the temporary coarse U. f
-    delete temp_coarse;
 
     // FIXME: the whole cpp interface as awkward use of pointers for the vector objects.
     if( !(std::get<0>(u->U).l1_norm()) ){
@@ -977,8 +974,9 @@ namespace mgrit{
       exit(EXIT_FAILURE);
     }
 
-    // reassign pointer XBraid will use
-    *u_ptr = (braid_Vector)u;
+    // reassign pointer XBraid will use by turning ownership of the
+    // vector 'u' points to over to 'u_ptr':
+    *u_ptr = (braid_Vector)u.release();
     std::cout << "Done with file " << c_file_prefix << std::endl;
     return 0;
   }
