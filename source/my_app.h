@@ -301,5 +301,7 @@ namespace mgrit{
     std::map<std::pair<int/*t_idx*/, int/*iteration*/>, int/*count*/> f_brick_relaxation_count;
 
     std::string storage_name;
+
+    unsigned int n_parabolic_state_vectors;
   };
 }// Namespace mgrit

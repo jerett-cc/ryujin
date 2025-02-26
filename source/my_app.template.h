@@ -241,6 +241,8 @@ namespace mgrit{
 			      "time points total."));
 
     storage_name = storage_name + base_name;
+
+    n_parabolic_state_vectors = unrefined_level->parabolic_system->get().n_parabolic_state_vectors();
     //   initialized = true; // now the user can access data in app. TODO:
     //   implement a check for getter functions.
   }
@@ -275,6 +277,7 @@ namespace mgrit{
   template<typename Number, typename Description, int dim>
   void MyApp<Number, Description, dim>::prepare_mg_objects()
   {
+    unrefined_level->prepare(base_name);
     for (unsigned int lvl = 0; lvl < refinement_levels.size(); lvl++) {
       if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
         std::cout << "[INFO] Preparing Structures in App at level "
@@ -901,11 +904,11 @@ namespace mgrit{
     
     // Copy of the triangulation, which we load back in to the triangulation in a hacky
     // way to work around serialization problems.
-    const MPI_Comm &comm_x = mpi_ensemble_x->ensemble_communicator();
+    [[maybe_unused]]const MPI_Comm &comm_x = mpi_ensemble_x->ensemble_communicator();
     auto& coarse_tria = unrefined_level->discretization->triangulation();
     auto& coarse_offline_data = *unrefined_level->offline_data;
     
-    auto& init_coarse = coarse_offline_data.dof_handler();
+    //auto& init_ = coarse_offline_data.dof_handler();
     //dealii::FE_Q<dim> fe_copy(coarse_offline_data.discretization().finite_element().degree);
 
     //init_handler.reinit(coarse_tria);
@@ -943,11 +946,23 @@ namespace mgrit{
     unrefined_level->solution_transfer->project(temp_coarse->U);
     unrefined_level->solution_transfer->reset_handle();
 
-    // Now that we are done, clear the coarse_tria and copy_triangulation from its exact copy.
+    // Now that we are done, clear the coarse_tria and
+    // copy_triangulation from its exact copy. In other words, restore
+    // the *invariant* that we have a triangulation and matching
+    // DoFHandler that corresponding to the coarse mesh.
     coarse_tria.clear();
     coarse_tria.copy_triangulation(unrefined_level->discretization->coarse_triangulation());
-    coarse_offline_data.dof_handler().reinit(coarse_tria);
+    coarse_offline_data.prepare(problem_dimension,
+				n_precomputed_values,
+				n_parabolic_state_vectors);
+    // TODO: distribute DoFs on coarse_offline_data.dof_handler()
+    //       the coarse_offline_data needs to be 'prepare()'d.
+    // Question: are there other data structures that need to be
+    // restored? Call the same function here that is called when the
+    // coarse triangulation is set up the *first* time (in
+    // OfflineData<dim, Number>::setup()?)
 
+    // Now interpolate the data we loaded on the coarsest level to the finest level:
     interpolate_between_levels(std::get<0>(u->U),
 			       finest_level,
 			       std::get<0>(temp_coarse->U),
