@@ -930,6 +930,7 @@ namespace mgrit{
 
       std::ifstream file(meta, std::ios::binary);
       boost::archive::binary_iarchive ia(file);
+      //TODO: perhaps not overwrite 't'?
       ia >> t >> output_cycle >> transfer_handle;
     }
 
