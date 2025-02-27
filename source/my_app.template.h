@@ -66,7 +66,10 @@ namespace mgrit{
       : BraidApp(comm_t)
       , ParameterAcceptor("/App")
       , comm_x(comm_x)
-      , mpi_ensemble_x(std::make_shared<ryujin::MPIEnsemble>(comm_x))
+      , mpi_ensemble_x(std::make_shared<
+		         ryujin::MPIEnsemble>(comm_x,
+					      /*n_ensembles=*/1,
+					      /*global_synchronization=*/false))
       , levels(a_refinement_levels.size())
       , refinement_levels(a_refinement_levels)
       , time_loops(a_refinement_levels.size())
