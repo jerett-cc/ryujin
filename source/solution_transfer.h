@@ -36,6 +36,7 @@ namespace ryujin
 
     using HyperbolicSystem = typename Description::HyperbolicSystem;
     using ParabolicSystem = typename Description::ParabolicSystem;
+    using Triangulation = typename ryujin::Discretization<dim>::Triangulation;
 
     using View =
         typename Description::template HyperbolicSystemView<dim, Number>;
@@ -136,6 +137,14 @@ namespace ryujin
      * initialized with the new Partitioner.
      */
     void project(StateVector &new_state_vector);
+
+    /**
+     *  A copy of project and prepare_for_project where I give a different triangulation
+     *
+     */
+
+    void prepare_projection(const StateVector &old_state_vector, Triangulation &tria_to_use);
+    void project(StateVector &new_state_vector, Triangulation &tria_to_use);
 
   private:
     //@}

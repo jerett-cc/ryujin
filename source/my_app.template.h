@@ -875,7 +875,10 @@ namespace mgrit{
   template<typename Number, typename Description, int dim>
   braid_Int MyApp<Number, Description, dim>::Init(braid_Real t, braid_Vector *u_ptr)
   {
-    std::cout << "[INFO] Initializing XBraid vectors at t=" << t << std::endl;
+    const auto &level_communicator = levels[coarsest_level]->offline_data->dof_handler().get_communicator();
+    std::cout << "[INFO] px:" +
+      std::to_string(dealii::Utilities::MPI::this_mpi_process(level_communicator))+
+      " Initializing XBraid vectors at t="+ std::to_string(t) << std::endl;
 
     // first, we figure out which C-point this time is. t is an indication. we take the global
     // start and end and calculate the portion of the total time that t is.
@@ -979,6 +982,7 @@ namespace mgrit{
     // vector 'u' points to over to 'u_ptr':
     *u_ptr = (braid_Vector)u.release();
     std::cout << "Done with file " << c_file_prefix << std::endl;
+
     return 0;
   }
 
