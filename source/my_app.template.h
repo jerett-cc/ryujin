@@ -908,13 +908,12 @@ namespace mgrit{
     
     // Copy of the triangulation, which we load back in to the triangulation in a hacky
     // way to work around serialization problems.
-    [[maybe_unused]]const MPI_Comm &comm_x = mpi_ensemble_x->ensemble_communicator();
-    auto& coarse_tria = unrefined_level->discretization->triangulation();
-    auto& coarse_offline_data = *unrefined_level->offline_data;
+    auto& unrefined_tria = unrefined_level->discretization->triangulation();
+    auto& unrefined_offline_data = *unrefined_level->offline_data;
     
     // load the mesh onto the coarsest mesh. This is needed before the projection
     // can happen below.
-    coarse_tria.load(c_file_prefix+".mesh");
+    unrefined_tria.load(c_file_prefix+".mesh");
     
     /*
      * Read in and broadcast metadata for the coarse data:
@@ -923,13 +922,13 @@ namespace mgrit{
     // to read in metadata file
 
     unsigned int transfer_handle;
+    braid_Real t_in_file = 0.0;
     if (mpi_ensemble_x->world_rank() == 0) {
       std::string meta = c_file_prefix + ".metadata";
 
       std::ifstream file(meta, std::ios::binary);
       boost::archive::binary_iarchive ia(file);
-      //TODO: perhaps not overwrite 't'?
-      ia >> t >> output_cycle >> transfer_handle;
+      ia >> t_in_file >> output_cycle >> transfer_handle;
     }
 
     int ierr;
@@ -949,13 +948,13 @@ namespace mgrit{
     // copy_triangulation from its exact copy. In other words, restore
     // the *invariant* that we have a triangulation and matching
     // DoFHandler that corresponding to the coarse mesh.
-    coarse_tria.clear();
-    coarse_tria.copy_triangulation(unrefined_level->discretization->coarse_triangulation());
-    coarse_offline_data.prepare(problem_dimension,
+    unrefined_tria.clear();
+    unrefined_tria.copy_triangulation(unrefined_level->discretization->coarse_triangulation());
 
     // Since we have clear()'d and copied the triangulation, we need to reset
     // all the data structures in offline_data before we use unrefined_level
     // to do any more work after this function returns.
+    unrefined_offline_data.prepare(problem_dimension,
 				n_precomputed_values,
 				n_parabolic_state_vectors);
     
