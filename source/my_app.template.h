@@ -876,20 +876,20 @@ namespace mgrit{
   braid_Int MyApp<Number, Description, dim>::Init(braid_Real t, braid_Vector *u_ptr)
   {
     const auto &level_communicator = levels[coarsest_level]->offline_data->dof_handler().get_communicator();
+    // TODO: make a pout here instead.
     std::cout << "[INFO] px:" +
       std::to_string(dealii::Utilities::MPI::this_mpi_process(level_communicator))+
       " Initializing XBraid vectors at t="+ std::to_string(t) << std::endl;
 
     // first, we figure out which C-point this time is. t is an indication. we take the global
     // start and end and calculate the portion of the total time that t is.
-    // TODO: is this code safe?
+    // TODO: is this code safe, in the sense that it will always return basically and interger?
     const braid_Int num_cpoints = ntime/cfactor;
     std::cout << "Num_cpoints: " << num_cpoints << std::endl;
-    const braid_Int c_id = static_cast<braid_Int>(num_cpoints*t/(tstop - tstart));
 
     // this c_id indicates the number of the checkpoint file we will wish to read
     // so we make a string of where we will find the file.
-
+    const braid_Int c_id = static_cast<braid_Int>(num_cpoints*t/(tstop - tstart));
     const std::string c_file_prefix = storage_name + "-checkpoint" + std::to_string(c_id);
 
     // We next define a coarse vector at the coarsest level, which will be
@@ -902,7 +902,8 @@ namespace mgrit{
     reinit_to_level(u.get(), finest_level);
     reinit_to_level(temp_coarse.get(), coarsest_level);
 
-    
+    //TODO: add a pout to the app so we can use in place of complicated looking
+    //      if statements. This will clean up the I/O.
     std::cout << "Reading file " + c_file_prefix + ".mesh" << std::endl;
     
     // Copy of the triangulation, which we load back in to the triangulation in a hacky
@@ -911,12 +912,6 @@ namespace mgrit{
     auto& coarse_tria = unrefined_level->discretization->triangulation();
     auto& coarse_offline_data = *unrefined_level->offline_data;
     
-    //auto& init_ = coarse_offline_data.dof_handler();
-    //dealii::FE_Q<dim> fe_copy(coarse_offline_data.discretization().finite_element().degree);
-
-    //init_handler.reinit(coarse_tria);
-    //init_handler.distribute_dofs(fe_copy);
-
     // load the mesh onto the coarsest mesh. This is needed before the projection
     // can happen below.
     coarse_tria.load(c_file_prefix+".mesh");
@@ -957,22 +952,22 @@ namespace mgrit{
     coarse_tria.clear();
     coarse_tria.copy_triangulation(unrefined_level->discretization->coarse_triangulation());
     coarse_offline_data.prepare(problem_dimension,
+
+    // Since we have clear()'d and copied the triangulation, we need to reset
+    // all the data structures in offline_data before we use unrefined_level
+    // to do any more work after this function returns.
 				n_precomputed_values,
 				n_parabolic_state_vectors);
-    // TODO: distribute DoFs on coarse_offline_data.dof_handler()
-    //       the coarse_offline_data needs to be 'prepare()'d.
-    // Question: are there other data structures that need to be
-    // restored? Call the same function here that is called when the
-    // coarse triangulation is set up the *first* time (in
-    // OfflineData<dim, Number>::setup()?)
-
-    // Now interpolate the data we loaded on the coarsest level to the finest level:
+    
+    // Now interpolate the data we loaded on the coarsest level to the finest level,
+    // using the levels data structure, as unrefined_level has done it's work:
     interpolate_between_levels(std::get<0>(u->U),
 			       finest_level,
 			       std::get<0>(temp_coarse->U),
 			       coarsest_level);
 
     // FIXME: the whole cpp interface as awkward use of pointers for the vector objects.
+    // See above TODO and relace the std::cout with pout here.
     if( !(std::get<0>(u->U).l1_norm()) ){
       std::cout << "Norm of u_ptr is not one." << std::endl;
       exit(EXIT_FAILURE);
@@ -981,6 +976,8 @@ namespace mgrit{
     // reassign pointer XBraid will use by turning ownership of the
     // vector 'u' points to over to 'u_ptr':
     *u_ptr = (braid_Vector)u.release();
+
+    //TODO: replace with a pout.
     std::cout << "Done with file " << c_file_prefix << std::endl;
 
     return 0;
@@ -1071,6 +1068,7 @@ namespace mgrit{
       case braid_ASCaller_FInterp_Projection:
       {
 #ifdef DEBUG
+	// TODO: pout
         std::cout << "[INFO] Access called for " + fname
                   << " enforcing physicality bounds after summing in FInterp"
 		  << " on level " + std::to_string(level)
