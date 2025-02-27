@@ -241,6 +241,8 @@ namespace mgrit{
 			      "time points total."));
 
     storage_name = storage_name + base_name;
+
+    n_parabolic_state_vectors = unrefined_level->parabolic_system->get().n_parabolic_state_vectors();
     //   initialized = true; // now the user can access data in app. TODO:
     //   implement a check for getter functions.
   }
@@ -248,14 +250,20 @@ namespace mgrit{
   template<typename Number, typename Description, int dim>
   void MyApp<Number, Description, dim>::create_mg_levels()
   {
+    // Make the unrefined levels, so that we can use it in the Init()
+    // function.
+    unrefined_level = std::make_shared<
+	                ryujin::mgrit::LevelStructures<Description,
+						       dim,
+						       Number>>(mpi_ensemble_x,
+								0/*no refinement*/);
+    
     for (unsigned int i = 0; i < refinement_levels.size(); i++) {
       if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
         std::cout << "[INFO] Setting Structures in App at level "
                   << refinement_levels[i] << std::endl;
       }
-      // TODO: determine if I should just make a time loop object for each level
-      // and using only this.
-      //  i.e. does app really ned to know all the level structures info?
+      
       levels[i] = std::make_shared<
           ryujin::mgrit::LevelStructures<Description, dim, Number>>(
           mpi_ensemble_x, refinement_levels[i]);
@@ -269,6 +277,7 @@ namespace mgrit{
   template<typename Number, typename Description, int dim>
   void MyApp<Number, Description, dim>::prepare_mg_objects()
   {
+    unrefined_level->prepare(base_name);
     for (unsigned int lvl = 0; lvl < refinement_levels.size(); lvl++) {
       if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
         std::cout << "[INFO] Preparing Structures in App at level "
@@ -325,9 +334,7 @@ namespace mgrit{
   {
     Assert(levels.size() > static_cast<unsigned int>(level),
            dealii::ExcMessage("The level being reinitialized does not exist."));
-    std::get<0>(u->U).reinit(levels[level]->offline_data->hyperbolic_vector_partitioner());
-    std::get<1>(u->U).reinit(levels[level]->offline_data->precomputed_vector_partitioner());
-    std::get<0>(u->U).update_ghost_values(); // TODO: is this neccessary?
+    ryujin::Vectors::reinit_state_vector<Description>(u->U, *(levels[level]->offline_data));
   }
   
   template<typename Number, typename Description, int dim>
@@ -878,7 +885,7 @@ namespace mgrit{
     // TODO: is this code safe?
     const braid_Int num_cpoints = ntime/cfactor;
     std::cout << "Num_cpoints: " << num_cpoints << std::endl;
-    const braid_Int c_id = static_cast<braid_Int>(num_cpoints*t/(tstart - tstop));
+    const braid_Int c_id = static_cast<braid_Int>(num_cpoints*t/(tstop - tstart));
 
     // this c_id indicates the number of the checkpoint file we will wish to read
     // so we make a string of where we will find the file.
@@ -889,42 +896,30 @@ namespace mgrit{
     // stepped, then restricted down to the fine level and interpolate the fine
     // initial state into the coarse vector, then interpolates it up to the
     // coarse level and steps.
-    my_vector *u = new (my_vector);
-    my_vector *temp_coarse = new (my_vector);
+    std::unique_ptr<my_vector> u = std::make_unique<my_vector>();
+    std::unique_ptr<my_vector> temp_coarse = std::make_unique<my_vector>();
 
-    reinit_to_level(u, finest_level); // this is the u that we will start each time brick with.
-    reinit_to_level(temp_coarse, coarsest_level); // coarse on the coarses
-                                                  // level.
-    ryujin::Vectors::reinit_state_vector<Description>(temp_coarse->U,
-						      *(levels[coarsest_level]->offline_data));
+    reinit_to_level(u.get(), finest_level);
+    reinit_to_level(temp_coarse.get(), coarsest_level);
 
+    
     std::cout << "Reading file " + c_file_prefix + ".mesh" << std::endl;
-    //assert that the comm_x has not changed at this point.
-    Assert(levels[finest_level]->offline_data->dof_handler().get_communicator() == levels[coarsest_level]->offline_data->dof_handler().get_communicator() ,
-	   dealii::ExcMessage("bad before load"));
-    // load the mesh onto the coarsest level structures. This is needed before the projection
-    // can happen below. We first copy the old triangulation into a new one. This is expensive,
-    // but since this only happens n_coarse_points times at the start of the
-    const auto smoothing =
-      dealii::Triangulation<dim>::limit_level_difference_at_vertices;//TODO: make this the same smoothing as the triangulaiton we create, right now this is just copied from ryujin/source/discretization.template.h
-    const auto settings =
-      ryujin::Discretization<dim>::Triangulation::Settings::construct_multigrid_hierarchy;//same story here, as above
     
-    typename ryujin::Discretization<dim>::Triangulation tria_copy(level_communicator, smoothing, settings);
-    tria_copy.copy_triangulation(levels[coarsest_level]->offline_data->discretization().triangulation());
-    tria_copy.load(c_file_prefix+".mesh");
+    // Copy of the triangulation, which we load back in to the triangulation in a hacky
+    // way to work around serialization problems.
+    [[maybe_unused]]const MPI_Comm &comm_x = mpi_ensemble_x->ensemble_communicator();
+    auto& coarse_tria = unrefined_level->discretization->triangulation();
+    auto& coarse_offline_data = *unrefined_level->offline_data;
+    
+    //auto& init_ = coarse_offline_data.dof_handler();
+    //dealii::FE_Q<dim> fe_copy(coarse_offline_data.discretization().finite_element().degree);
 
-    // create the solution_transfer object responsible for the der-serialization
-    const auto &od = *(levels[coarsest_level]->offline_data);
-    const auto &hs = *(levels[coarsest_level]->hyperbolic_system);
-    const auto &ps = *(levels[coarsest_level]->parabolic_system);
-    ryujin::SolutionTransfer<Description, dim, Number> solution_transfer(*mpi_ensemble_x,
-									 od,
-									 hs,
-									 ps);
-    
-    Assert(levels[finest_level]->offline_data->dof_handler().get_communicator() == level_communicator,
-	   dealii::ExcMessage("bad after load"));
+    //init_handler.reinit(coarse_tria);
+    //init_handler.distribute_dofs(fe_copy);
+
+    // load the mesh onto the coarsest mesh. This is needed before the projection
+    // can happen below.
+    coarse_tria.load(c_file_prefix+".mesh");
     
     /*
      * Read in and broadcast metadata for the coarse data:
@@ -938,26 +933,11 @@ namespace mgrit{
 
       std::ifstream file(meta, std::ios::binary);
       boost::archive::binary_iarchive ia(file);
+      //TODO: perhaps not overwrite 't'?
       ia >> t >> output_cycle >> transfer_handle;
     }
 
     int ierr;
-    // if constexpr (std::is_same_v<Number, double>)
-    //   ierr = MPI_Bcast(
-    // 	       &t, 1, MPI_DOUBLE, 0, mpi_ensemble_x->ensemble_communicator());
-    // else
-    //   ierr =
-    //       MPI_Bcast(&t, 1, MPI_FLOAT, 0, mpi_ensemble_x->ensemble_communicator());
-    // AssertThrowMPI(ierr);
-
-    
-    // ierr = MPI_Bcast(&output_cycle,
-    //                  1,
-    //                  MPI_UNSIGNED,
-    //                  0,
-    //                  mpi_ensemble_->ensemble_communicator());
-    // AssertThrowMPI(ierr);
-
     ierr = MPI_Bcast(&transfer_handle,
                      1,
                      MPI_UNSIGNED,
@@ -966,19 +946,31 @@ namespace mgrit{
     AssertThrowMPI(ierr);
 
     /* Now read in the state vector: */
+    unrefined_level->solution_transfer->set_handle(transfer_handle);
+    unrefined_level->solution_transfer->project(temp_coarse->U);
+    unrefined_level->solution_transfer->reset_handle();
 
-    //solution_transfer.prepare_projection(temp_coarse->U,tria_copy);
-    solution_transfer.set_handle(transfer_handle);
-    solution_transfer.project(temp_coarse->U,tria_copy);
-    solution_transfer.reset_handle();
+    // Now that we are done, clear the coarse_tria and
+    // copy_triangulation from its exact copy. In other words, restore
+    // the *invariant* that we have a triangulation and matching
+    // DoFHandler that corresponding to the coarse mesh.
+    coarse_tria.clear();
+    coarse_tria.copy_triangulation(unrefined_level->discretization->coarse_triangulation());
+    coarse_offline_data.prepare(problem_dimension,
+				n_precomputed_values,
+				n_parabolic_state_vectors);
+    // TODO: distribute DoFs on coarse_offline_data.dof_handler()
+    //       the coarse_offline_data needs to be 'prepare()'d.
+    // Question: are there other data structures that need to be
+    // restored? Call the same function here that is called when the
+    // coarse triangulation is set up the *first* time (in
+    // OfflineData<dim, Number>::setup()?)
 
-    ryujin::Vectors::reinit_state_vector<Description>(u->U, *(levels[finest_level]->offline_data));
-   
-    interpolate_between_levels(
-      std::get<0>(u->U), finest_level, std::get<0>(temp_coarse->U), coarsest_level);
-    
-    // delete the temporary coarse U. f
-    delete temp_coarse;
+    // Now interpolate the data we loaded on the coarsest level to the finest level:
+    interpolate_between_levels(std::get<0>(u->U),
+			       finest_level,
+			       std::get<0>(temp_coarse->U),
+			       coarsest_level);
 
     // FIXME: the whole cpp interface as awkward use of pointers for the vector objects.
     if( !(std::get<0>(u->U).l1_norm()) ){
@@ -986,12 +978,11 @@ namespace mgrit{
       exit(EXIT_FAILURE);
     }
 
-    // reassign pointer XBraid will use
-    *u_ptr = (braid_Vector)u;
+    // reassign pointer XBraid will use by turning ownership of the
+    // vector 'u' points to over to 'u_ptr':
+    *u_ptr = (braid_Vector)u.release();
+    std::cout << "Done with file " << c_file_prefix << std::endl;
 
-    
-    //done
-    std::cout << "[INFO] px:" + std::to_string(dealii::Utilities::MPI::this_mpi_process(levels[coarsest_level]->offline_data->dof_handler().get_communicator()))+" done at t=" +std::to_string(t) << std::endl;
     return 0;
   }
 

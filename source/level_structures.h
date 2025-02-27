@@ -120,7 +120,7 @@ namespace ryujin{
     //a global @p refinement for the underlying triangulation.
     template <typename Description, int dim, typename Number>
     LevelStructures<Description, dim, Number>::LevelStructures(
-							       const std::shared_ptr<ryujin::MPIEnsemble> mpi_ensemble_x, const int refinement)
+      const std::shared_ptr<ryujin::MPIEnsemble> mpi_ensemble_x, const int refinement)
         : ParameterAcceptor("/LevelStructures")
 	, mpi_ensemble_(mpi_ensemble_x)
         , level_comm_x(mpi_ensemble_->ensemble_communicator()) // what constructor is used here? copy?

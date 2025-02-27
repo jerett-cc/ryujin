@@ -89,6 +89,9 @@ namespace ryujin
           Triangulation::Settings::construct_multigrid_hierarchy;
       triangulation_ = std::make_unique<Triangulation>(
           mpi_ensemble_.ensemble_communicator(), smoothing, settings);
+      // We store a coarse triangulation, initialized with same paramters, copied later.
+      coarse_triangulation_ = std::make_unique<Triangulation>(
+	  mpi_ensemble_.ensemble_communicator(), smoothing, settings);
 
     } else {
       const auto settings = static_cast<typename Triangulation::Settings>(
@@ -96,6 +99,12 @@ namespace ryujin
           Triangulation::construct_multigrid_hierarchy);
       /* Beware of the boolean: */
       triangulation_ =
+          std::make_unique<Triangulation>(mpi_ensemble_.ensemble_communicator(),
+                                          smoothing,
+                                          /*artificial cells*/ true,
+                                          settings);
+      // We store a coarse one with the same parameters, copied later.
+      coarse_triangulation_ =
           std::make_unique<Triangulation>(mpi_ensemble_.ensemble_communicator(),
                                           smoothing,
                                           /*artificial cells*/ true,
@@ -132,6 +141,9 @@ namespace ryujin
       grid_out.write_msh(triangulation, file);
 #endif
     }
+
+    // Copy triangulation into the coarse copy before refinement.
+    coarse_triangulation_->copy_triangulation(triangulation);
 
     triangulation.refine_global(refinement_);
 

@@ -267,6 +267,7 @@ namespace mgrit{
     const MPI_Comm comm_x;
     const std::shared_ptr<ryujin::MPIEnsemble> mpi_ensemble_x;
     std::vector<LevelType> levels; // instantiation
+    LevelType unrefined_level;
     std::vector<int> refinement_levels;
     std::vector<TimeLoopType> time_loops;
     braid_Int finest_level, coarsest_level;
@@ -300,5 +301,7 @@ namespace mgrit{
     std::map<std::pair<int/*t_idx*/, int/*iteration*/>, int/*count*/> f_brick_relaxation_count;
 
     std::string storage_name;
+
+    unsigned int n_parabolic_state_vectors;
   };
 }// Namespace mgrit
