@@ -234,7 +234,7 @@ namespace mgrit_functions{
   template <typename Description, int dim, typename Number>
   void conserved_and_entropy_in_system(const mgrit::MyVector<Number, Description, dim> &u,
 				       const mgrit::MyApp<Number, Description, dim> *app,
-				       const unsigned int level,
+				       const braid_Int level,
 				       const Number time)
   {
     [[maybe_unused]] int n_dofs       = app->n_locally_owned_at_level(level);
