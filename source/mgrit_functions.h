@@ -22,7 +22,8 @@ namespace mgrit_functions{
 			  const mgrit::MyVector<Number, Description, 2> &u,
 			  const braid_Real t);
 
-  /// @brief This function is the dim=1 version of the above. It is not implemented. FIXME: change this brief if ever implemented.
+  /// @brief This function is the dim=1 version of the above. It is not implemented.
+  /// FIXME: change this brief if ever implemented.
   /// @tparam Number The numeric storage, e.g. double or float.
   /// @tparam Description The desctiption of the hyperbolic system, see ryujin.
   /// @param app The calling MyApp function which knows about problem dimension and data handlers.
@@ -35,7 +36,8 @@ namespace mgrit_functions{
 			  const mgrit::MyVector<Number, Description, 1> &u,
 			  const braid_Real t);
 
-  /// @brief This function is the dim=3 version of the above. It is not implemented. FIXME: change this brief if ever implemented.
+  /// @brief This function is the dim=3 version of the above. It is not implemented.
+  /// FIXME: change this brief if ever implemented.
   /// @tparam Number The numeric storage, e.g. double or float.
   /// @tparam Description The desctiption of the hyperbolic system, see ryujin.
   /// @param app The calling MyApp function which knows about problem dimension and data handlers.
