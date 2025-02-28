@@ -702,9 +702,10 @@ namespace mgrit{
     pstatus.GetIter(&iter);
 
     // determine if this is a brick we want to visualize on this cycle
-    const bool is_right_iteration = (iter == 1);
-    const bool is_in_range_of_bricks = ((lvl_tstart >= 1.45) || (lvl_tstop <= 1.55)); 
-    const bool print_this_brick = (is_right_iteration && is_in_range_of_bricks && level == finest_level);
+    // const bool is_right_iteration = (iter == 1);
+    // const bool is_in_range_of_bricks = ((lvl_tstart >= 1.45) || (lvl_tstop <= 1.55)); 
+    // const bool print_this_brick = (is_right_iteration && is_in_range_of_bricks
+    // 				   && level == finest_level);
 
     std::string brick_name_prefix = "VMG_brick_80Brick_iter_" + std::to_string(iter) +
       "_tidx_" + std::to_string(t_idx); 
@@ -735,22 +736,24 @@ namespace mgrit{
     // Start a timer for step::level
     ryujin::Scope scope(computing_timer, "step::" + std::to_string(level));
 
-    if(print_this_brick)
-    {
-      print_solution(u_->U, lvl_tstart, finest_level, "before_projection_"+brick_name_prefix, t_idx);
-      time_loops[level]->write_checkpoint_wrapper(u_->U, "checkpoint_before_projection_"+brick_name_prefix,lvl_tstart, t_idx);
-    }
+    // if(print_this_brick)
+    // {
+    //   print_solution(u_->U, lvl_tstart, finest_level, "before_projection_"+brick_name_prefix, t_idx);
+    //   time_loops[level]->write_checkpoint_wrapper(u_->U,
+    // 						  "checkpoint_before_projection_"+brick_name_prefix,
+    // 						  lvl_tstart, t_idx);
+    // }
     
     // Ensure this is a physical vector.
     mgrit_functions::
         enforce_physicality_bounds<Description, dim, Number>(
             *u_, finest_level, *this, lvl_tstart);
 
-    if(print_this_brick)
-    {
-      print_solution(u_->U, lvl_tstart, finest_level, "after_projection_"+brick_name_prefix + "initial_condition", t_idx);
-      time_loops[level]->write_checkpoint_wrapper(u_->U, "checkpoint_after_projection_"+brick_name_prefix+"initial_condition", lvl_tstart, t_idx);
-    }
+    // if(print_this_brick)
+    // {
+    //   print_solution(u_->U, lvl_tstart, finest_level, "after_projection_"+brick_name_prefix + "initial_condition", t_idx);
+    //   time_loops[level]->write_checkpoint_wrapper(u_->U, "checkpoint_after_projection_"+brick_name_prefix+"initial_condition", lvl_tstart, t_idx);
+    // }
 
 #ifdef DEBUG
     if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
@@ -774,6 +777,7 @@ namespace mgrit{
 #endif
 
     // use a macro to get rid of some unused variables to avoid -Wall messages
+    // TODO: make use of the [[maybe_unused]] tag instead.
     UNUSED(ustop);
     UNUSED(fstop);
 
@@ -801,12 +805,14 @@ namespace mgrit{
 #endif
     
     // step the function on this level
+    // TODO: make sure that the last parameter is set properly, hardcoded
+    // is not the best course here.
     time_loops[level]->change_base_name(brick_name_prefix);
     time_loops[level]->run_with_initial_data(
         u_to_step->U,
         lvl_tstop,
         lvl_tstart,
-        print_this_brick /*print every step of this simulation*/);
+        false);//print_this_brick /*print every step of this simulation*/);
 
 #ifdef CHECK_BOUNDS
     // Test physicality of vector after it has been stepped.
@@ -832,10 +838,11 @@ namespace mgrit{
         std::get<0>(u_->U), 0, "after step, after interpolation.");
 #endif
 
-    if(print_this_brick)
-    {
-      print_solution(u_->U, lvl_tstart, finest_level, "after_integration_"+brick_name_prefix, t_idx);
-    }
+    // if(print_this_brick)
+    // {
+    //   print_solution(u_->U,
+    //   lvl_tstart, finest_level, "after_integration_"+brick_name_prefix, t_idx);
+    // }
 
     num_step_calls++;
     // done.
@@ -849,6 +856,7 @@ namespace mgrit{
   MyApp<Number, Description, dim>::Residual(braid_Vector u, braid_Vector r, BraidStepStatus &pstatus)
   {
     /// Does nothing.
+    //TODO: replace with [[maybe_unused]]?
     UNUSED(u);
     UNUSED(r);
     UNUSED(pstatus);
@@ -931,8 +939,8 @@ namespace mgrit{
     /*
      * Read in and broadcast metadata for the coarse data:
      */
-    braid_Int output_cycle = 0;// this is ultimately unused, just needs to be here
-    // to read in metadata file
+    // this is ultimately unused, just needs to be here to read in metadata file
+    braid_Int output_cycle = 0;
 
     unsigned int transfer_handle;
     braid_Real t_in_file = 0.0;
