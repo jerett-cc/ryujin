@@ -917,6 +917,16 @@ namespace mgrit{
     // load the mesh onto the coarsest mesh. This is needed before the projection
     // can happen below.
     unrefined_tria.load(c_file_prefix+".mesh");
+
+    // Now that a new triangulation is loaded, we need to re-initialize data structures
+    // to ensure that we can properly assign data on this triangulation.
+    // Because unrefined_tria is always not refined, if the user wants to
+    // use my_app where coarsest_level refers to a level with refinement>0,
+    // we may cause a bug. This modifies the offline_data, so we need to reset it
+    // to the 'unrefined' state before Init() finishes.
+    unrefined_offline_data.prepare(problem_dimension,
+				   n_precomputed_values,
+				   n_parabolic_state_vectors);
     
     /*
      * Read in and broadcast metadata for the coarse data:
