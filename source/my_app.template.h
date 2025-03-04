@@ -1060,7 +1060,7 @@ namespace mgrit{
     braid_Int t_idx;
     braid_Int level;
 
-    // state what iteration we are on, and what time t we are at.
+    // State who is calling, what iteration we are on, and what time t we are accessing.
     astatus.GetCallingFunction(&caller_id);
     astatus.GetIter(&mgCycle);
     astatus.GetT(&t);
@@ -1076,11 +1076,10 @@ namespace mgrit{
       case braid_ASCaller_FInterp_Projection:
       {
 #ifdef DEBUG
-	// TODO: pout
-        pout << "[INFO] Access called for " + fname
-                  << " enforcing physicality bounds after summing in FInterp"
-		  << " on level " + std::to_string(level)
-                  << std::endl;
+	pout << "[INFO] Access called for " + fname
+	     << " enforcing physicality bounds after summing in FInterp"
+	     << " on level " + std::to_string(level)
+	     << std::endl;
 #endif
         // Call the stability projection function. Note that ALL the data
 	// lives in memory at the finest level.
@@ -1108,7 +1107,7 @@ namespace mgrit{
         dealii::Tensor<1, dim> forces =
             mgrit_functions::calculate_drag_and_lift<Number, Description>(this, *u_, t);
 
-	pout << "cycle." + std::to_string(mgCycle) + " drag." +
+	std::cout << "cycle." + std::to_string(mgCycle) + " drag." +
 	                   std::to_string(forces[0]) + " lift." +
 	                   std::to_string(forces[1]) + " time." +
 	                   std::to_string(t)
