@@ -12,6 +12,9 @@ int main(int argc, char* argv[])
   //scoped MPI object, no need to call finalize at the end.
   dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);  //create objects
   MPI_Comm comm_world = MPI_COMM_WORLD;//create MPI_object
+  dealii::ConditionalOStream pout(std::cout);
+  pout.set_condition(dealii::Utilities::MPI::this_mpi_process(comm_world)==0);
+  
   //set up app and all underlying data, initialize parameters
   //parse command line parameters, order should be file name, parameter file, px, then the mg hierarcy, i.e. list of refinement levels.
   Assert(argc >= 1/*program*/ + 1/*parameter file*/ + 1/*px*/ + 1/*at least one level refinement*/,
@@ -25,10 +28,10 @@ int main(int argc, char* argv[])
 
 
   for(const auto entry: refinement_levels)
-    std::cout << entry << std::endl;
+    pout << entry << std::endl;
   //split the object into the number of time processors, and the number of spatial processors per time chunk.
   MPI_Comm comm_x, comm_t;
-  std::cout << "px: " << px << std::endl;
+  pout << "px: " << px << std::endl;
 
   /**
    * Split WORLD into a time brick for each processor, with a specified number of processors for each to do the spatial MPI.
@@ -50,10 +53,10 @@ int main(int argc, char* argv[])
   // std::vector<NUMBER>c_points =  app.c_points();
   // // Print out the vector
   // for (auto n : c_points)
-  //       std::cout << n << ' ';
-  //   std::cout << '\n';
+  //       pout << n << ' ';
+  //   pout << '\n';
 
-  std::cout << "ntime in app: " << app.ntime << std::endl;
+  pout << "ntime in app: " << app.ntime << std::endl;
   BraidCore core(MPI_COMM_WORLD, &app);
   core.SetMaxLevels(app.refinement_levels.size());
   core.SetPrintLevel(3);
@@ -65,7 +68,7 @@ int main(int argc, char* argv[])
   core.SetMaxIter(app.max_iter);
   core.SetSeqSoln(0);
 
-  std::cout << "Before braid drive." << std::endl;
+  pout << "Before braid drive." << std::endl;
 
   // Run Simulation
   core.Drive();

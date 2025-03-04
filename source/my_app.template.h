@@ -76,6 +76,7 @@ namespace mgrit{
       , finest_level(0) // for XBRAID, the finest level is always 0.
       , discretization_vec(1)
       , offline_data_vec(1) // initialize this with only one level, will resize later.
+      , pout(std::cout)
   {
     coarsest_level = refinement_levels.size() - 1;
     print_solution_bool = false;
@@ -147,6 +148,12 @@ namespace mgrit{
   void MyApp<Number, Description, dim>::initialize(std::string prm_file)
   {
     ryujin::Scope scope(computing_timer, "initialize");
+
+    // Set the condition for the pout, only output on p0 in the global communicator.
+    // TODO: add a parameter 'print_to_terminal' or something like that and replace
+    // the condition below with an p0=0 $$ print_to_terminal.
+    pout.set_condition(dealii::Utilities::MPI::this_mpi_process(MPI_COMM_WORLD)==0);
+    
     // Reorder refinement levels in descending order of refinement,
     // this matches the fact that Xbraid has the finest level of MG
     // as 0. I.E. the most refined data is accessed with refinement_levels[0]
@@ -179,11 +186,11 @@ namespace mgrit{
     for (int lvl = most_refinement; 
          lvl >= least_refinement;
          lvl--) {
-      std::cout << lvl << std::endl;
+      pout << lvl << std::endl;
       if (std::find(refinement_levels.begin(),
                     refinement_levels.end(),
                     lvl) != refinement_levels.end()) {
-                      std::cout << "exists"<< std::endl;
+	pout << "exists"<< std::endl;
         discretization_vec[most_refinement-lvl] = levels[iter]->discretization;
         offline_data_vec[most_refinement-lvl] = levels[iter]->offline_data;
         level_map[iter] =
@@ -193,7 +200,7 @@ namespace mgrit{
                  // in principle is not the same at lvl.
         iter++;
       } else {
-        std::cout << "does not exist" << std::endl;
+        pout << "does not exist" << std::endl;
         discretization_vec[most_refinement-lvl] = std::make_shared<DiscretizationType>(
             *mpi_ensemble_x, lvl, "/C - Discretization");
         offline_data_vec[most_refinement-lvl] = std::make_shared<OfflineDataType>(*mpi_ensemble_x, 
@@ -212,12 +219,12 @@ namespace mgrit{
       // If we don't find this level already set up, we prepare it.
       if (std::find(refinement_levels.begin(),
                     refinement_levels.end(),
-                    lvl) == refinement_levels.end()) {
-        if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
-          std::cout << "Preparing additional offline_data and "
-                       "discretization for interpolation purposes."
-                    << std::endl;
-        }
+                    lvl) == refinement_levels.end())
+      {  
+	pout << "Preparing additional offline_data and "
+	  "discretization for interpolation purposes."
+	     << std::endl;
+  
         discretization_vec[most_refinement-lvl]->prepare(base_name);
 	const unsigned int n_parabolic_state = offline_data_vec[most_refinement-lvl]
 	  ->n_parabolic_state_vectors();
@@ -229,8 +236,7 @@ namespace mgrit{
     // Set the number of time points based on the number of bricks.
     for(braid_Int l = 0; l < coarsest_level; l++)
       total_cfactor *= cfactor;
-    if(dealii::Utilities::MPI::this_mpi_process(mpi_ensemble_x->ensemble_communicator())==0)
-      std::cout << "Cumulative coarsening by a factor of " << total_cfactor << std::endl;
+    pout << "Cumulative coarsening by a factor of " << total_cfactor << std::endl;
 
     Assert(minimal_tpoints_coarsest_level >=1,
 	   dealii::ExcMessage("Your choice of " + std::to_string(minimal_tpoints_coarsest_level)+
@@ -239,6 +245,7 @@ namespace mgrit{
     // Now that we know the total coarsening, we need to determine the ntime variable
     // giving the correct number of coarse time points.
     ntime = num_bricks * total_cfactor * minimal_tpoints_coarsest_level;
+    ntime = 40;//TODO: remove me.
     Assert((print_factor >=1 && print_factor < ntime),
 	   dealii::ExcMessage("Print factor must be at least one, and less than the number of "
 			      "time points total."));
@@ -262,17 +269,15 @@ namespace mgrit{
 								0/*no refinement*/);
     
     for (unsigned int i = 0; i < refinement_levels.size(); i++) {
-      if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
-        std::cout << "[INFO] Setting Structures in App at level "
-                  << refinement_levels[i] << std::endl;
-      }
+      pout << "[INFO] Setting Structures in App at level "
+	   << refinement_levels[i] << std::endl;
       
       levels[i] = std::make_shared<
           ryujin::mgrit::LevelStructures<Description, dim, Number>>(
           mpi_ensemble_x, refinement_levels[i]);
       time_loops[i] =
           std::make_shared<ryujin::TimeLoop<Description, dim, Number>>(*(levels[i]));
-      std::cout << "Level " + std::to_string(refinement_levels[i]) + " created."
+      pout << "Level " + std::to_string(refinement_levels[i]) + " created."
                 << std::endl;
     }
   }
@@ -282,12 +287,11 @@ namespace mgrit{
   {
     unrefined_level->prepare(base_name);
     for (unsigned int lvl = 0; lvl < refinement_levels.size(); lvl++) {
-      if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
-        std::cout << "[INFO] Preparing Structures in App at level "
-                  << refinement_levels[lvl] << std::endl;
-      }
+      pout << "[INFO] Preparing Structures in App at level "
+	   << refinement_levels[lvl] << std::endl;
+      
       levels[lvl]->prepare(base_name);
-      std::cout << "Level " + std::to_string(refinement_levels[lvl]) +
+      pout << "Level " + std::to_string(refinement_levels[lvl]) +
                        " prepared."
                 << std::endl;
 
@@ -307,12 +311,11 @@ namespace mgrit{
     {
       const auto statistics_space_time =
           dealii::Utilities::MPI::min_max_avg(it.second.cpu_time(), mpi_ensemble_x->ensemble_communicator());
-      if(dealii::Utilities::MPI::this_mpi_process(mpi_ensemble_x->ensemble_communicator()) == 0 &&
-	 dealii::Utilities::MPI::this_mpi_process(comm_t) == 0){
-	std::cout << "Total time for " << it.first << ": "
-		  << std::setprecision(4) << std::fixed << std::setw(9)
-		  << statistics_space_time.sum << std::endl;
-      }
+      
+      pout << "Total time for " << it.first << ": "
+	   << std::setprecision(4) << std::fixed << std::setw(9)
+	   << statistics_space_time.sum << std::endl;
+     
     }
   }
   
@@ -323,12 +326,9 @@ namespace mgrit{
     // only if we are a specific processor.
     for(auto &it : f_brick_relaxation_count)
     { 
-      if(dealii::Utilities::MPI::this_mpi_process(mpi_ensemble_x->ensemble_communicator()) == 0 &&
-	 dealii::Utilities::MPI::this_mpi_process(comm_t) == 0){
-        std::cout << "Count for brick " << it.first.first
+      pout << "Count for brick " << it.first.first
 		  << " on iteration " << it.first.second << ": "
                   << it.second << std::endl;
-      }
     }
   }
 
@@ -544,7 +544,7 @@ namespace mgrit{
                                std::string where)
   {
     ryujin::Scope scope(computing_timer, "test_physicality");
-    std::cout << "Testing Physicality in location " + where << std::endl;
+    pout << "Testing Physicality in location " + where << std::endl;
     const auto hs_view_level =
       levels[level]->hyperbolic_system->get().template view<dim, Number>();
 
@@ -556,7 +556,7 @@ namespace mgrit{
           hs_view_level.is_admissible(u.template get_tensor(i));
 #ifdef DEBUG
       if (!is_admissible) {
-        std::cout << "The state at index i=" + std::to_string(i) +
+        pout << "The state at index i=" + std::to_string(i) +
                          "is not admissible.\n"
                   << "State: " << u.template get_tensor(i) << std::endl;
       }
@@ -566,7 +566,7 @@ namespace mgrit{
            hs_view_level.pressure(u.template get_tensor(i)));
 #ifdef DEBUG
       if (!pressure_no_nans) {
-        std::cout << "Pressure is: "
+        pout << "Pressure is: "
                   << hs_view_level.pressure(u.template get_tensor(i))
                   << std::endl;
       }
@@ -589,7 +589,7 @@ namespace mgrit{
 						       const std::string fname,
 						       const unsigned int t_idx)
   {
-    std::cout << "printing solution" << std::endl;
+    pout << "printing solution" << std::endl;
     const auto time_loop = time_loops[level];
     time_loop->output_wrapper(v, fname, t /*current time*/, t_idx /*brick*/);
   }
@@ -641,7 +641,7 @@ namespace mgrit{
     // cfactor.
 
     braid_Int num_cpoints = ntime/cfactor;
-    std::cout << "ntime = " << ntime << " num_cpoints = " << num_cpoints << std::endl;
+    pout << "ntime = " << ntime << " num_cpoints = " << num_cpoints << std::endl;
     Assert(num_cpoints > 0, dealii::ExcInternalError());
 // #ifdef DEBUG
 //     // Verify these are the same on the finest level
@@ -714,15 +714,13 @@ namespace mgrit{
 //     if(brick_converged(level, t_idx, iter))
 //     {
 // #ifdef DEBUG
-//       if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
-// 	std::string info = "Level " + std::to_string(level) +
+//       std::string info = "Level " + std::to_string(level) +
 // 	  " Brick #" + std::to_string(t_idx) +
 // 	  " with interval [" + std::to_string(lvl_tstart) +
 // 	  ", " + std::to_string(lvl_tstop) +
 // 	  "] skipped.";
 	  
-// 	std::cout << info << std::endl;
-//       }
+// 	pout << info << std::endl;
 // #endif
 //       return 0; 
 //     }
@@ -756,14 +754,12 @@ namespace mgrit{
     // }
 
 #ifdef DEBUG
-    if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
-      std::cout << "[INFO] Stepping on level: " + std::to_string(level) +
-                       "\non interval: [" + std::to_string(lvl_tstart) + ", " +
-                       std::to_string(lvl_tstop) + "]\n" +
-                       "total step call number " +
-                       std::to_string(num_step_calls)
-                << std::endl;
-    }
+    pout << "[INFO] Stepping on level: " + std::to_string(level) +
+      "\non interval: [" + std::to_string(lvl_tstart) + ", " +
+      std::to_string(lvl_tstop) + "]\n" +
+      "total step call number " +
+      std::to_string(num_step_calls)
+	 << std::endl;
 #endif
 
     std::string fname = "step" + std::to_string(num_step_calls) + "_cycle" +
@@ -789,7 +785,7 @@ namespace mgrit{
     my_vector *u_to_step = new (my_vector);
     reinit_to_level(u_to_step, level);
 
-    //std::cout << "norm of initialized u_to_step: " << std::get<0>(u_to_step->U).l2_norm() << std::endl;
+    //pout << "norm of initialized u_to_step: " << std::get<0>(u_to_step->U).l2_norm() << std::endl;
 
     // Interpolate between levels, put data from u (fine level) onto the
     // u_to_step (coarse level), if the level is not zero (this is because all
@@ -824,8 +820,8 @@ namespace mgrit{
       // ryujin::Checkpointing::write_checkpoint(
       //         *(levels[level]->offline_data), fname, u_to_step->U, lvl_tstop,
       //         num_step_calls, comm_x);
-      std::cout << "nan in file " << fname << std::endl;
-      std::cout << "Norm was " << norm << std::endl;
+      pout << "nan in file " << fname << std::endl;
+      pout << "Norm was " << norm << std::endl;
       // exit(EXIT_FAILURE);
     }
 #endif
@@ -867,9 +863,7 @@ namespace mgrit{
   braid_Int MyApp<Number, Description, dim>::Clone(braid_Vector u, braid_Vector *v_ptr)
   {
 #ifdef DEBUG
-    if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
-      std::cout << "[INFO] Cloning XBraid vectors" << std::endl;
-    }
+    pout << "[INFO] Cloning XBraid vectors" << std::endl;
 #endif
     ryujin::Scope scope(computing_timer, "clone");
     my_vector *u_ = (my_vector *) u;
@@ -887,7 +881,6 @@ namespace mgrit{
   braid_Int MyApp<Number, Description, dim>::Init(braid_Real t, braid_Vector *u_ptr)
   {
     const auto &level_communicator = levels[coarsest_level]->offline_data->dof_handler().get_communicator();
-    // TODO: make a pout here instead.
     std::cout << "[INFO] px:" +
       std::to_string(dealii::Utilities::MPI::this_mpi_process(level_communicator))+
       " Initializing XBraid vectors at t="+ std::to_string(t) << std::endl;
@@ -896,7 +889,7 @@ namespace mgrit{
     // start and end and calculate the portion of the total time that t is.
     // TODO: is this code safe, in the sense that it will always return basically and interger?
     const braid_Int num_cpoints = ntime/cfactor;
-    std::cout << "Num_cpoints: " << num_cpoints << std::endl;
+    pout << "Num_cpoints: " << num_cpoints << std::endl;
 
     // this c_id indicates the number of the checkpoint file we will wish to read
     // so we make a string of where we will find the file.
@@ -915,7 +908,7 @@ namespace mgrit{
 
     //TODO: add a pout to the app so we can use in place of complicated looking
     //      if statements. This will clean up the I/O.
-    std::cout << "Reading file " + c_file_prefix + ".mesh" << std::endl;
+    pout << "Reading file " + c_file_prefix + ".mesh" << std::endl;
     
     // Copy of the triangulation, which we load back in to the triangulation in a hacky
     // way to work around serialization problems.
@@ -987,9 +980,9 @@ namespace mgrit{
 			       coarsest_level);
 
     // FIXME: the whole cpp interface as awkward use of pointers for the vector objects.
-    // See above TODO and relace the std::cout with pout here.
+    // See above TODO and relace the poutwith pout here.
     if( !(std::get<0>(u->U).l1_norm()) ){
-      std::cout << "Norm of u_ptr is not one." << std::endl;
+      pout << "Norm of u_ptr is not one." << std::endl;
       exit(EXIT_FAILURE);
     }
 
@@ -998,7 +991,7 @@ namespace mgrit{
     *u_ptr = (braid_Vector)u.release();
 
     //TODO: replace with a pout.
-    std::cout << "Done with file " << c_file_prefix << std::endl;
+    pout << "Done with file " << c_file_prefix << std::endl;
 
     return 0;
   }
@@ -1007,9 +1000,7 @@ namespace mgrit{
   braid_Int MyApp<Number, Description, dim>::Free(braid_Vector u)
   {
 #ifdef DEBUG
-    if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
-      std::cout << "[INFO] Freeing XBraid vectors" << std::endl;
-    }
+    pout << "[INFO] Freeing XBraid vectors" << std::endl;
 #endif
     my_vector *u_ = (my_vector*) u;
     delete u_;
@@ -1030,11 +1021,10 @@ namespace mgrit{
     my_vector *y_ = (my_vector *) y;
 
 #ifdef DEBUG
-    if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
-      std::cout << "[INFO] Summing XBraid vectors" << std::endl;
-      std::cout << alpha << "x + " << beta << "y" << std::endl;
-    }
+    pout << "[INFO] Summing XBraid vectors" << std::endl;
+    pout << alpha << "x + " << beta << "y" << std::endl;
 #endif
+    
     ryujin::Scope scope(computing_timer, "sum");
 
     ryujin::sadd(y_->U, beta, alpha, x_->U);
@@ -1048,9 +1038,7 @@ namespace mgrit{
   braid_Int MyApp<Number, Description, dim>::SpatialNorm(braid_Vector u, braid_Real *norm_ptr)
   {
 #ifdef DEBUG
-    if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
-      std::cout << "[INFO] Calculating XBraid vector spatial norm" << std::endl;
-    }
+    pout << "[INFO] Calculating XBraid vector spatial norm" << std::endl;
 #endif
 
     my_vector *u_ = (my_vector *)u;
@@ -1089,7 +1077,7 @@ namespace mgrit{
       {
 #ifdef DEBUG
 	// TODO: pout
-        std::cout << "[INFO] Access called for " + fname
+        pout << "[INFO] Access called for " + fname
                   << " enforcing physicality bounds after summing in FInterp"
 		  << " on level " + std::to_string(level)
                   << std::endl;
@@ -1108,33 +1096,28 @@ namespace mgrit{
       {
 	// This function is called at the end of a cycle, if access_level >= 2, and only
 	// on the finest level, per XBraid CHANGELOG:Version 2.0.0, 05/25/2016 section.
-        if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
-          std::cout << "[INFO] Access Called" << std::endl;
-        }
+	pout << "[INFO] Access Called" << std::endl;
+        pout << "Cycles done: " << mgCycle << std::endl;
 	// FIXME: this always prints the brick, change.
 	// Want that if t_idx is a multiple of total_cfactor, we print.
         if (t_idx % print_factor == 0){
           print_solution(u_->U, t, finest_level /*level that u lives on*/, fname, t_idx);
         }
-        if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
-          std::cout << "Cycles done: " << mgCycle << std::endl;
-        }
+        
         // calculate drag (at end of cycle...)
         dealii::Tensor<1, dim> forces =
             mgrit_functions::calculate_drag_and_lift<Number, Description>(this, *u_, t);
 
-	if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0){
-	std::cout << "cycle." + std::to_string(mgCycle) + " drag." +
-                         std::to_string(forces[0]) + " lift." +
-                         std::to_string(forces[1]) + " time." +
-                         std::to_string(t)
-                  << std::endl;
+	pout << "cycle." + std::to_string(mgCycle) + " drag." +
+	                   std::to_string(forces[0]) + " lift." +
+	                   std::to_string(forces[1]) + " time." +
+	                   std::to_string(t)
+	     << std::endl;
 	// calculate the conserved quantities in the system, as well as entropy
 	mgrit_functions::conserved_and_entropy_in_system<Description,dim,Number>(*u_,
 										 this,
 										 finest_level,
 										 t);
-	}
         
 
         n_cycles = mgCycle;
@@ -1155,9 +1138,7 @@ namespace mgrit{
                            BraidBufferStatus &bstatus)
   {
 #ifdef DEBUG
-    if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
-      std::cout << "[INFO] Buf_size Called" << std::endl;
-    }
+    pout << "[INFO] Buf_size Called" << std::endl;
 #endif
 
     // TODO: answer question about what the buffer size whould be, i think it
@@ -1173,11 +1154,11 @@ namespace mgrit{
         (size + 1) * sizeof(Number); //+1 is for the size of the buffers being
                                      // stored in the first component.
     // if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
-    //   std::cout << "Size in bytes of the Number: " << sizeof(Number)
+    //   pout << "Size in bytes of the Number: " << sizeof(Number)
     //             << std::endl;
-    //   std::cout << "Problem_dimension: " << problem_dimension
+    //   pout << "Problem_dimension: " << problem_dimension
     //             << " n_dofs: " << n_fine_dofs << std::endl;
-    //   std::cout << "buf_size: " << *size_ptr << std::endl;
+    //   pout << "buf_size: " << *size_ptr << std::endl;
     // }
 
     return 0;
@@ -1189,9 +1170,8 @@ namespace mgrit{
                            BraidBufferStatus &bstatus)
   {
     my_vector *u_ = (my_vector *) u;
-    if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
-      std::cout << "[INFO] BufPack Called" << std::endl;
-    }
+    pout << "[INFO] BufPack Called" << std::endl;
+    
     ryujin::Scope scope(computing_timer, "buf_pack");
 
     mgrit_functions::
@@ -1224,9 +1204,8 @@ namespace mgrit{
     bstatus.SetSize((buf_size + 1) * sizeof(Number));
     // set the number of bytes stored in this buffer (TODO:
     // this is off since the dbuffer[0] is a integer.)
-    if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
-      std::cout << "[INFO] BufPack Finished." << std::endl;
-    }
+    pout << "[INFO] BufPack Finished." << std::endl;
+    
     return 0;
   }
 
@@ -1235,9 +1214,7 @@ namespace mgrit{
                              braid_Vector *u_ptr,
                              BraidBufferStatus &bstatus)
   {
-    if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
-      std::cout << "[INFO] BufUnpack Called" << std::endl;
-    }
+    pout << "[INFO] BufUnpack Called" << std::endl;
 
     UNUSED(bstatus);
     ryujin::Scope scope(computing_timer, "buf_unpack");

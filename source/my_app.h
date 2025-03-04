@@ -2,6 +2,7 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include <iostream>
 
 //ryujin includes
 #include <compile_time_options.h>
@@ -14,6 +15,7 @@
 
 //deal.II includes
 #include <deal.II/base/parameter_acceptor.h>
+#include <deal.II/base/conditional_ostream.h>
 
 //xbraid include
 #include <braid.h>
@@ -303,5 +305,8 @@ namespace mgrit{
     std::string storage_name;
 
     unsigned int n_parabolic_state_vectors;
+
+    // Conditional output stream.
+    dealii::ConditionalOStream pout;
   };
 }// Namespace mgrit

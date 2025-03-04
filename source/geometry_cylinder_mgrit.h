@@ -335,13 +335,12 @@ namespace ryujin
       void create_triangulation(
           typename Geometry<dim>::Triangulation &triangulation) final
       {
-        std::cout << "Creating mgrit triangulation" << std::endl;
-        GridGenerator::cylinder_mgrit(triangulation,
-                                length_,
-                                height_,
-                                object_position_,
-                                object_diameter_,
-                                second_object_diameter_);
+	GridGenerator::cylinder_mgrit(triangulation,
+				      length_,
+				      height_,
+				      object_position_,
+				      object_diameter_,
+				      second_object_diameter_);
       }
 
     private:
