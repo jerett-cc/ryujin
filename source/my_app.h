@@ -43,7 +43,8 @@
 
 // This preprocessor macro is used on function arguments
 // that are not used in the function. It is used to
-// suppress compiler warnings.
+// suppress compiler warnings especially when some variable is not used in 
+// release mode, while it is in debug mode.
 #define UNUSED(x) (void)(x)
 
 // This struct contains all data that changes with time. For now
@@ -67,15 +68,15 @@ namespace mgrit{
     // Vector type
     ryujin::Vectors::StateVector<Number, problem_dim, n_prec> U;
 
-    // Constructor
+    // Constructor, empty since the user must call an initialization for the public member U.
     MyVector() {};
 
-    // Destructor
+    // Destructor, the user's responsibility is to clear the memory for U.
     ~MyVector() {};
   };
 
   /**
-   * \brief Cpp wrapper for all of the required functions and data.
+   * \brief A Cpp wrapper for all of the required XBraid functions and data.
    */
   template<typename Number, typename Description, int dim>
   class MyApp : public BraidApp, public dealii::ParameterAcceptor
