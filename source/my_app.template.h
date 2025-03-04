@@ -1122,6 +1122,24 @@ namespace mgrit{
         n_cycles = mgCycle;
         break;
       }
+      case braid_ASCaller_FInterp_VisualizeTau:
+      {
+	// In this case, we are being allowed access to view what f_e is, which is added to
+	// our vector U during a down cycle of MGRIT. This may serve to allow us to categorize
+	// the "E-spikes" as coming from the correction term, possibly indicating that some
+	// grid error causes them, or if they come from the actual "step" we take on a certain
+	// level.
+	fname = "./tau_" + base_name + "_cycle" + std::to_string(mgCycle);
+	pout << "[INFO] Access called for visualizing tau, printing to file "
+	  + fname << std::endl;
+
+	// Note that here, u_->U is implicitly the tau term. It is not a physical vector
+	// from our fluid flows.
+	if (t_idx % print_factor == 0){
+          print_solution(u_->U, t, finest_level /*level that u lives on*/, fname, t_idx);
+        }
+	
+      }
       default:
       {
         // Do nothing otherwise.
