@@ -166,6 +166,17 @@ namespace mgrit{
                         const std::string fname = "./test-output",
                         const unsigned int t_idx = 0);
 
+    /// @brief Writes checkpoint files for the vector v at time t.
+    ///        NOTE: This only works for vectors on the finest level.
+    /// @param v The vector to checkpoint.
+    /// @param t The simulation time.
+    /// @param fname The name of the file we wish to print.
+    /// @param t_idx The brick we are on.
+    void write_checkpoint(StateVector &v,
+			  const double t = 0,
+			  const std::string fname = "./checkpoint",
+			  const unsigned int t_idx = 0);
+    
     /// @brief Returns the number of locally owned dofs at the specified level.
     /// @param level Level we are querying.
     /// @return Number of dofs owned on this process, at this level.

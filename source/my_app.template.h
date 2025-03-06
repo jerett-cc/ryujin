@@ -595,6 +595,23 @@ namespace mgrit{
   }
 
   template<typename Number, typename Description, int dim>
+  void MyApp<Number, Description, dim>::write_checkpoint(StateVector &v,
+							 const double t,
+							 const std::string fname,
+							 const unsigned int t_idx)
+  {
+    pout << "printing solution" << std::endl;
+    const auto time_loop = time_loops[finest_level];
+    Assert(levels[finest_level]->offline_data->hyperbolic_vector_partitioner()
+	   == std::get<0>(v).get_partitioner(),
+	   dealii::ExcMessage("You cannot write a checkpoint unless the vector you "
+			      "wish to write is on the finest level (has the same "
+			      "partitioner as the finest level)."));
+    time_loop->write_checkpoint_wrapper(v, "./checkpoint_" + fname, t, t_idx);
+  }
+
+
+  template<typename Number, typename Description, int dim>
   unsigned int MyApp<Number, Description, dim>::n_locally_owned_at_level(const int level) const
   {
     return levels[level]->offline_data->n_locally_owned();
