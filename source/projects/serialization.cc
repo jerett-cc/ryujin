@@ -18,7 +18,7 @@ private:
     // & operator is defined similar to <<.  Likewise, when the class Archive
     // is a type of input archive the & operator is defined similar to >>.
     template<class Archive>
-    void serialize(Archive & ar, const unsigned int version)
+    void serialize(Archive & ar, [[maybe_unused]] const unsigned int version)
     {
         ar & degrees;
         ar & minutes;
