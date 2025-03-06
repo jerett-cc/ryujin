@@ -906,6 +906,19 @@ namespace mgrit{
     reinit_to_level(u.get(), finest_level);
     reinit_to_level(temp_coarse.get(), coarsest_level);
 
+    // If this is the first brick, we use the initial state of the finest level, not a coarse one.
+    // Hence, we skip the load() that happens below, and return early.
+    if (c_id == 0)
+    {
+      Assert(std::abs(t-0.0) < 1e-8,
+	     dealii::ExcMessage("Cannot interpolate t=0 conditions onto a vector "
+				"that assumes t="+std::to_string(t)));
+      // Interpolate t=0 condition.
+      std::get<0>(u->U) = levels[finest_level]->initial_values->get().interpolate_hyperbolic_vector(t/*=0.0*/);
+      *u_ptr = (braid_Vector)u.release();
+      return 0;
+    }
+    
     //TODO: add a pout to the app so we can use in place of complicated looking
     //      if statements. This will clean up the I/O.
     pout << "Reading file " + c_file_prefix + ".mesh" << std::endl;
