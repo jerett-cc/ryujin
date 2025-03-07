@@ -1125,12 +1125,18 @@ namespace mgrit{
       {
 	// This function is called at the end of a cycle, if access_level >= 2, and only
 	// on the finest level, per XBraid CHANGELOG:Version 2.0.0, 05/25/2016 section.
+	Assert(level == finest_level,
+	       dealii::ExcMessage("Somehow, braid_ASCaller_FAccess is called on level="
+				  + std::to_string(level) + " when we should have been on"+
+				  " level=" +std::to_string(finest_level)));
 	pout << "[INFO] Access Called" << std::endl;
         pout << "Cycles done: " << mgCycle << std::endl;
 	// FIXME: this always prints the brick, change.
 	// Want that if t_idx is a multiple of total_cfactor, we print.
         if (t_idx % print_factor == 0){
-          print_solution(u_->U, t, finest_level /*level that u lives on*/, fname, t_idx);
+	  std::cout << "Printing brick " << t_idx << " at t= " << t << " on cycle " << mgCycle
+		    << std::endl;  
+          print_solution(u_->U, t, finest_level /*level that every u lives on*/, fname, t_idx);
         }
         
         // calculate drag (at end of cycle...)
