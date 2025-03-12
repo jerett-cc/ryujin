@@ -1190,6 +1190,72 @@ namespace mgrit{
 	print_solution(u_->U, t, finest_level /*level that every u lives on*/, fname, t_idx);
 	break;
       }
+      case braid_ASCaller_FInterp_BeforeCorrectSum_u:
+      {
+	// Process the coarse u before summing.
+	print_solution(u_->U, t, finest_level,
+		       "./u_before_correction_" + base_name + "_cycle"
+		       + std::to_string(mgCycle) + "_level" + std::to_string(level), t_idx);
+	break;
+      }
+      case braid_ASCaller_FInterp_BeforeCorrectSum_e:
+      {
+	// Process the coarse u before summing.
+	print_solution(u_->U, t, finest_level,
+		       "./e_before_correction_" + base_name + "_cycle"
+		       + std::to_string(mgCycle) + "_level" + std::to_string(level), t_idx);
+	break;
+      }
+      case braid_ASCaller_FInterp_BeforeFineCorrectSum_u:
+      {
+	// Process the fine u before summing. Probably same as the coarse, but
+	// lets treat it separately.
+	print_solution(u_->U, t, finest_level,
+		       "./fine_u_before_correction_" + base_name + "_cycle"
+		       + std::to_string(mgCycle) + "_level" + std::to_string(level), t_idx);
+	break;
+      }
+      case braid_ASCaller_FInterp_BeforeFineCorrectSum_e:
+      {
+	// Process the fine e before summing. Probably same as the coarse, but
+	// lets treat it separately.
+	print_solution(u_->U, t, finest_level,
+		       "./fine_e_before_correction_" + base_name + "_cycle"
+		       + std::to_string(mgCycle) + "_level" + std::to_string(level), t_idx);
+	break;
+      }
+      case braid_ASCaller_FInterp_CoarsePoint_BeforeCorrectSum_u:
+      {
+	// Process the coarse level u before summing, but at C-points.
+	print_solution(u_->U, t, finest_level,
+		       "./u_atcpoint_before_correction_" + base_name + "_cycle"
+		       + std::to_string(mgCycle) + "_level" + std::to_string(level), t_idx);
+	break;
+      }
+      case braid_ASCaller_FInterp_CoarsePoint_BeforeCorrectSum_e:
+      {
+	// Process the coarse level e before summing, but at C-points. 
+	print_solution(u_->U, t, finest_level,
+		       "./e_atcpoint_before_correction_" + base_name + "_cycle"
+		       + std::to_string(mgCycle) + "_level" + std::to_string(level), t_idx);
+	break;
+      }
+      case braid_ASCaller_FInterp_CoarsePoint_onfine_BeforeCorrectSum_u:
+      {
+	// Process the fine u before summing, but at C-points.
+	print_solution(u_->U, t, finest_level,
+		       "./fine_u_atcpoint_before_correction_" + base_name + "_cycle"
+		       + std::to_string(mgCycle) + "_level" + std::to_string(level), t_idx);
+	break;
+      }
+      case braid_ASCaller_FInterp_CoarsePoint_onfine_BeforeCorrectSum_e:
+      {
+	// Process the fine e before summing, but at C-points. 
+	print_solution(u_->U, t, finest_level,
+		       "./fine_e_atcpoint_before_correction_" + base_name + "_cycle"
+		       + std::to_string(mgCycle) + "_level" + std::to_string(level), t_idx);
+	break;
+      }
       default:
       {
         // Do nothing otherwise.
