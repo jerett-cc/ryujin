@@ -1103,24 +1103,6 @@ namespace mgrit{
 
     switch (caller_id) 
     {
-      case braid_ASCaller_FInterp_Projection:
-      {
-#ifdef DEBUG
-	pout << "[INFO] Access called for " + fname
-	     << " enforcing physicality bounds after summing in FInterp"
-	     << " on level " + std::to_string(level)
-	     << std::endl;
-#endif
-        // Call the stability projection function. Note that ALL the data
-	// lives in memory at the finest level.
-        mgrit_functions::enforce_physicality_bounds<Description, dim, Number>(
-            *u_, finest_level, *this, t);
-#ifdef CHECK_BOUNDS
-        test_physicality(
-            std::get<0>(u_->U), 0, "my_Access: u when caller is FInterp_Projection.");
-#endif
-        break;
-      }
       case braid_ASCaller_FAccess: 
       {
 	// This function is called at the end of a cycle, if access_level >= 2, and only
@@ -1133,11 +1115,11 @@ namespace mgrit{
         pout << "Cycles done: " << mgCycle << std::endl;
 	// FIXME: this always prints the brick, change.
 	// Want that if t_idx is a multiple of total_cfactor, we print.
-        if (t_idx % print_factor == 0){
+        //if (t_idx % print_factor == 0){
 	  std::cout << "Printing brick " << t_idx << " at t= " << t << " on cycle " << mgCycle
 		    << std::endl;  
           print_solution(u_->U, t, finest_level /*level that every u lives on*/, fname, t_idx);
-        }
+	  //}
         
         // calculate drag (at end of cycle...)
         dealii::Tensor<1, dim> forces =
@@ -1153,106 +1135,101 @@ namespace mgrit{
 										 this,
 										 finest_level,
 										 t);
-        
+
+	// if cycle = 1 and brick = 12, we know there is a spike, so let's write a checkpoint.
+	if (mgCycle == 1 && t_idx == 12)
+	{
+	  std::string fn = base_name +"_cycle" + std::to_string(mgCycle);
+	  write_checkpoint(u_->U, t, fn, t_idx);
+	}
 
         n_cycles = mgCycle;
         break;
       }
-      case braid_ASCaller_FInterp_VisualizeTau:
+      case braid_ASCaller_FInterp_UplusTau: /* 13 */
       {
-	// In this case, we are being allowed access to view what f_e is, which is added to
-	// our vector U during a down cycle of MGRIT. This may serve to allow us to categorize
-	// the "E-spikes" as coming from the correction term, possibly indicating that some
-	// grid error causes them, or if they come from the actual "step" we take on a certain
-	// level.
-	fname = "./tau_" + base_name + "_cycle"
-	  + std::to_string(mgCycle) +"_level" + std::to_string(level);
-	pout << "[INFO] Access called for visualizing tau, printing to file "
-	  + fname << std::endl;
-
-	// Note that here, u_->U is implicitly the tau term. It is not a physical vector
-	// from our fluid flows.
-	if (t_idx % print_factor == 0){
-          print_solution(u_->U, t, finest_level /*level that u lives on*/, fname, t_idx);
-        }
-	
-	break;
-      }
-      case braid_ASCaller_FInterp_VisualizeTau_Coarse:
-      {
-	// Same as above, but in this case we are on the coarse level, so we have access
-	// to e, not f_e.
-	fname = "./tau_" + base_name + "_cycle"
-	  + std::to_string(mgCycle) + "_level" + std::to_string(level);
-
-	// Note that here, u_->U is implicitly the e term. It is not a physical vector
-	// from our fluid flows.
-	print_solution(u_->U, t, finest_level /*level that every u lives on*/, fname, t_idx);
-	break;
-      }
-      case braid_ASCaller_FInterp_BeforeCorrectSum_u:
-      {
-	// Process the coarse u before summing.
+#ifdef DEBUG
+	pout << "[INFO] Access called for " + fname
+	     << " visualizing and correcting the updated state U+tau bounds after "
+	     << "summing in FInterp on level " + std::to_string(level)
+	     << std::endl;
+#endif
+        // Call the stability projection function. Note that ALL the data
+	// lives in memory at the finest level.
+        //FIXME: Uncomment
+	// mgrit_functions::enforce_physicality_bounds<Description, dim, Number>(
+        //    *u_, finest_level, *this, t);
 	print_solution(u_->U, t, finest_level,
-		       "./u_before_correction_" + base_name + "_cycle"
+		       "./uplustau_" + base_name + "_cycle"
+		       + std::to_string(mgCycle) + "_level" + std::to_string(level), t_idx);
+#ifdef CHECK_BOUNDS
+        test_physicality(
+            std::get<0>(u_->U), 0, "my_Access: u when caller is FInterp_UplusTau.");
+#endif
+        break;
+      }
+      case braid_ASCaller_FInterp_BeforeCorrectSum_u_FPoints: /* 14 */
+      {
+	// Access u at f-point on coarse level.
+	print_solution(u_->U, t, finest_level,
+		       "./u_before_correction_atfpoint_" + base_name + "_cycle"
 		       + std::to_string(mgCycle) + "_level" + std::to_string(level), t_idx);
 	break;
       }
-      case braid_ASCaller_FInterp_BeforeCorrectSum_e:
+      case braid_ASCaller_FInterp_BeforeCorrectSum_e_FPoints: /* 15 */
       {
-	// Process the coarse u before summing.
+	// Access e at f-point on coarse level.
 	print_solution(u_->U, t, finest_level,
-		       "./e_before_correction_" + base_name + "_cycle"
+		       "./e_before_correction_atfpoint_" + base_name + "_cycle"
 		       + std::to_string(mgCycle) + "_level" + std::to_string(level), t_idx);
 	break;
       }
-      case braid_ASCaller_FInterp_BeforeFineCorrectSum_u:
+      case braid_ASCaller_FInterp_BeforeFineCorrectSum_u_FPoints: /* 16 */
       {
-	// Process the fine u before summing. Probably same as the coarse, but
-	// lets treat it separately.
+	// Access the restricted value of u at the f-points, but on fine level.
 	print_solution(u_->U, t, finest_level,
-		       "./fine_u_before_correction_" + base_name + "_cycle"
+		       "./fine_u_before_correction_atfpoint_" + base_name + "_cycle"
 		       + std::to_string(mgCycle) + "_level" + std::to_string(level), t_idx);
 	break;
       }
-      case braid_ASCaller_FInterp_BeforeFineCorrectSum_e:
+      case braid_ASCaller_FInterp_BeforeFineCorrectSum_e_FPoints: /* 17 */
       {
-	// Process the fine e before summing. Probably same as the coarse, but
-	// lets treat it separately.
+	// Access to restricted value R(u-e) = tau at f-point on the fine level.
+	// (u, e are on coarse).
 	print_solution(u_->U, t, finest_level,
-		       "./fine_e_before_correction_" + base_name + "_cycle"
+		       "./tau_correction_at_fpoint_" + base_name + "_cycle"
 		       + std::to_string(mgCycle) + "_level" + std::to_string(level), t_idx);
 	break;
       }
-      case braid_ASCaller_FInterp_CoarsePoint_BeforeCorrectSum_u:
+      case braid_ASCaller_FInterp_CoarsePoint_BeforeCorrectSum_u: /* 18 */
       {
 	// Process the coarse level u before summing, but at C-points.
 	print_solution(u_->U, t, finest_level,
-		       "./u_atcpoint_before_correction_" + base_name + "_cycle"
+		       "./u_before_correction_atcpoint_" + base_name + "_cycle"
 		       + std::to_string(mgCycle) + "_level" + std::to_string(level), t_idx);
 	break;
       }
-      case braid_ASCaller_FInterp_CoarsePoint_BeforeCorrectSum_e:
+      case braid_ASCaller_FInterp_CoarsePoint_BeforeCorrectSum_e: /* 19 */
       {
-	// Process the coarse level e before summing, but at C-points. 
+	// Process the coarse level e before summing, but at C-points.
 	print_solution(u_->U, t, finest_level,
-		       "./e_atcpoint_before_correction_" + base_name + "_cycle"
+		       "./e_before_correction_atcpoint_" + base_name + "_cycle"
 		       + std::to_string(mgCycle) + "_level" + std::to_string(level), t_idx);
 	break;
       }
-      case braid_ASCaller_FInterp_CoarsePoint_onfine_BeforeCorrectSum_u:
+      case braid_ASCaller_FInterp_CoarsePoint_onfine_BeforeCorrectSum_u: /* 20 */
       {
 	// Process the fine u before summing, but at C-points.
 	print_solution(u_->U, t, finest_level,
-		       "./fine_u_atcpoint_before_correction_" + base_name + "_cycle"
+		       "./fine_u_before_correction_atcpoint_" + base_name + "_cycle"
 		       + std::to_string(mgCycle) + "_level" + std::to_string(level), t_idx);
 	break;
       }
-      case braid_ASCaller_FInterp_CoarsePoint_onfine_BeforeCorrectSum_e:
+      case braid_ASCaller_FInterp_CoarsePoint_onfine_BeforeCorrectSum_e: /* 21 */
       {
-	// Process the fine e before summing, but at C-points. 
+	// Process the fine tau before summing, but at C-points.
 	print_solution(u_->U, t, finest_level,
-		       "./fine_e_atcpoint_before_correction_" + base_name + "_cycle"
+		       "./tau_correction_at_cpoint_" + base_name + "_cycle"
 		       + std::to_string(mgCycle) + "_level" + std::to_string(level), t_idx);
 	break;
       }
