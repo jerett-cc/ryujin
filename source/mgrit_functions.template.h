@@ -314,4 +314,58 @@ namespace mgrit_functions{
     }
   }
 
+  template <typename Description, int dim, typename Number>
+  bool does_E_exceed_threshold(mgrit::MyVector<Number, Description, dim> &u,
+			       mgrit::MyApp<Number, Description, dim> &app,
+			       [[maybe_unused]]const braid_Int level,
+			       const Number time,
+			       const braid_Int t_idx,
+			       const braid_Int calling,
+			       const braid_Real E_threshold,
+			       const bool do_print,
+			       std::string fname)
+  {
+    // Assert(level == app.finest_level,
+    // 	   dealii::ExcMessage("Can only verify E is not too large on the finest level."));
+    
+    [[maybe_unused]] const auto od = app.levels[level]->offline_data;
+    // Check that the level claimed matches the level of the vector by comparing sizes.
+    //std::cout << "n_locally_owned_on_level(" << level << ") is " << app.n_locally_owned_at_level(level) << std::endl;
+    Assert(od->n_locally_owned() == (int)std::get<0>(u.U).locally_owned_size()/app.problem_dimension,
+	   dealii::ExcMessage("The number of DOF's from the vector is "
+			      + std::to_string(std::get<0>(u.U).locally_owned_size()/app.problem_dimension)
+			      + " which does not match the number that the offline data requires "
+			      + std::to_string(od->n_locally_owned())
+			      + "for checking if E is too large."));
+    
+    bool violates = false;
+    const unsigned int local_size = od->n_locally_owned();
+    for (unsigned int i = 0; i < local_size; i++)
+    {
+      const auto state = std::get<0>(u.U).get_tensor(i);
+      const Number point_E = state[dim+1];
+      if ( point_E > E_threshold )
+      {
+	violates = true;
+	std::string ostring = "E is too large (E=" + std::to_string(point_E) 
+	  + ") compared to threshold "
+	  + std::to_string(E_threshold)
+	  + " at t " + std::to_string(time) + " at local_dof_index "
+	  + std::to_string(i) + " with xbraid calling function "
+	  + std::to_string(calling);
+	//FIXME: make this a conditional ostream?
+	std::cout << ostring << std::endl;
+	break;
+      }
+    } // locally dofs
+
+    if (violates && do_print)
+    {
+      fname+=std::to_string(calling);
+      app.print_solution(u.U, time, level, fname, t_idx);
+    }
+
+    return violates;
+  }
+  
 } // Namespace mgrit_functions

@@ -86,5 +86,32 @@ namespace mgrit_functions{
 				       const mgrit::MyApp<Number, Description, dim> &app,
 				       const braid_Int level,
 				       const Number time);
+  /// @brief This function senses whether or not the internal energy of the system exceeds a
+  /// threshold and returns a bool when this happens. It has a side effect that if the
+  /// threshold is exceeded, it prints to terminal that this has happened the (x,y,z)
+  /// coordinates of the failure, as well as prints the data when it does.
+
+  /// @tparam Description A description of the equation of state.
+  /// @tparam dim         The spatial dimension.
+  /// @tparam Number      The numerical expression of a real number.
+  /// @param u            A reference to a solution state on our mesh.
+  /// @param app          A reference to the my_app structure which contains
+  ///                     mesh specific data.
+  /// @param level        Required to specify the level in this function.
+  /// @param t_idx        The braid time index on the level.
+  /// @param time         The time at which we test.
+  /// @param calling      An integer representing the calling function in xbraid.
+  /// @param E_threshold  The maximum allowable threshold, above which we print information.
+  template <typename Description, int dim, typename Number>
+  bool does_E_exceed_threshold(mgrit::MyVector<Number, Description, dim> &u,
+			       mgrit::MyApp<Number, Description, dim> &app,
+			       [[maybe_unused]]const braid_Int level,
+			       const Number time,
+			       const braid_Int t_idx,
+			       const braid_Int calling,
+			       const braid_Real E_threshold,
+			       const bool do_print = false,
+			       std::string fname = "./Elargeforcalling_");
+  
   
 }// Namespace mgrit_functions
