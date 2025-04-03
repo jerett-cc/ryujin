@@ -2,16 +2,70 @@
 #include <deal.II/base/mpi.h>
 
 #include "euler/description.h"
+#include "introspection.h"
 
 #include <string>
 
+// Some thread includes.
+#include <deal.II/base/multithread_info.h>
+#include <deal.II/base/utilities.h>
+
+#ifdef WITH_OPENMP
+#include <omp.h>
+#endif
+
+#include <filesystem>
+
+/**
+ * Change rounding mode on X86-64 architecture: Denormals are flushed to
+ * zero to avoid computing on denormals which can slow down computations
+ * significantly.
+ */
+void flush_denormals_to_zero()
+{
+#if defined(DENORMALS_ARE_ZERO) && defined(__x86_64)
+#define MXCSR_DAZ (1 << 6)  /* Enable denormals are zero mode */
+#define MXCSR_FTZ (1 << 15) /* Enable flush to zero mode */
+
+  unsigned int mxcsr = __builtin_ia32_stmxcsr();
+  mxcsr |= MXCSR_DAZ | MXCSR_FTZ;
+  __builtin_ia32_ldmxcsr(mxcsr);
+#endif
+}
+
+/**
+ * Set up thread pools and obey thread limits:
+ */
+void set_thread_limit(const MPI_Comm &mpi_communicator [[maybe_unused]])
+{
+  unsigned int n_threads = 1;
+#ifdef WITH_OPENMP
+  const unsigned int n_threads_omp = omp_get_thread_limit();
+  const unsigned int n_threads_dealii = dealii::MultithreadInfo::n_threads();
+  n_threads = std::min(n_threads_omp, n_threads_dealii);
+  omp_set_num_threads(n_threads);
+#endif
+  
+  dealii::MultithreadInfo::set_thread_limit(n_threads);
+  if(dealii::Utilities::MPI::this_mpi_process(mpi_communicator)==0)
+    std::cout << "Using " + std::to_string(omp_get_num_threads())
+      + " threads." << std::endl;
+}
+
 int main(int argc, char* argv[])
 {
+  flush_denormals_to_zero();
+  
   // TODO: make this a parameter file option or a cmd line option.
   using Description = ryujin::Euler::Description;
+  LSAN_DISABLE;
   //scoped MPI object, no need to call finalize at the end.
-  dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);  //create objects
+  dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv);  //create objects
   MPI_Comm comm_world = MPI_COMM_WORLD;//create MPI_object
+  set_thread_limit(comm_world);
+  LSAN_ENABLE;
+  LIKWID_INIT;  
+  
   dealii::ConditionalOStream pout(std::cout);
   pout.set_condition(dealii::Utilities::MPI::this_mpi_process(comm_world)==0);
   
@@ -74,4 +128,9 @@ int main(int argc, char* argv[])
   core.Drive();
   app.print_times();
   //app.print_bricks_relaxation_count();
+  LIKWID_CLOSE;
+  LSAN_DISABLE;
+
+  return 0;
+  
 }
