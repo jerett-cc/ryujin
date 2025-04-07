@@ -182,53 +182,65 @@ namespace mgrit_functions{
   void enforce_physicality_bounds(mgrit::MyVector<Number, Description, dim> &u,
                                   const unsigned int level,
                                   const mgrit::MyApp<Number, Description, dim> &app,
-                                  const Number t)
+                                  [[maybe_unused]]const Number t)
   {
     // Create Hyperbolic System View, where we can compute functions like pressure.
     const auto view = app.levels[level]->hyperbolic_system->get().template view<dim,Number>();
+    auto &od_level = app.levels[level]->offline_data;// TODO: const?
+    const auto &sparsity_level = od_level->sparsity_pattern();
 
-    // Compute the local average in pressure and use this as a limit on pressure.
-    Number average_pressure = 0.0;
-    for(unsigned int node=0; node < app.n_locally_owned_at_level(level); node++)
-    {
-      const auto state = std::get<0>(u.U).get_tensor(node);
-      auto primitive_state_pressure = view.to_primitive_state(state)[dim+1];
-
-      average_pressure += primitive_state_pressure;
-    }
-
-    Assert((app.n_locally_owned_at_level(level) > 0), dealii::ExcInternalError());
-    average_pressure /= app.n_locally_owned_at_level(level); 
-
-    //TODO: do we need to take the global average?
+    Assert(std::get<0>(u.U).size() == app.problem_dimension * app.n_locally_owned_at_level(level),
+	   dealii::ExcMessage("enforce_physicality only works if the vector's size and the size "
+			      "from the level match. This is because a copy is made from the size "
+			      "from the offline_data."));
     
-    // For each node, translate the conserved quantities into the primitive quantities.
-    // If we dip below the minimums, set the primitive to their minimum, and for
-    // pressure we disallow very large pressures.
+    // Create a copy of u's data
+    mgrit::MyVector<Number, Description,dim> copy;
+    app.reinit_to_level(&copy,level);
+    std::get<0>(copy.U) = std::get<0>(u.U);
+    std::get<0>(copy.U).update_ghost_values();//FIXME: need to update ghost here?
+    
+    // Compute the local average in pressure and use this as a limit on pressure in the copy.
     for(unsigned int node=0; node < app.n_locally_owned_at_level(level); node++)
     {
-      const auto state = std::get<0>(u.U).get_tensor(node); // The current conserved state at this node.
-      auto primitive_state = view.to_primitive_state(state); // The primitive state at this node.
+      Number node_avg = 0.0;
+      // For this node, we loop over the local stencil and calculate an average.
+      for(auto jt = sparsity_level.begin(node); jt != sparsity_level.end(node); ++jt)
+      {
+	const auto stencil_node_j = jt->column();
+	const auto state_j = std::get<0>(u.U).get_tensor(stencil_node_j);
+	auto primitive_state_pressure = view.to_primitive_state(state_j)[dim+1];
+	node_avg += primitive_state_pressure;
+      }
+      node_avg /= sparsity_level.row_length(node);// local average divide by size of stencil.
 
-      // Modify the primitive state to be physical.
-      // We only need to ensure that the density and pressure are positive. Velocities can be negative.
-      // todo: is this true? do we need to make sure that the velocities are not too large if we decrease pressure? is the number here good enough (1e-8)?
-      // todo: we need to make this actually a template, and use the physicality from the description...
+      std::cout << "Node: " << node << " row length is " << sparsity_level.row_length(node)
+		<< " and the node_avg pressure is " << node_avg << std::endl;
+      // If the node average is too large, we shrink itand update the copy.
+      const auto state_node = std::get<0>(u.U).get_tensor(node);
+      auto primitive_state = view.to_primitive_state(state_node);
+      // Prevent density and pressure from being small.
       primitive_state[0] = std::max(primitive_state[0], Number(1e-8));
       primitive_state[dim + 1] = std::max(primitive_state[dim + 1], Number(1e-8));
-      // disallow very large pressures.
-      if(std::abs(primitive_state[dim+1]/average_pressure) > 1e1)
-	primitive_state[dim+1] = average_pressure;
 
-      // Translate new state to conserved, then place in to spot.
-      std::get<0>(u.U).write_tensor(view.from_primitive_state(primitive_state), node);
+      std::cout << "While the state pressure is " << primitive_state[dim + 1] << std::endl;
+
+      // disallow very large pressures.
+      if(std::abs(primitive_state[dim+1]/node_avg) > 1e1)
+	primitive_state[dim+1] = node_avg;
+
+      // Translate new state to conserved, then place in to spot in the copied vector.
+      std::get<0>(copy.U).write_tensor(view.from_primitive_state(primitive_state), node);
     }
 
+    // now that the copy is fixed up, we move the copied data into the one we wish to change,
+    // and update ghost to finish change.
+    std::get<0>(u.U) = std::get<0>(copy.U);
     std::get<0>(u.U).update_ghost_values();
-
+    std::cout << "---------------------------------------------------" << std::endl;
     // Make sure boundary conditions are satisfied on these states.
     //FIXME: this function also calls update_ghost_values(), do I need the one above?
-    app.levels[level]->hyperbolic_module->prepare_state_vector(u.U, t);
+    //app.levels[level]->hyperbolic_module->prepare_state_vector(u.U, t);
   }
 
   template <typename Description, int dim, typename Number>
