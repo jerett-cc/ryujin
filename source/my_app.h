@@ -29,6 +29,7 @@
 
 /*
  * Author: Jerett Cherry, Colorado State University
+ TODO: which of the functions below can be marked with const?
  */
 
 /**
@@ -129,7 +130,7 @@ namespace mgrit{
     /// datastructures that are associated to @ u.
     /// @param u
     /// @param level
-    void reinit_to_level(my_vector *u, const int level);
+    void reinit_to_level(my_vector *u, const int level) const;
 
     /// @brief Interpolates a vector to a vector which may live on a different
     /// spatial mesh.

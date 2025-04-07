@@ -333,7 +333,7 @@ namespace mgrit{
   }
 
   template<typename Number, typename Description, int dim>
-  void MyApp<Number, Description, dim>::reinit_to_level(my_vector *u, const int level)
+  void MyApp<Number, Description, dim>::reinit_to_level(my_vector *u, const int level) const
   {
     Assert(levels.size() > static_cast<unsigned int>(level),
            dealii::ExcMessage("The level being reinitialized does not exist."));
