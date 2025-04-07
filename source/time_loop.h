@@ -196,6 +196,9 @@ namespace ryujin
     void set_use_cycle_in_name(const bool use)
     {use_cycle_in_name_ = use;};
 
+    void set_t_final(const Number t_final_new)
+    {t_final_ = t_final_new;};
+
   private:
     /**
      * @name Run time options

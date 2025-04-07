@@ -692,6 +692,7 @@ namespace mgrit{
     time_loops[0]->set_use_cycle_in_name(true);
     
     // with the time_loop, run on the coarsest level
+    time_loops[0]->set_t_final(tstop);
     time_loops[0]->run(tstart);
   }
 
