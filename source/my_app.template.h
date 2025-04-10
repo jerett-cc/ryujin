@@ -590,8 +590,14 @@ namespace mgrit{
 						       const unsigned int t_idx)
   {
     pout << "printing solution" << std::endl;
-    const auto time_loop = time_loops[level];
-    time_loop->output_wrapper(v, fname, t /*current time*/, t_idx /*brick*/);
+    //const auto time_loop = time_loops[level];
+    // time_loop->output_wrapper(v, fname, t /*current time*/, t_idx /*brick*/);
+    levels[level]->vtu_output->schedule_output(v,
+					       fname,
+					       t,
+					       t_idx,
+					       true/*output_full*/,
+					       false/*output_cutplanes*/);
   }
 
   template<typename Number, typename Description, int dim>

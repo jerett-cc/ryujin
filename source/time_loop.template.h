@@ -518,7 +518,7 @@ namespace ryujin
 #endif
   }
 
-  // FIXME: Make al my vectors into StateVectors in MGRIT.
+  // FIXME: Make all my vectors into StateVectors in MGRIT.
   template <typename Description, int dim, typename Number>
   void TimeLoop<Description, dim, Number>::run_with_initial_data(
       StateVector &U,
@@ -969,18 +969,6 @@ namespace ryujin
       print_info("scheduling checkpointing");
       write_checkpoint(state_vector, base_name_ensemble_, t, cycle);
     }
-  }
-
-  template <typename Description, int dim, typename Number>
-  void TimeLoop<Description, dim, Number>::output_wrapper(
-      StateVector &U,
-      const std::string fname,
-      Number t,
-      unsigned int cycle)
-  {
-    // We want to output, so we overwrite the printing parameters
-    enable_output_full_ = true;
-    output(U,fname,t,cycle);
   }
 
   template <typename Description, int dim, typename Number>

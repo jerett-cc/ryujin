@@ -97,14 +97,9 @@ namespace ryujin
         const Number start_time = 0,
         const bool mgrit_specified_print = false,
         std::function<void(const StateVector & /*U*/, double /*current time*/)>
-            pp_step = [](const StateVector &, double) {});
-
-    /**
-     * Wrapper to the output call, as I need to be able to call output in MGRIT.
-     * TODO: is this unsafe? is there another way to do this.
-     */
-    void output_wrapper(StateVector &U, const std::string fname, Number t, unsigned int cycle);
-
+	pp_step = [](const StateVector &, double) {});//TODO: make this templated on CALLABLE
+						      //like below.
+    
     /**
      * Wrapper to the checkpoint function, as I need to call this in MGRIT.
      * TODO: like above, probably unsafe, but here we are.
