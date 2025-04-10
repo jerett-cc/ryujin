@@ -209,6 +209,9 @@ namespace mgrit{
 
   public: // Braid Required Routines
 
+    /// Tests whether the n_dofs from the vector matches that on the supposed level.
+    bool vector_size_match_level(const StateVector& v, const braid_Int level) const;
+
     /// Print walltime for various pieces of code.
     void print_times();
 

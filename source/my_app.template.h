@@ -589,6 +589,11 @@ namespace mgrit{
 						       const std::string fname,
 						       const unsigned int t_idx)
   {
+    Assert(vector_size_match_level(v, level),
+	   dealii::ExcMessage("Vector you want to print on level"
+			      + std::to_string(level)
+			      + " is does not have the right number of"
+			      + " dofs for the level."));
     pout << "printing solution" << std::endl;
     //const auto time_loop = time_loops[level];
     // time_loop->output_wrapper(v, fname, t /*current time*/, t_idx /*brick*/);
@@ -702,6 +707,14 @@ namespace mgrit{
     time_loops[0]->run(tstart);
   }
 
+  template<typename Number, typename Description, int dim>
+  bool MyApp<Number, Description, dim>::vector_size_match_level(const StateVector &v,
+								const braid_Int level) const
+  {
+    return std::get<0>(v).size() == problem_dimension * n_locally_owned_at_level(level);
+  }
+
+  
   template<typename Number, typename Description, int dim>
   braid_Int MyApp<Number, Description, dim>::Step(braid_Vector u,
                         braid_Vector ustop,
