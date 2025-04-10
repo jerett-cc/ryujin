@@ -18,13 +18,14 @@ using App = mgrit::MyApp<double, ryujin::Euler::Description, 2>;
 
 constexpr int dim = 2;
 
-void set_E_and_rho_at_single_point(const double new_point_E, const double new_rho, StateVector &U)
+void set_E_and_rho_at_single_point(const double new_point_E, const double new_rho, StateVector &U, bool change_rho = false)
 {
   // This test only runs on a single process, so all the data structures should
   // be consistent every time. We will set E on dof=0 to be new_point_E.
   // and then be done.
   auto state = std::get<0>(U).get_tensor((unsigned int)0);
-  state[0] = new_rho;
+  if(change_rho)
+    state[0] = new_rho;
   state[dim+1] = new_point_E;
   std::get<0>(U).write_tensor(state, 0);
 }
@@ -81,16 +82,18 @@ int main(int argc, char *argv[]){
   mgrit_functions::enforce_physicality_bounds(my_U,0,app,0.);
 
   // Afterwards, we should be not exceeding the threshold anymore, and we nee to visualize the output.
-  if (mgrit_functions::does_E_exceed_threshold<ryujin::Euler::Description,dim,double>(my_U,
-										      app,
-										      0,
-										      0,
-										      0,
-										      0,
-										      E_threshold,
-										      true))
+  if (mgrit_functions::
+      does_E_exceed_threshold<ryujin::Euler::Description,dim,double>(my_U,
+								     app,
+								     0,
+								     0,
+								     0,
+								     0,
+								     E_threshold,
+								     true,
+								     "afterenforcephysicality"))
   {
-    std::cout << "Did Exceed, see above for where." << std::endl;
+    std::cout << "Projection did not lower E, see file ./after*.vtu above for where." << std::endl;
     app.print_solution(my_U.U, 0., 0, "./E_exceeds_afterprojection", 0);
   } else {
     std::cout << "Projection has lowered E." << std::endl;
@@ -102,7 +105,6 @@ int main(int argc, char *argv[]){
   // modifying it and doing a projection.
 
   const double ref_size = std::get<0>(my_U_ref.U).l1_norm();
-  app.print_solution(my_U_ok.U, 0., 0, "./U_ref", 0);
   const double modified_size = std::get<0>(my_U.U).l1_norm();
   const double copy_size = std::get<0>(my_U_copy.U).l1_norm();
   app.print_solution(my_U_ok.U, 0., 0, "./OK_U_before_projection", 0);
@@ -110,9 +112,10 @@ int main(int argc, char *argv[]){
   mgrit_functions::enforce_physicality_bounds(my_U_ok,0,app,0.);
   app.print_solution(my_U_ok.U, 0., 0, "./OK_U_after_projection", 0);
   const double ok_size = std::get<0>(my_U_ok.U).l1_norm();
-  std::get<0>(my_U_ok.U) -= std::get<0>(my_U_ref.U);
+  std::get<0>(my_U_ok.U).sadd(1., -1., std::get<0>(my_U_ref.U));
   app.print_solution(my_U_ok.U, 0., 0, "./OK_U__diff_after_projection", 0);
   const double diff_size = std::get<0>(my_U_ok.U).l1_norm();
+  app.print_solution(my_U_ok.U, 0., 0, "./U_ref", 0);
   if ( diff_size >= 1e-5)
   {
     std::cout << "Projection operation not identity on physical vector." << std::endl;
