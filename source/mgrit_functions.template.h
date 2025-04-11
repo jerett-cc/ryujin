@@ -247,20 +247,27 @@ namespace mgrit_functions{
     std::get<0>(u.U).update_ghost_values();
 
     // Now that the densities are fixed, let's ensure that E is not too large
-    // (by way of the proxy pressure).
+    // by checking if it contributes greater than 90% of the total enegry of a local
+    // stencil. Then, if it does, we replace it with the average of the surrounding
+    // connected nodes (which is a achieved by scaling E by some constant
+    //  (5)  s = E_surround_avg/E.
+    // Since equation (4) must hold true at all times, this also means
+    // that we have to scale the density and velocities by this same s.
+    // We choose not to modify e, since
+    //   e = (E-0.5*|m|^2/rho)/rho) -> se = s( (E-0.5*|m|^2/rho)/rho )
+    // is satisfied if we scale all the E, m and rho only.
+    
     // First, set up some temporary data.
     mgrit::MyVector<Number, Description,dim> copy;
     app.reinit_to_level(&copy,level);
     std::get<0>(copy.U) = std::get<0>(u.U);
     
-    // Compute the local average in pressure and use this as a limit on pressure in the copy.
+    // Compute the local average in E and use this as a limit on E in the copy.
     for(unsigned int node=0; node < app.n_locally_owned_at_level(level); node++)
     {
-      Number total_stencil_P = 0.0;
-      Number avg = 0.0;
       // For this node, we loop over the local stencil and calculate an average
       // of the other nodes.
-      Number surrounding_P_sum = 0.0;
+      Number surrounding_E_sum = 0.0;
       auto stencil_size = sparsity_level.row_length(node);
       for(auto jt = sparsity_level.begin(node); jt != sparsity_level.end(node); ++jt)
       {
@@ -269,54 +276,61 @@ namespace mgrit_functions{
 	if(stencil_node_j == node)
 	  continue;
 	const auto state_j = std::get<0>(u.U).get_tensor(stencil_node_j);
-	auto primitive_state_pressure = view.to_primitive_state(state_j)[dim+1];
-	surrounding_P_sum += primitive_state_pressure;
+	auto E = state_j[dim+1];
+	surrounding_E_sum += E;
       }
-      const auto state_node = std::get<0>(u.U).get_tensor(node);
-      auto primitive_state = view.to_primitive_state(state_node);
-      auto primitive_state_pressure = primitive_state[dim+1];
+      auto state_node = std::get<0>(u.U).get_tensor(node);
+      auto state_E = state_node[dim+1];
       
-      total_stencil_P = surrounding_P_sum + primitive_state_pressure;// add on this node's contribution
-      avg = total_stencil_P / stencil_size;// local average divide by size of stencil.
-				       // FIXME: is this necessary?
-
+      const Number total_stencil_E = surrounding_E_sum + state_E;
+      
       // Calculate the average of the other nodes.
       Number surrounding_avg = 0.0;
       if(stencil_size - 1 > 0)
       {
 	// FIXME: make a way to make this ok with nodes
 	// with no connection
-	surrounding_avg = surrounding_P_sum/(stencil_size-1);
+	surrounding_avg = surrounding_E_sum/(stencil_size-1);
+      } else {
+	surrounding_avg = state_E; // This node is constrained, so is the average.
       }
 #ifdef DEBUG
       std::cout << "Node: " << node << " row length is " << sparsity_level.row_length(node)
-		<< " and the node_avg pressure is " << avg
+		<< " and the node_avg E is " << total_stencil_E/stencil_size
 		<< " and the average from the surrouning nodes is "
 		<< surrounding_avg <<  std::endl;
+      std::cout << "While the state E is " << state_E << std::endl;
 #endif
-      // Prevent pressure from being small.
-      primitive_state[dim + 1] = std::max(primitive_state[dim + 1], Number(1e-8));
+      // Prevent E from being small.
+      state_node[dim+1] = std::max(state_E, Number(1e-8));
 
-#ifdef DEBUG
-      std::cout << "While the state pressure is " << primitive_state[dim + 1] << std::endl;
-#endif
-      // disallow very large pressures.
+      // disallow very large E.
       // TODO: make this sense if this node contributes most of the pressure, eg. 90% or 80%
-      // FIXME: also, is the pressure guranteed to be positive? then does this need abs?
+      // FIXME: also, is the E guranteed to be positive? then does this need abs?
       // Also, is this portion of the function only relevant if ALL P are positive?
       // I'll likely need to gurantee that this is the case after I do some projection, if so.
       // QUESTION: does this function work for spikes where the node has no neighbors? if not,
       // then we may need to set this threshold to a globally computed average. As of now, it is
       // unclear whether this sort of edge case spike actually happens in the code, but it is
       // possible and as of now unhandled.
-      if(std::abs(primitive_state[dim+1]/total_stencil_P) > 0.9)
-	primitive_state[dim+1] = surrounding_avg;
 
-      // Translate new state to conserved, then place in to spot in the copied vector.
-      std::get<0>(copy.U).write_tensor(view.from_primitive_state(primitive_state), node);
+      // This seems bad if this node is a constraint, since the following check always holds true,
+      // and would have the effect of setting the E here to zero. FIXME: smarter limiting.
+      Number s = surrounding_avg / state_node[dim+1];
+      if(std::abs(state_node[dim+1]/total_stencil_E) > 0.9)
+      {
+	// If E is too large compared to the surrounding nodes, we scale everything.
+	state_node[dim+1] = surrounding_avg;//Same as scaling Enew = s*Eold
+	state_node[0]     *= s; // rho -> s*rho
+	for(int i = 0; i < dim; i++)
+	  state_node[i+1] *= s; // scale momentums. 
+      }
+      
+      // Write new state in the copied vector.
+      std::get<0>(copy.U).write_tensor(state_node, node);
     }
 
-    // Exchange changes in copy.
+    // Exchange projection changes in copy.
     std::get<0>(copy.U).update_ghost_values();
 
     // now that the copy is fixed up, we move the copied data into the one we wish to change,
