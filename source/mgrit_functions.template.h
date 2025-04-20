@@ -248,16 +248,12 @@ namespace mgrit_functions{
 
     // Now that the densities are fixed, let's ensure that E is not too large
     // by checking if it contributes greater than 90% of the total enegry of a local
-    // stencil. Then, if it does, we replace it with the average of the surrounding
-    // connected nodes (which is a achieved by scaling E by some constant
-    //  (5)  s = E_surround_avg/E.
-    // Since equation (4) must hold true at all times, this also means
-    // that we have to scale the density and velocities by this same s.
-    // We choose not to modify e, since
-    //   e = (E-0.5*|m|^2/rho)/rho) -> se = s( (E-0.5*|m|^2/rho)/rho )
-    // is satisfied if we scale all the E, m and rho only.
+    // stencil. Then, if it does, we replace it with the largest (hopefully reasonable
+    // FIXME) of the surrounding connected nodes, in all solution components. This way,
+    // we are guranteed to satisfy (1), (2), (3), (4) since we assume that incoming data
+    // already satisfies this.
     
-    // First, set up some temporary data.
+    // First, set up some temporary data which we will store our modifications, if needed.
     mgrit::MyVector<Number, Description,dim> copy;
     app.reinit_to_level(&copy,level);
     std::get<0>(copy.U) = std::get<0>(u.U);
@@ -268,41 +264,60 @@ namespace mgrit_functions{
       // For this node, we loop over the local stencil and calculate an average
       // of the other nodes.
       Number surrounding_E_sum = 0.0;
+      Number maximum_surrounding_E = 0.0;
+      int    max_surrounding_idx   = 0; // this should not be zero after we are done, since
+					// idx=0 corresponds to node, while the surrounding
+					// which is what we care about, are not zero.
       auto stencil_size = sparsity_level.row_length(node);
+      Assert(stencil_size > 1,
+	     dealii::ExcMessage("Enforce physicality only works for now on "
+				"triangulations without constraints."));
       for(auto jt = sparsity_level.begin(node); jt != sparsity_level.end(node); ++jt)
       {
 	const auto stencil_node_j = jt->column();
 	// we only calculate on the other connected nodes.
-	if(stencil_node_j == node)
+	if(stencil_node_j == 0)// the diagonal is stored at 0 since our sparsity is square.
 	  continue;
 	const auto state_j = std::get<0>(u.U).get_tensor(stencil_node_j);
 	auto E = state_j[dim+1];
+	
+	if(E >= maximum_surrounding_E)
+	{
+	  // We've found the new max, note the column and update the max.
+	  max_surrounding_idx = stencil_node_j;
+	  maximum_surrounding_E = E;  
+	}
 	surrounding_E_sum += E;
       }
+
+      Assert(max_surrounding_idx != 0,
+	     dealii::ExcMessage("The maximum surrounding index cannot be 0 "
+				"since this index represents this node, when "
+				"what we really want is the max of the "
+				"SURROUNDING nodes, not the center one."));
       auto state_node = std::get<0>(u.U).get_tensor(node);
       auto state_E = state_node[dim+1];
       
       const Number total_stencil_E = surrounding_E_sum + state_E;
       
       // Calculate the average of the other nodes.
-      Number surrounding_avg = 0.0;
-      if(stencil_size - 1 > 0)
-      {
-	// FIXME: make a way to make this ok with nodes
-	// with no connection
-	surrounding_avg = surrounding_E_sum/(stencil_size-1);
-      } else {
-	surrounding_avg = state_E; // This node is constrained, so is the average.
-      }
-#ifdef DEBUG
+      Number surrounding_avg = surrounding_E_sum/(stencil_size-1);// guranteed to not divide by
+								  // zero since we assert above
+								  // that this mesh has no
+								  // constraints.
+
+#ifdef DEBUG_OUTPUT
       std::cout << "Node: " << node << " row length is " << sparsity_level.row_length(node)
 		<< " and the node_avg E is " << total_stencil_E/stencil_size
 		<< " and the average from the surrouning nodes is "
 		<< surrounding_avg <<  std::endl;
-      std::cout << "While the state E is " << state_E << std::endl;
+      std::cout << "While the state E is " << state_E
+		<< " and the surrounding maximum E " << maximum_surrounding_E
+		<< std::endl;
 #endif
       // Prevent E from being small.
-      state_node[dim+1] = std::max(state_E, Number(1e-8));
+      state_node[dim+1] = std::max(state_E, Number(1e-8));//FIXME: doe we need to update all other
+							  //parts of this state here?
 
       // disallow very large E.
       // TODO: make this sense if this node contributes most of the pressure, eg. 90% or 80%
@@ -314,19 +329,16 @@ namespace mgrit_functions{
       // unclear whether this sort of edge case spike actually happens in the code, but it is
       // possible and as of now unhandled.
 
-      // This seems bad if this node is a constraint, since the following check always holds true,
-      // and would have the effect of setting the E here to zero. FIXME: smarter limiting.
-      Number s = surrounding_avg / state_node[dim+1];
       if(std::abs(state_node[dim+1]/total_stencil_E) > 0.9)
       {
-	// If E is too large compared to the surrounding nodes, we scale everything.
-	state_node[dim+1] = surrounding_avg;//Same as scaling Enew = s*Eold
-	state_node[0]     *= s; // rho -> s*rho
-	for(int i = 0; i < dim; i++)
-	  state_node[i+1] *= s; // scale momentums. 
+	// If E is too large compared to the surrounding nodes, we replace all the vector data from
+	// the data of the largest surrounding node.
+	state_node = std::get<0>(u.U).get_tensor(max_surrounding_idx);
+	std::cout << "Replacing E in projection operation." << std::endl;
       }
       
-      // Write new state in the copied vector.
+      // Write new state in the copied vector. TODO: does this need to happen every time
+      // or only in the case that the above if(...) triggers?
       std::get<0>(copy.U).write_tensor(state_node, node);
     }
 
@@ -336,7 +348,7 @@ namespace mgrit_functions{
     // now that the copy is fixed up, we move the copied data into the one we wish to change,
     // and update ghost to finish change.
     std::get<0>(u.U) = std::get<0>(copy.U);
-    std::cout << "---------------------------------------------------" << std::endl;
+    //std::cout << "---------------------------------------------------" << std::endl;
     // Make sure boundary conditions are satisfied on these states.
     //FIXME: this function also calls update_ghost_values(), do I need the one above?
     //app.levels[level]->hyperbolic_module->prepare_state_vector(u.U, t);
