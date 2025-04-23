@@ -46,8 +46,10 @@ void set_thread_limit(const MPI_Comm &mpi_communicator [[maybe_unused]])
   omp_set_num_threads(n_threads);
 #endif
   dealii::MultithreadInfo::set_thread_limit(n_threads);
+#ifdef WITH_OPENMP
   if(dealii::Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
     std::cout << "Using " << omp_get_num_threads() << " threads" << std::endl;
+#endif
 }
 
 int main(int argc, char* argv[])
