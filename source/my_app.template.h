@@ -341,11 +341,13 @@ namespace mgrit{
   }
   
   template<typename Number, typename Description, int dim>
-  void MyApp<Number, Description, dim>::interpolate_between_levels(vector_type &to_v,
+  void MyApp<Number, Description, dim>::interpolate_between_levels(my_vector &to_V,
                                          const int to_level,
-                                         const vector_type &from_v,
+                                         const my_vector &from_V,
                                          const int from_level)
   {
+    auto& to_v = std::get<0>(to_V.U);
+    auto& from_v = std::get<0>(from_V.U);
     Assert(
         (to_v.size() == levels[to_level]->offline_data->dof_handler().n_dofs() *
                             problem_dimension),
@@ -854,7 +856,7 @@ namespace mgrit{
     // computations which are naturally faster on the coarser levels, due to a
     // larger mesh size.
 
-    interpolate_between_levels(std::get<0>(u_to_step->U), level, std::get<0>(u_->U), 0);
+    interpolate_between_levels(*u_to_step, level, *u_, 0);
 
     if (level = coarsest_level && t_idx == 3 && calling == 0)
     {
@@ -916,7 +918,7 @@ namespace mgrit{
     }
 #endif
     // Interpolate the updated state back to the fine level.
-    interpolate_between_levels(std::get<0>(u_->U), 0, std::get<0>(u_to_step->U), level);
+    interpolate_between_levels(*u_, 0, *u_to_step, level);
     
     if (level = coarsest_level && t_idx == 3 && calling == 0)
     {
@@ -1092,9 +1094,9 @@ namespace mgrit{
     
     // Now interpolate the data we loaded on the coarsest level to the finest level,
     // using the levels data structure, as unrefined_level has done it's work:
-    interpolate_between_levels(std::get<0>(u->U),
+    interpolate_between_levels(*u,
 			       finest_level,
-			       std::get<0>(temp_coarse->U),
+			       *temp_coarse,
 			       coarsest_level);
 
     // FIXME: the whole cpp interface as awkward use of pointers for the vector objects.

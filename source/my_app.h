@@ -134,13 +134,13 @@ namespace mgrit{
 
     /// @brief Interpolates a vector to a vector which may live on a different
     /// spatial mesh.
-    /// @param to_v The vector to which we are interpolating.
+    /// @param to_V The vector to which we are interpolating.
     /// @param to_level The level this vector lives at.
-    /// @param from_v The vector we wish to interpolate from.
+    /// @param from_V The vector we wish to interpolate from.
     /// @param from_level Its level.
-    void interpolate_between_levels(vector_type &to_v,
+    void interpolate_between_levels(my_vector &to_V,
                                     const int to_level,
-                                    const vector_type &from_v,
+                                    const my_vector &from_V,
                                     const int from_level);
 
     /// @brief Tests that density, Entropy, Pressure are all physical. Exits the
