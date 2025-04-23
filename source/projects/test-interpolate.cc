@@ -18,16 +18,6 @@ using App = mgrit::MyApp<double, ryujin::Euler::Description, 2>;
 
 constexpr int dim = 2;
 
-void set_E_at_single_point(const double new_point_E, StateVector &U)
-{
-  // This test only runs on a single process, so all the data structures should
-  // be consistent every time. We will set E on dof=0 to be new_point_E.
-  // and then be done.
-  auto state = std::get<0>(U).get_tensor((unsigned int)0);
-  state[dim+1] = new_point_E;
-  std::get<0>(U).write_tensor(state, 0);
-}
-
 int main(int argc, char *argv[]){
 
   const std::string prm_name = argv[1];//Decide on how to make parameter set in test format.
@@ -41,46 +31,65 @@ int main(int argc, char *argv[]){
   app.initialize(prm_name);
 
   // Set up data.
-  mgrit::MyVector<double, ryujin::Euler::Description, 2> my_U;
+  mgrit::MyVector<double, ryujin::Euler::Description, 2> fineU, fineCopy,
+                                                         middleU,
+                                                         coarseU, coarseCopy;
 
-  // Initialize data needs to be at t = 0.
-  ryujin::Vectors::reinit_state_vector<ryujin::Euler::Description>(my_U.U,
+  // Initialize data needs to be at t = 0 on the fine level.
+  ryujin::Vectors::reinit_state_vector<ryujin::Euler::Description>(fineU.U,
 								   *(app.levels[0]->offline_data));
-  std::get<0>(my_U.U) = app.levels[0]->initial_values->get().interpolate_hyperbolic_vector(0.0);
+  std::get<0>(fineU.U) = app.levels[0]->initial_values->get().interpolate_hyperbolic_vector(0.0);
 
-  const double E_threshold = 900.;
-  // At this point, we should have no problem E.
-  if (mgrit_functions::does_E_exceed_threshold<ryujin::Euler::Description,dim,double>(my_U,
-										      app,
-										      0,
-										      0,
-										      0,
-										      0,
-										      E_threshold,
-										      false))
+  // now, we need to initialize each vector to the appropriate level.
+  app.reinit_to_level(&middleU, 1);
+  app.reinit_to_level(&coarseU, 2);
+  app.reinit_to_level(&coarseCopy, 2);
+
+  // now interpolate the fine to the coarse.
+  app.interpolate_between_levels(coarseU, 2, fineU, 0);
+  // and the fine to the middle, then the middle to the coarse copy.
+  app.interpolate_between_levels(middleU, 1, fineU, 0);
+  app.interpolate_between_levels(coarseCopy, 2, middleU, 1);
+
+  //compare that the single fine->coarse = fine->middle->coarse
+  std::get<0>(coarseU.U) -= std::get<0>(coarseCopy.U);
+  double diff = std::get<0>(coarseU.U).l2_norm();
+
+  if (diff < 1e-10)
   {
-    std::cout << "Problem with initialization. E should not be large." << std::endl;
-  } else {
-    std::cout << "E OK after initialization." << std::endl;
+    std::cout << "Interpolation fine->coarse consistent." << std::endl;
   }
-  
-  // set one of the points to have too large of an internal Energy and check that we see this
-  // reflected in the output of does_E_exceed_threshold.
-  // Turn off printing so no side effects other than the terminal printing happen.
-  set_E_at_single_point(1000., my_U.U);
-  // At this point, we should have a problem E.
-  if (mgrit_functions::does_E_exceed_threshold<ryujin::Euler::Description,dim,double>(my_U,
-										      app,
-										      0,
-										      0,
-										      0,
-										      0,
-										      E_threshold,
-										      true))
+  else
   {
-    std::cout << "Did Exceed, see above for where." << std::endl;
-  } else {
-    std::cout << "Problem, E should have exceeded at a point." << std::endl;
+    std::cout << "Fine->Coarse Not OK." << std::endl;
+  }
+
+  // Now compare interpolation coarse->fine
+  app.reinit_to_level(&fineCopy, 0);
+  app.reinit_to_level(&middleU, 1);
+  app.reinit_to_level(&coarseU, 2);
+  // Initialize data needs to be at t = 0 on the fine level. We test by 
+  ryujin::Vectors::reinit_state_vector<ryujin::Euler::Description>(coarseU.U,
+								   *(app.levels[2]->offline_data));
+  std::get<0>(coarseU.U) = app.levels[2]->initial_values->get().interpolate_hyperbolic_vector(0.0);
+
+  // now interpolate the coarse to fine.
+  app.interpolate_between_levels(fineU, 0, coarseU, 2);
+  // and then coarse to the middle, then the middle to the fine copy.
+  app.interpolate_between_levels(middleU, 1, coarseU, 2);
+  app.interpolate_between_levels(fineCopy, 0, middleU, 1);
+
+  //compare that the single coarse->fine = coarse->middle->fine
+  std::get<0>(fineU.U) -= std::get<0>(fineCopy.U);
+  diff = std::get<0>(fineU.U).l2_norm();
+
+  if (diff < 1e-10)
+  {
+    std::cout << "Interpolation coarse->fine consistent." << std::endl;
+  }
+  else
+  {
+    std::cout << "Coarse->Fine Not OK." << std::endl;
   }
 
   return 0;
