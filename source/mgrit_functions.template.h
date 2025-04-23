@@ -211,6 +211,8 @@ namespace mgrit_functions{
 	   dealii::ExcMessage("enforce_physicality only works if the vector's size and the size "
 			      "from the level match. This is because a copy is made from the size "
 			      "from the offline_data."));
+    //Assert(Description == ) TODO: this function built with euler description in mind only.
+    //                              Check that this is the case.
     
     // First, we limit the density to be non-negative, and update all the relations
     // with this new density.
@@ -218,34 +220,36 @@ namespace mgrit_functions{
     {
       auto state = std::get<0>(u.U).get_tensor(node);
       Number old_rho = state[0];
-      if (old_rho < 1e-8)//TODO: set other threshold?
-      {
-	//Update all densities.
-	Number new_rho = 1e-8; // minimum
-	Number new_rho_inv = 1e8;
-	//Number old_rho_inv = 1.0/old_rho;
-	Number e = view.internal_energy(state)/old_rho;
-        dealii::Tensor<1, dim, Number> v;
-	dealii::Tensor<1, dim, Number> m = view.momentum(state);
+      // if (old_rho < 1e-8)//TODO: set other threshold?
+      // {
+      // 	//Update all densities.
+      // 	Number new_rho = 1e-8; // minimum
+      // 	Number new_rho_inv = 1e8;
+      // 	//Number old_rho_inv = 1.0/old_rho;
+      // 	Number e = view.internal_energy(state)/old_rho;
+      //   dealii::Tensor<1, dim, Number> v;
+      // 	dealii::Tensor<1, dim, Number> m = view.momentum(state);
 
-	v = m/old_rho;//re-use velocities from old state.
+      // 	v = m/old_rho;//re-use velocities from old state.
 
-	// Set new information.
-	m = new_rho*v;//new momentum
-	state[0] = new_rho;//new density
-	for(int d=0; d<dim; d++)
-	  state[d+1] = m[d];//place new momentum into state.
-	state[dim+1] = new_rho*e + 0.5*m.norm_square()*new_rho_inv;//New E
+      // 	// Set new information.
+      // 	m = new_rho*v;//new momentum
+      // 	state[0] = new_rho;//new density
+      // 	for(int d=0; d<dim; d++)
+      // 	  state[d+1] = m[d];//place new momentum into state.
+      // 	state[dim+1] = new_rho*e + 0.5*m.norm_square()*new_rho_inv;//New E
 
-	// Write new state.
-	std::get<0>(u.U).write_tensor(state, node);
-      } else {
-	continue;
-      }
+      // 	// Write new state.
+      // 	std::get<0>(u.U).write_tensor(state, node);
+      // } else {
+      // 	continue;
+      // }
+      state[0] = std::max(old_rho, 1e-8);
+      std::get<0>(u.U).write_tensor(state, node);
     }
     // Communicate the changes.
     std::get<0>(u.U).update_ghost_values();
-
+    // return;
     // Now that the densities are fixed, let's ensure that E is not too large
     // by checking if it contributes greater than 90% of the total enegry of a local
     // stencil. Then, if it does, we replace it with the largest (hopefully reasonable
@@ -335,6 +339,21 @@ namespace mgrit_functions{
 	// the data of the largest surrounding node.
 	state_node = std::get<0>(u.U).get_tensor(max_surrounding_idx);
 	std::cout << "Replacing E in projection operation." << std::endl;
+      }
+
+      // Next, we need to verify that the pressure of this new state is OK,
+      // and if not, we increase it.
+      auto pressure = view.pressure(state_node);
+
+      if (pressure < 0.0)
+      {
+	Number eps = 1e-8;
+	// We calculate a deltaE based on increasing the pressure beyond 0.
+	Number deltaE = 1/(view.gamma()-1)*(-pressure +eps);//FIXME: this whole function
+							    //is only relevant to an ideal
+							    //gas, this deltaE is built only
+							    //for ideal gas EOS in (4).
+	state_node[dim+1] += deltaE;
       }
       
       // Write new state in the copied vector. TODO: does this need to happen every time
