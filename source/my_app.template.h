@@ -145,7 +145,14 @@ namespace mgrit{
   };
 
   template<typename Number, typename Description, int dim>
-  void MyApp<Number, Description, dim>::initialize(std::string prm_file)
+  void MyApp<Number, Description, dim>::initialize(const std::string &prm_file)
+  {
+    std::ifstream prm_stream (prm_file);
+    initialize(prm_stream);
+  }
+
+  template<typename Number, typename Description, int dim>
+  void MyApp<Number, Description, dim>::initialize(std::istream &prm_stream)
   {
     ryujin::Scope scope(computing_timer, "initialize");
 
@@ -209,7 +216,7 @@ namespace mgrit{
       }
     }
     // now that levels are all created, we parse the parameter file.
-    dealii::ParameterAcceptor::initialize(prm_file);
+    dealii::ParameterAcceptor::initialize(prm_stream);
 
     // all parameters defined, we can now call all objects prepare function.
     prepare_mg_objects();

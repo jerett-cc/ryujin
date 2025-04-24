@@ -122,7 +122,11 @@ namespace mgrit{
 
     /// @brief Initializes all data with the parameters from the specified file.
     /// @param prm_file
-    void initialize(const std::string prm_file);
+    void initialize(const std::string &prm_file);
+
+    /// @brief Initializes all data with the parameters from the specified file.
+    /// @param prm_file
+    void initialize(std::istream &prm_stream);
     // TODO: write access functions for things like levels[level],
     // timeloops[level]
 
