@@ -246,6 +246,13 @@ namespace mgrit_functions{
       // }
       state[0] = std::max(old_rho, 1e-8);
       std::get<0>(u.U).write_tensor(state, node);
+
+      if(!view.is_admissible(state))
+      {
+	std::cout << "enforce_physicality() incoming state on level=" << level
+		  << " is not admissible node="
+		  << node << " and state=" << state << std::endl;
+      }
     }
     // Communicate the changes.
     std::get<0>(u.U).update_ghost_values();
@@ -359,6 +366,14 @@ namespace mgrit_functions{
       // Write new state in the copied vector. TODO: does this need to happen every time
       // or only in the case that the above if(...) triggers?
       std::get<0>(copy.U).write_tensor(state_node, node);
+
+      if(!view.is_admissible(state_node))
+      {
+	std::cout << "enforce_physicality() state after limiting density and E/Pressure "
+		  << "on level=" << level
+		  << " is not admissible node="
+		  << node << " and state=" << state_node << std::endl;
+      }
     }
 
     // Exchange projection changes in copy.
