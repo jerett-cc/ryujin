@@ -782,7 +782,7 @@ namespace mgrit{
     // Ensure this is a physical vector.
     mgrit_functions::
         enforce_physicality_bounds<Description, dim, Number>(
-            *u_, finest_level, *this, lvl_tstart);
+							     *u_, finest_level, *this, lvl_tstart, -3);
     
     if (level = coarsest_level && t_idx == 3 && calling == 0)
     {
@@ -1208,7 +1208,7 @@ namespace mgrit{
 	pout << "[INFO] Access Called" << std::endl;
         pout << "Cycles done: " << mgCycle << std::endl;
 
-	mgrit_functions::enforce_physicality_bounds(*u_, finest_level, *this, t);
+	mgrit_functions::enforce_physicality_bounds(*u_, finest_level, *this, t, caller_id);
 	
 	std::cout << "Printing brick " << t_idx << " at t= " << t << " on cycle " << mgCycle
 		  << std::endl;
@@ -1284,7 +1284,7 @@ namespace mgrit{
 
     mgrit_functions::
         enforce_physicality_bounds<Description, dim, Number>(
-            *u_, finest_level, *this, 0.0);
+							     *u_, finest_level, *this, 0.0, -2);
     
     Number *dbuffer = (Number *)buffer;
     unsigned int n_locally_owned =

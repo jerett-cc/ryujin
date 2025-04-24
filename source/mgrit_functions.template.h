@@ -182,7 +182,8 @@ namespace mgrit_functions{
   void enforce_physicality_bounds(mgrit::MyVector<Number, Description, dim> &u,
                                   const unsigned int level,
                                   const mgrit::MyApp<Number, Description, dim> &app,
-                                  [[maybe_unused]]const Number t)
+                                  [[maybe_unused]]const Number t,
+				  const braid_Int calling)
   {
     // The incoming u.U should already respect the following equalities:
     // (1) u.U[0]     = rho
@@ -249,7 +250,8 @@ namespace mgrit_functions{
 
       if(!view.is_admissible(state))
       {
-	std::cout << "enforce_physicality() incoming state on level=" << level
+	std::cout << "calling=" << calling
+		  <<" enforce_physicality() incoming state on level=" << level
 		  << " is not admissible node="
 		  << node << " and state=" << state << std::endl;
       }
@@ -369,7 +371,8 @@ namespace mgrit_functions{
 
       if(!view.is_admissible(state_node))
       {
-	std::cout << "enforce_physicality() state after limiting density and E/Pressure "
+	std::cout << "calling=" << calling
+		  << " enforce_physicality() state after limiting density and E/Pressure "
 		  << "on level=" << level
 		  << " is not admissible node="
 		  << node << " and state=" << state_node << std::endl;
