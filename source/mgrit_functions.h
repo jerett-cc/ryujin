@@ -113,6 +113,22 @@ namespace mgrit_functions{
 			       const braid_Real E_threshold,
 			       const bool do_print = false,
 			       std::string fname = "./Elargeforcalling_");
-  
+
+  /// @brief This function tests the admissibility of each DOFs data and returns true if
+  /// all the DOFs pass, false otherwise.
+  /// @tparam Description The description of the system, providing a pressure
+  /// function and an entropy function.
+  /// @tparam dim The spatial dimension.
+  /// @tparam Number Either a double or float.
+  /// @param u The solution state we want to modify to remain conservative.
+  /// @param level The level that describes the vector we want to enforce physicality.
+  /// @param app The app containing the level structures we need to do work on u.
+  //FIXME/TODO: reorder the template parameters to match the library
+  template <typename Description, int dim, typename Number>
+  bool state_admissible_everywhere(mgrit::MyVector<Number, Description, dim> &u,
+				   const unsigned int level,
+				   const mgrit::MyApp<Number, Description, dim> &app,
+				   const Number t,
+				   const braid_Int calling = -1);
   
 }// Namespace mgrit_functions

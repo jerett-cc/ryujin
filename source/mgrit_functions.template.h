@@ -527,5 +527,35 @@ namespace mgrit_functions{
 
     return violates;
   }
+
+  template <typename Description, int dim, typename Number>
+  bool state_admissible_everywhere(mgrit::MyVector<Number, Description, dim> &u,
+				   const unsigned int level,
+				   const mgrit::MyApp<Number, Description, dim> &app,
+				   const Number t,
+				   const braid_Int calling)
+  {
+    // Create Hyperbolic System View, where we can query admissibility.
+    const auto view = app.levels[level]->hyperbolic_system->get().template view<dim,Number>();
+    Assert(app.vector_size_match_level(u.U, level),
+	   dealii::ExcMessage("admissible_everywhere() only works if the vector's size and the size "
+			      "from the level match. This is because the function loops over "
+			      "all the locally owned dofs at the supposed level."));
+
+    for(unsigned int node=0; node < app.n_locally_owned_at_level(level); node++)
+    {
+      auto state = std::get<0>(u.U).get_tensor(node);
+      if(!view.is_admissible(state))
+      {
+	std::cout << "calling=" << calling
+		  << " a state at time t=" << t
+		  << " is not admissible node="
+		  << node << " and state=" << state << std::endl;
+	return false;
+      }
+    }
+
+    return true;
+  }
   
 } // Namespace mgrit_functions
