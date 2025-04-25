@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <string>
 #include <utility>
+#include <set>
 
 //ryujin includes
 #include "hyperbolic_module.h"
@@ -1194,6 +1195,32 @@ namespace mgrit{
 		<< " is bad for caller " << caller_id << std::endl;
       //      mgrit_functions::enforce_physicality_bounds(*u_, finest_level, *this, t);
     }
+
+#ifdef DEBUG
+    std::set<int> tau_like_accessors{17,21};
+    bool need_assert = !tau_like_accessors.contains(caller_id);
+    if(need_assert){
+      bool admissible = mgrit_functions::state_admissible_everywhere(*u_,
+								     finest_level,
+								     *this,
+								     t,
+								     caller_id);
+       
+      if(!admissible)  
+	{
+	  std::cout << "U is not admissible on MG level " << level << " on cycle "
+		    << mgCycle << std::endl;  
+	  print_solution(u_->U,
+			 t,
+			 finest_level /*level that every u lives on*/,
+			 "./notadmissible_caller"+std::to_string(caller_id),
+			 t_idx);
+	}
+      Assert(admissible,
+	     dealii::ExcMessage("A state is not admissible, see file "
+				"./notadmissible_caller"+std::to_string(caller_id)));
+    }
+#endif
     
     switch (caller_id)//FIXME: need switch here? 
     {
