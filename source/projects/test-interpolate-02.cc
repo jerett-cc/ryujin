@@ -70,7 +70,7 @@ int main(int argc, char *argv[]){
 
   //compare that the single coarse->fine = coarse->middle->fine
   std::get<0>(fineU.U) -= std::get<0>(fineCopy.U);
-  diff = std::get<0>(fineU.U).l2_norm();
+  auto diff = std::get<0>(fineU.U).l2_norm();
 
   if (diff < 1e-10)
   {
