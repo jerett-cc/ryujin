@@ -749,11 +749,6 @@ namespace mgrit{
     pstatus.GetIter(&iter);
     pstatus.GetCallingFunction(&calling);
 
-    // determine if this is a brick we want to visualize on this cycle
-    // const bool is_right_iteration = (iter == 1);
-    // const bool is_in_range_of_bricks = ((lvl_tstart >= 1.45) || (lvl_tstop <= 1.55)); 
-    // const bool print_this_brick = (is_right_iteration && is_in_range_of_bricks
-    // 				   && level == finest_level);
 
     std::string brick_name_prefix = "VMG_brick_80Brick_iter_" + std::to_string(iter) +
       "_tidx_" + std::to_string(t_idx); 
@@ -767,47 +762,42 @@ namespace mgrit{
     // Start a timer for step::level
     ryujin::Scope scope(computing_timer, "step::" + std::to_string(level));
 
-    // if(print_this_brick)
-    // {
-    //   print_solution(u_->U, lvl_tstart, finest_level, "before_projection_"+brick_name_prefix, t_idx);
-    //   time_loops[level]->write_checkpoint_wrapper(u_->U,
-    // 						  "checkpoint_before_projection_"+brick_name_prefix,
-    // 						  lvl_tstart, t_idx);
-    // }
+    
     bool fails = false;
-    if (level = coarsest_level && t_idx == 3 && calling == 0)
-    {
       // This is the first time we see a spike, so let's visualize this.
-      fails = mgrit_functions::does_E_exceed_threshold(*u_,
-						       *this,
-						       finest_level,
-						       lvl_tstart,
-						       t_idx,
-						       calling,
-						       400./*threshold*/,
-						       true/*yes, print*/,
-						       "./Onlevel" + std::to_string(finest_level)
-						       +"_before_enforce_physicality_calling_");
-    }
+      fails =
+	fails || mgrit_functions::does_E_exceed_threshold(*u_,
+							  *this,
+							  finest_level,
+							  lvl_tstart,
+							  t_idx,
+							  calling,
+							  400./*threshold*/,
+							  true/*yes, print*/,
+							  "./Onlevel" + std::to_string(finest_level)
+							  +"_before_enforce_physicality_calling_");
+
+      if(num_step_calls == 60)
+	print_solution(u_->U, lvl_tstart, finest_level /*level that every u lives on*/, "./fine_issue_60_before_projection", t_idx);
+      
     // Ensure this is a physical vector.
     mgrit_functions::
         enforce_physicality_bounds<Description, dim, Number>(
 							     *u_, finest_level, *this, lvl_tstart, -3);
     
-    if (level = coarsest_level && t_idx == 3 && calling == 0)
-    {
-      // This is the first time we see a spike, so let's visualize this.
-      fails = mgrit_functions::does_E_exceed_threshold(*u_,
-						       *this,
-						       finest_level,
-						       lvl_tstart,
-						       t_idx,
-						       calling,
-						       400./*threshold*/,
-						       true/*yes, print*/,
-						       "./Onlevel" + std::to_string(finest_level)
-						       +"_after_enforce_physicality_calling_");
-    }
+    // This is the first time we see a spike, so let's visualize this.
+      fails =
+	fails || mgrit_functions::does_E_exceed_threshold(*u_,
+							  *this,
+							  finest_level,
+							  lvl_tstart,
+							  t_idx,
+							  calling,
+							  400./*threshold*/,
+							  true/*yes, print*/,
+							  "./Onlevel" + std::to_string(finest_level)
+							  +"_after_enforce_physicality_calling_");
+    
 
 #ifdef DEBUG
     pout << "[INFO] Stepping on level: " + std::to_string(level) +
@@ -851,49 +841,56 @@ namespace mgrit{
 
     interpolate_between_levels(*u_to_step, level, *u_, 0);
 
-    if (level = coarsest_level && t_idx == 3 && calling == 0)
+    bool printTHIS = false;
+    //Debugging: if we are in a place where we see a bad data, we output the before on each level
+    if (num_step_calls  == 60)
     {
-      // This is the first time we see a spike, so let's visualize this.
-      fails = mgrit_functions::does_E_exceed_threshold(*u_to_step,
-						       *this,
-						       level,
-						       lvl_tstart,
-						       t_idx,
-						       calling,
-						       400./*threshold*/,
-						       true/*yes, print*/,
-						       "./Onlevel" + std::to_string(level)
-						       +"_after_interpolate_between_levels_calling_");
+      print_solution(u_->U, lvl_tstart, finest_level /*level that every u lives on*/, "./fine_issue_60_after_projection", t_idx);
+      print_solution(u_to_step->U, lvl_tstart, level /*level that every u lives on*/, "./coarse_issue_60_to_step", t_idx);
+      printTHIS = true;
     }
+    // This is the first time we see a spike, so let's visualize this.
+    fails =
+      fails || mgrit_functions::does_E_exceed_threshold(*u_to_step,
+							*this,
+							level,
+							lvl_tstart,
+							t_idx,
+							calling,
+							400./*threshold*/,
+							true/*yes, print*/,
+							"./Onlevel" + std::to_string(level)
+							+"_after_interpolate_between_levels_calling_");
+
 #ifdef CHECK_BOUNDS
     // Test physicality of interpolated vector.
     test_physicality(std::get<0>(u_to_step->U), level, "before step.");
 #endif
-    
+    bool print_every_step = (level == 1) && (t_idx == 3) && (calling == braid_ASCaller_FInterp);
     // step the function on this level
     // TODO: make sure that the last parameter is set properly, hardcoded
     // is not the best course here.
-    time_loops[level]->change_base_name(brick_name_prefix);
+    time_loops[level]->change_base_name(fname);
     time_loops[level]->run_with_initial_data(
         u_to_step->U,
         lvl_tstop,
         lvl_tstart,
-        false);//print_this_brick /*print every step of this simulation*/);
+        print_every_step,
+	[](const StateVector&, double t){},
+	print_every_step);//print every step of the integration
 
-    if (level = coarsest_level && t_idx == 3 && calling == 0)
-    {
       // This is the first time we see a spike, so let's visualize this.
-      fails = mgrit_functions::does_E_exceed_threshold(*u_to_step,
-						       *this,
-						       level,
-						       lvl_tstop,
-						       t_idx,
-						       calling,
-						       400./*threshold*/,
-						       true/*yes, print*/,
-						       "./Onlevel" + std::to_string(level)
-						       +"_after_stepping_calling_");
-    }
+      fails =
+	fails || mgrit_functions::does_E_exceed_threshold(*u_to_step,
+							  *this,
+							  level,
+							  lvl_tstop,
+							  t_idx,
+							  calling,
+							  400./*threshold*/,
+							  true/*yes, print*/,
+							  "./Onlevel" + std::to_string(level)
+							  +"_after_stepping_calling_");
     
 #ifdef CHECK_BOUNDS
     // Test physicality of vector after it has been stepped.
@@ -913,20 +910,18 @@ namespace mgrit{
     // Interpolate the updated state back to the fine level.
     interpolate_between_levels(*u_, 0, *u_to_step, level);
     
-    if (level = coarsest_level && t_idx == 3 && calling == 0)
-    {
-      // This is the first time we see a spike, so let's visualize this.
-      fails = mgrit_functions::does_E_exceed_threshold(*u_,
-						       *this,
-						       finest_level,
-						       lvl_tstop,
-						       t_idx,
-						       calling,
-						       400./*threshold*/,
-						       true/*yes, print*/,
-						       "./Onlevel" + std::to_string(finest_level)
-						       +"_after_interpolating_back_finest_calling_");
-    }
+    // This is the first time we see a spike, so let's visualize this.
+    fails =
+      fails || mgrit_functions::does_E_exceed_threshold(*u_,
+							*this,
+							finest_level,
+							lvl_tstop,
+							t_idx,
+							calling,
+							400./*threshold*/,
+							true/*yes, print*/,
+							"./Onlevel" + std::to_string(finest_level)
+							+"_after_interpolating_back_finest_calling_");
     
 #ifdef CHECK_BOUNDS
     // Test physicality of interpolated vector on fine level, after the step.
@@ -934,11 +929,11 @@ namespace mgrit{
         std::get<0>(u_->U), 0, "after step, after interpolation.");
 #endif
 
-    // if(print_this_brick)
-    // {
-    //   print_solution(u_->U,
-    //   lvl_tstart, finest_level, "after_integration_"+brick_name_prefix, t_idx);
-    // }
+    if(print_every_step)
+    {
+      print_solution(u_->U,
+      lvl_tstart, finest_level, fname+"_after_interpolation", t_idx);
+    }
 
     num_step_calls++;
     // done.
