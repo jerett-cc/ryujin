@@ -526,7 +526,8 @@ namespace ryujin
       const Number start_time,
       const bool mgrit_specified_print,
       std::function<void(const StateVector&,
-                         double)> pp_step)
+      double)> pp_step,
+      const bool print_every_step)
   {
 #ifdef DEBUG_OUTPUT
     std::cout << "TimeLoop<dim, Number>::run_with_initial_data(U,start,end,pp_func())" << std::endl;
@@ -552,7 +553,7 @@ namespace ryujin
 
     /* Perform output: */
 
-    if (t >= timer_cycle * timer_granularity_) {
+    if (t >= timer_cycle * timer_granularity_ || print_every_step) {
       //if (std::abs(t-next_t) < 1e-10) {
       if (write_output_files) {
         output(U, base_name_ + "-solution", t, timer_cycle);

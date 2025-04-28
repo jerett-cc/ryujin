@@ -97,8 +97,8 @@ namespace ryujin
         const Number start_time = 0,
         const bool mgrit_specified_print = false,
         std::function<void(const StateVector & /*U*/, double /*current time*/)>
-	pp_step = [](const StateVector &, double) {});//TODO: make this templated on CALLABLE
-						      //like below.
+	pp_step = [](const StateVector &, double) {},//TODO: make this templated on CALLABLE
+	const bool print_every_step = false);
     
     /**
      * Wrapper to the checkpoint function, as I need to call this in MGRIT.
