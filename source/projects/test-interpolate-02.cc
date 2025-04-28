@@ -1,3 +1,5 @@
+#include <cmath>
+
 #include "discretization.h"
 #include "level_structures.h"//for all the objects that are needed for a run.
 #include "time_loop.h"
@@ -30,12 +32,32 @@ const std::string parameters =
 
 
 /**
- * Right now, this executable runs a simulation equivalent to a ryujin run.
-*/
+ * This tests that interpolation coarse->fine between many levels is the same as
+ * interpolating between intermediate levels sequentially.
+ */
 using StateVector = mgrit::MyApp<double, ryujin::Euler::Description, 2>::StateVector;
+using Vector = mgrit::MyVector<double, ryujin::Euler::Description, 2>;
 using App = mgrit::MyApp<double, ryujin::Euler::Description, 2>;
 
 constexpr int dim = 2;
+
+void random_initial_values(Vector &U, const int level, const App &app)
+{
+  auto &u = std::get<0>(U.U);
+  const int n_dofs = app.n_locally_owned_at_level(level);
+  const int n_components = app.problem_dimension;
+  int x = 0;
+  for(int i = 0; i < n_dofs; i++)
+  {
+    auto state = u.get_tensor(i);
+    for(int d=0; d<n_components; d++)
+      {
+	state[d] = sin(x++);
+      }
+
+    u.write_tensor(state,i);
+  }
+};
 
 int main(int argc, char *argv[]){
 
@@ -55,12 +77,12 @@ int main(int argc, char *argv[]){
                                                          coarseU, coarseCopy;
   // Now compare interpolation coarse->fine
   app.reinit_to_level(&fineCopy, 0);
+  app.reinit_to_level(&fineU, 0);
   app.reinit_to_level(&middleU, 1);
   app.reinit_to_level(&coarseU, 2);
-  // Initialize data needs to be at t = 0 on the fine level. We test by 
-  ryujin::Vectors::reinit_state_vector<ryujin::Euler::Description>(coarseU.U,
-								   *(app.levels[2]->offline_data));
-  std::get<0>(coarseU.U) = app.levels[2]->initial_values->get().interpolate_hyperbolic_vector(0.0);
+
+  // Set up coarse level with random data.
+  random_initial_values(coarseU, 2, app);
 
   // now interpolate the coarse to fine.
   app.interpolate_between_levels(fineU, 0, coarseU, 2);

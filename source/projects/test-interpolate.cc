@@ -1,3 +1,5 @@
+#include <cmath>
+
 #include "discretization.h"
 #include "level_structures.h"//for all the objects that are needed for a run.
 #include "time_loop.h"
@@ -28,21 +30,40 @@ const std::string parameters =
   "  set base name = problem_brick_E_r346_two_cycle_VMG\n"
   "end\n";
 
-//TODO: initialize with random initial data. UP and DOWN.
 
 /**
- * Right now, this executable runs a simulation equivalent to a ryujin run.
-*/
+ * Test that integration in between many levels is the same as integration from intermediate levels
+ * seqentially. Here we integrate from fine->coarse.
+ */
 using StateVector = mgrit::MyApp<double, ryujin::Euler::Description, 2>::StateVector;
+using Vector = mgrit::MyVector<double, ryujin::Euler::Description, 2>;
 using App = mgrit::MyApp<double, ryujin::Euler::Description, 2>;
 
 constexpr int dim = 2;
+
+void random_initial_values(Vector &U, const int level, const App &app)
+{
+  auto &u = std::get<0>(U.U);
+  const int n_dofs = app.n_locally_owned_at_level(level);
+  const int n_components = app.problem_dimension;
+  int x = 0;
+  for(int i = 0; i < n_dofs; i++)
+  {
+    auto state = u.get_tensor(i);
+    for(int d=0; d<n_components; d++)
+      {
+	state[d] = sin(x++);
+      }
+
+    u.write_tensor(state,i);
+  }
+};
 
 int main(int argc, char *argv[]){
 
   const std::vector<int> refinement_levels = {1, 3, 5};
 
-  dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);  //create objects
+  dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv);  //create objects
   const MPI_Comm comm_world = MPI_COMM_WORLD;
   
   mgrit::MyApp<double, ryujin::Euler::Description, 2> app(comm_world, comm_world, refinement_levels);
@@ -55,16 +76,15 @@ int main(int argc, char *argv[]){
                                                          middleU,
                                                          coarseU, coarseCopy;
 
-  // Initialize data needs to be at t = 0 on the fine level.
-  ryujin::Vectors::reinit_state_vector<ryujin::Euler::Description>(fineU.U,
-								   *(app.levels[0]->offline_data));
-  std::get<0>(fineU.U) = app.levels[0]->initial_values->get().interpolate_hyperbolic_vector(0.0);
-
   // now, we need to initialize each vector to the appropriate level.
+  app.reinit_to_level(&fineU, 0);
   app.reinit_to_level(&middleU, 1);
   app.reinit_to_level(&coarseU, 2);
   app.reinit_to_level(&coarseCopy, 2);
 
+  // randomly initialize the fine level.
+  random_initial_values(fineU, 0, app);
+  
   // now interpolate the fine to the coarse.
   app.interpolate_between_levels(coarseU, 2, fineU, 0);
   // and the fine to the middle, then the middle to the coarse copy.
@@ -83,6 +103,6 @@ int main(int argc, char *argv[]){
   {
     std::cout << "Fine->Coarse Not OK." << std::endl;
   }
-
+  
   return 0;
 }
