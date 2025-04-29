@@ -52,11 +52,20 @@ namespace mgrit_functions{
 
   /// @brief This function ensures that the solution state @u produces physical
   /// quantities. For example, if u represents the conservative states of a
-  /// system, we ensure that the pressure, density, and entropy remain
-  /// non-negative. This function makes sure that the pressure is above a min-
-  /// imum and that the density is above a mimimum.
-  /// MODIFICATION: we also make sure that the pressure quantity is not larger
-  ///  than the average in the region.
+  /// system, we ensure that the solution is on the invariant domain
+  /// defined by density, internal energy and entropy remain non-negative.
+  /// This function does so by
+  ///   1) setting a minimum density and
+  ///   2) setting a maximum total energy E (to prevent spikes), and
+  ///      also a minimum one defined by adding incremental delta E's
+  ///      so that the internal energy is positive and the entropy also.
+  ///      WARNING: As it stands now, this function should only work for
+  ///               an Ideal EOS and for the Euler equations. Finding the
+  ///               delta E is done for these equations. One could in principle
+  ///               write an iterative procedure to find a suitable delta E
+  ///               given arbitrary EOS/PDE system, we do not do that here.
+  ///               There is an assertion on the Desctiption to warn of this
+  ///               in DEBUG.
   /// @tparam Description The description of the system, providing a pressure
   /// function and an entropy function.
   /// @tparam dim The spatial dimension.

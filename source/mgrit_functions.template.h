@@ -1,6 +1,8 @@
 #include "mgrit_functions.h"
 #include "level_structures.h"
 
+#include <type_traits>
+
 // This preprocessor macro is used on function arguments
 // that are not used in the function. It is used to
 // suppress compiler warnings.
@@ -189,19 +191,45 @@ namespace mgrit_functions{
     // (1) u.U[0]     = rho
     // (2) u.U[i]     = rho*vi, for each spatial dimension
     // (3) u.U[dim+1] = E
+
+    // Here, we assume an ideal gas (with a gamma law).
+    // Further, these variable are related to each other via the following equality:
+    // where e is the specific energy density
+    // (4)               E = rho*e + 1/2*(|m|^2)/rho
     
-    // Further, these variable are further related to each other via the following equality:
-    // e is the specific energy density
-    // (4) E = rho*e + 1/2*(|m|^2)/rho
+    // And we have the following equations of interest, which define the invariant domain of
+    // ryujin's authors. When we are done with this function, we hope that the following
+    // inequalities hold: 
+    // (Density)          rho                                   >= 0
+    // (Specific Entropy) psi   = internal_energy*(1/rho)^gamma >= 0
+    // (Internal Energy)  rho*e = (E - 0.5/rho*|m|^2)           >= 0
+
+    // For this projection, we also know that the pressure is given by the following EOS:
+    // (Pressure) P = (gamma-1)*internal_energy
+
+    // This function works in the following steps
+    //   - The tau-like corrections from MGRIT cause negative densities, so we first
+    //     set a small, but nonzero density.
+    //   - We observed spikes in E, presumably caused by the tau corrections, so we
+    //     next limit E at each node to the maximum of its neighbors if the node's
+    //     E contributes more than 90% of the total E in the area. (A spike).
+    //   - Next, we have to ensure that all of our changes are in the invariant domain
+    //     described by (Density), (Specific Entropy), (Internal Energy). Density ought
+    //     to be OK, but we need to check the other conditions. If these fail, we then
+    //     compute incremental delta E energy increases, until both (Specific Entropy)
+    //     and (Internal Energy) are satisfied. In principle, thes could be calculated
+    //     independently for different PDE systems or EOS. For the assumptions outlined above,
+    //     we note that (Internal Energy) implies (Specific Entropy). So we just add to E until
+    //     E > 0.5/rho*|m|^2 + epsilon (the parameter epsilon is to ensure we are small,
+    //     but not negative).
+    //   - Finally, we update the vector reference u with all the states that needed modifying .
     
-    // since this function modifies rho and E, we need to make sure this is done in a compatible way.
+    // Since this function modifies rho and E, we need to make sure this is done in a compatible way.
     // Meaning that if we limit rho >= 0, then we need to update all the states, since (1), (2), and
     // (4) all involve rho.
 
     // Similarly, modifying E should entail modifying rho*e, and hence needs to modify
     // somehow rho, e, and m?
-    // TODO: is the above statement reasonable, and is it possible to define how to change all
-    // of the above variables if we change the values of some of them?
     
     // Create Hyperbolic System View, where we can compute functions like pressure.
     const auto view = app.levels[level]->hyperbolic_system->get().template view<dim,Number>();
@@ -212,8 +240,10 @@ namespace mgrit_functions{
 	   dealii::ExcMessage("enforce_physicality only works if the vector's size and the size "
 			      "from the level match. This is because a copy is made from the size "
 			      "from the offline_data."));
-    //Assert(Description == ) TODO: this function built with euler description in mind only.
-    //                              Check that this is the case.
+    Assert((std::is_same<Description,typename ryujin::Euler::Description>::value),
+	   dealii::ExcMessage("enforce_physicality only designed for the Euler case"
+			      " with a gamma law EOS.")); 
+    
     
     // First, we limit the density to be non-negative, and update all the relations
     // with this new density.
@@ -221,44 +251,13 @@ namespace mgrit_functions{
     {
       auto state = std::get<0>(u.U).get_tensor(node);
       Number old_rho = state[0];
-      // if (old_rho < 1e-8)//TODO: set other threshold?
-      // {
-      // 	//Update all densities.
-      // 	Number new_rho = 1e-8; // minimum
-      // 	Number new_rho_inv = 1e8;
-      // 	//Number old_rho_inv = 1.0/old_rho;
-      // 	Number e = view.internal_energy(state)/old_rho;
-      //   dealii::Tensor<1, dim, Number> v;
-      // 	dealii::Tensor<1, dim, Number> m = view.momentum(state);
-
-      // 	v = m/old_rho;//re-use velocities from old state.
-
-      // 	// Set new information.
-      // 	m = new_rho*v;//new momentum
-      // 	state[0] = new_rho;//new density
-      // 	for(int d=0; d<dim; d++)
-      // 	  state[d+1] = m[d];//place new momentum into state.
-      // 	state[dim+1] = new_rho*e + 0.5*m.norm_square()*new_rho_inv;//New E
-
-      // 	// Write new state.
-      // 	std::get<0>(u.U).write_tensor(state, node);
-      // } else {
-      // 	continue;
-      // }
+      
       state[0] = std::max(old_rho, 1e-8);
       std::get<0>(u.U).write_tensor(state, node);
-
-      if(!view.is_admissible(state))
-      {
-	std::cout << "calling=" << calling
-		  <<" enforce_physicality() incoming state on level=" << level
-		  << " is not admissible node="
-		  << node << " and state=" << state << std::endl;
-      }
     }
     // Communicate the changes.
     std::get<0>(u.U).update_ghost_values();
-    // return;
+    
     // Now that the densities are fixed, let's ensure that E is not too large
     // by checking if it contributes greater than 90% of the total enegry of a local
     // stencil. Then, if it does, we replace it with the largest (hopefully reasonable
@@ -314,10 +313,10 @@ namespace mgrit_functions{
       const Number total_stencil_E = surrounding_E_sum + state_E;
       
       // Calculate the average of the other nodes.
-      Number surrounding_avg = surrounding_E_sum/(stencil_size-1);// guranteed to not divide by
-								  // zero since we assert above
-								  // that this mesh has no
-								  // constraints.
+      // guranteed to not divide by zero since we assert above
+      // that this mesh has no constraints.
+      [[maybe_unused]] Number surrounding_avg
+			 = surrounding_E_sum/(stencil_size-1);
 
 #ifdef DEBUG_OUTPUT
       std::cout << "Node: " << node << " row length is " << sparsity_level.row_length(node)
@@ -332,16 +331,7 @@ namespace mgrit_functions{
       state_node[dim+1] = std::max(state_E, Number(1e-8));//FIXME: doe we need to update all other
 							  //parts of this state here?
 
-      // disallow very large E.
-      // TODO: make this sense if this node contributes most of the pressure, eg. 90% or 80%
-      // FIXME: also, is the E guranteed to be positive? then does this need abs?
-      // Also, is this portion of the function only relevant if ALL P are positive?
-      // I'll likely need to gurantee that this is the case after I do some projection, if so.
-      // QUESTION: does this function work for spikes where the node has no neighbors? if not,
-      // then we may need to set this threshold to a globally computed average. As of now, it is
-      // unclear whether this sort of edge case spike actually happens in the code, but it is
-      // possible and as of now unhandled.
-
+      // Finally, disallow very large E.
       if(std::abs(state_node[dim+1]/total_stencil_E) > 0.9)
       {
 	// If E is too large compared to the surrounding nodes, we replace all the vector data from
@@ -350,25 +340,10 @@ namespace mgrit_functions{
 	std::cout << "Replacing E in projection operation." << std::endl;
       }
 
-      // Next, we need to verify that the pressure of this new state is OK,
-      // and if not, we increase it.
-      auto pressure = view.pressure(state_node);
-
-      if (pressure < 0.0)
-      {
-	Number eps = 1e-8;
-	// We calculate a deltaE based on increasing the pressure beyond 0.
-	Number deltaE = 1/(view.gamma()-1)*(-pressure +eps);//FIXME: this whole function
-							    //is only relevant to an ideal
-							    //gas, this deltaE is built only
-							    //for ideal gas EOS in (4).
-	state_node[dim+1] += deltaE;
-      }
-      
-      // Write new state in the copied vector. TODO: does this need to happen every time
-      // or only in the case that the above if(...) triggers?
-      std::get<0>(copy.U).write_tensor(state_node, node);
-
+      // Next, we need to verify that the each node's state is admissible, if not, then
+      // it is likely that the internal energy is negative, so we calculate a delta E based
+      // on (Internal Energy).
+      const Number eps = 1e-8;
       if(!view.is_admissible(state_node))
       {
 	std::cout << "calling=" << calling
@@ -376,8 +351,17 @@ namespace mgrit_functions{
 		  << "on level=" << level
 		  << " is not admissible node="
 		  << node << " and state=" << state_node << std::endl;
+	Number deltaE = -view.internal_energy(state_node)+eps;
+	state_node[dim+1] += deltaE;
       }
+      
+      // Write new state in the copied vector. TODO: does this need to happen every time
+      // or only in the case that the above if(...) triggers?
+      std::get<0>(copy.U).write_tensor(state_node, node);
     }
+
+    //TODO: the equations (1), (2), (3),(4) maybe not satisfied with these
+    //      arbitrary additions and limitations?
 
     // Exchange projection changes in copy.
     std::get<0>(copy.U).update_ghost_values();

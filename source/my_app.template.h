@@ -876,7 +876,7 @@ namespace mgrit{
         lvl_tstop,
         lvl_tstart,
         print_every_step,
-	[](const StateVector&, double t){},
+	[](const StateVector&, double){},
 	print_every_step);//print every step of the integration
 
       // This is the first time we see a spike, so let's visualize this.
@@ -1239,7 +1239,7 @@ namespace mgrit{
 	pout << "[INFO] Access Called" << std::endl;
         pout << "Cycles done: " << mgCycle << std::endl;
 
-	mgrit_functions::enforce_physicality_bounds(*u_, finest_level, *this, t, caller_id);
+	mgrit_functions::enforce_physicality_bounds(*u_, finest_level, *this, t, caller_id);//Needed?
 	
 	std::cout << "Printing brick " << t_idx << " at t= " << t << " on cycle " << mgCycle
 		  << std::endl;
@@ -1261,6 +1261,10 @@ namespace mgrit{
 										 t);
         n_cycles = mgCycle;
         break;
+      }
+    case braid_ASCaller_FInterp_Projection :
+      {
+	mgrit_functions::enforce_physicality_bounds(*u_, finest_level, *this, t, caller_id);
       }
       default:
       {
