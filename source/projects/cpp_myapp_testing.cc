@@ -1,6 +1,8 @@
 #include <my_app.h>
 #include <deal.II/base/mpi.h>
 
+#include <cfenv>// for floating point exceptions
+
 #include "euler/description.h"
 #include "introspection.h"
 
@@ -55,7 +57,9 @@ void set_thread_limit(const MPI_Comm &mpi_communicator [[maybe_unused]])
 int main(int argc, char* argv[])
 {
   // feenableexcept(FE_DIVBYZERO | FE_INVALID);
-  //feenableexcept(FE_INVALID);
+#ifdef ENABLE_FPE
+  feenableexcept(FE_DIVBYZERO | FE_INVALID);
+#endif
   flush_denormals_to_zero();
   
   // TODO: make this a parameter file option or a cmd line option.

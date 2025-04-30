@@ -109,6 +109,7 @@ option(DENORMALS_ARE_ZERO "Set the \"denormals are zero\" and \"flush to zero\" 
 option(FORCE_DEAL_II_SPARSE_MATRIX "Always use dealii::SparseMatrix instead of TrilinosWrappers::SparseMatrix for assembly" OFF)
 option(SANITIZER "Enable address and UBSAN sanitizers for DEBUG build" OFF)
 option(DEBUG "Enable more output from MGRIT functions" OFF)
+option(ENABLE_FPE "Enable Floating Point Errors" OFF)
 
 #
 # External packages:
