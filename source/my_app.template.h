@@ -194,11 +194,9 @@ namespace mgrit{
     for (int lvl = most_refinement; 
          lvl >= least_refinement;
          lvl--) {
-      pout << lvl << std::endl;
       if (std::find(refinement_levels.begin(),
                     refinement_levels.end(),
                     lvl) != refinement_levels.end()) {
-	pout << "exists"<< std::endl;
         discretization_vec[most_refinement-lvl] = levels[iter]->discretization;
         offline_data_vec[most_refinement-lvl] = levels[iter]->offline_data;
         level_map[iter] =
@@ -208,7 +206,6 @@ namespace mgrit{
                  // in principle is not the same at lvl.
         iter++;
       } else {
-        pout << "does not exist" << std::endl;
         discretization_vec[most_refinement-lvl] = std::make_shared<DiscretizationType>(
             *mpi_ensemble_x, lvl, "/C - Discretization");
         offline_data_vec[most_refinement-lvl] = std::make_shared<OfflineDataType>(*mpi_ensemble_x, 
@@ -223,16 +220,15 @@ namespace mgrit{
     prepare_mg_objects();
 
     // Prepare the additional offline_data and discretizations.
+    pout << "[INFO] Preparing additional offline_data and "
+      "discretization for interpolation purposes."
+	 << std::endl;
     for (int lvl = most_refinement; lvl >= least_refinement; lvl--) {
       // If we don't find this level already set up, we prepare it.
       if (std::find(refinement_levels.begin(),
                     refinement_levels.end(),
                     lvl) == refinement_levels.end())
       {  
-	pout << "Preparing additional offline_data and "
-	  "discretization for interpolation purposes."
-	     << std::endl;
-  
         discretization_vec[most_refinement-lvl]->prepare(base_name);
 	const unsigned int n_parabolic_state = offline_data_vec[most_refinement-lvl]
 	  ->n_parabolic_state_vectors();
@@ -241,6 +237,7 @@ namespace mgrit{
 						       n_parabolic_state);
       }
     }
+    pout << "Additional offline_data and discretization prepared" << std::endl;
     // Set the number of time points based on the number of bricks.
     for(braid_Int l = 0; l < coarsest_level; l++)
       total_cfactor *= cfactor;
@@ -275,36 +272,29 @@ namespace mgrit{
 						       dim,
 						       Number>>(mpi_ensemble_x,
 								0/*no refinement*/);
-    
+    pout << "[INFO] Creating Required Level Structures" << std::endl;
     for (unsigned int i = 0; i < refinement_levels.size(); i++) {
-      pout << "[INFO] Setting Structures in App at level "
-	   << refinement_levels[i] << std::endl;
-      
       levels[i] = std::make_shared<
           ryujin::mgrit::LevelStructures<Description, dim, Number>>(
           mpi_ensemble_x, refinement_levels[i]);
       time_loops[i] =
           std::make_shared<ryujin::TimeLoop<Description, dim, Number>>(*(levels[i]));
-      pout << "Level " + std::to_string(refinement_levels[i]) + " created."
-                << std::endl;
     }
+    pout << "All MG levels created" << std::endl;
   }
   
   template<typename Number, typename Description, int dim>
   void MyApp<Number, Description, dim>::prepare_mg_objects()
   {
     unrefined_level->prepare(base_name);
+
+    pout << "[INFO] Preparing Required Level Structures" << std::endl;
     for (unsigned int lvl = 0; lvl < refinement_levels.size(); lvl++) {
-      pout << "[INFO] Preparing Structures in App at level "
-	   << refinement_levels[lvl] << std::endl;
-      
       levels[lvl]->prepare(base_name);
-      pout << "Level " + std::to_string(refinement_levels[lvl]) +
-                       " prepared."
-                << std::endl;
 
       MPI_Barrier(MPI_COMM_WORLD); // TODO: need this?
     }
+    pout << "All MG levels prepared " << std::endl;
     // set the last variables in app.
     n_fine_dofs = levels[0]->offline_data->dof_handler().n_dofs();
     n_locally_owned_dofs = levels[0]->offline_data->n_locally_owned();
