@@ -276,10 +276,8 @@ namespace mgrit_functions{
       // For this node, we loop over the local stencil and calculate an average
       // of the other nodes.
       Number surrounding_E_sum = 0.0;
-      Number maximum_surrounding_E = 0.0;
-      int    max_surrounding_idx   = 0; // this should not be zero after we are done, since
-					// idx=0 corresponds to node, while the surrounding
-					// which is what we care about, are not zero.
+      Number maximum_surrounding_E = 0.0;// FIXME: does this 
+      int    max_surrounding_idx   = 0; // this should not be node after we do the next step.
       auto stencil_size = sparsity_level.row_length(node);
       Assert(stencil_size > 1,
 	     dealii::ExcMessage("Enforce physicality only works for now on "
@@ -288,7 +286,7 @@ namespace mgrit_functions{
       {
 	const auto stencil_node_j = jt->column();
 	// we only calculate on the other connected nodes.
-	if(stencil_node_j == 0)// the diagonal is stored at 0 since our sparsity is square.
+	if(stencil_node_j == node)// the diagonal is stored at 0 since our sparsity is square.
 	  continue;
 	const auto state_j = std::get<0>(u.U).get_tensor(stencil_node_j);
 	auto E = state_j[dim+1];
@@ -302,37 +300,34 @@ namespace mgrit_functions{
 	surrounding_E_sum += E;
       }
 
-      Assert(max_surrounding_idx != 0,
-	     dealii::ExcMessage("The maximum surrounding index cannot be 0 "
-				"since this index represents this node, when "
+      Assert(max_surrounding_idx != node,
+	     dealii::ExcMessage("The maximum surrounding index cannot be the current node "
 				"what we really want is the max of the "
-				"SURROUNDING nodes, not the center one."));
+				"connected SURROUNDING nodes, not the current one."));
       auto state_node = std::get<0>(u.U).get_tensor(node);
-      auto state_E = state_node[dim+1];
+      auto E_node = state_node[dim+1];
       
-      const Number total_stencil_E = surrounding_E_sum + state_E;
+      const Number total_stencil_E = surrounding_E_sum + E_node;
       
       // Calculate the average of the other nodes.
       // guranteed to not divide by zero since we assert above
       // that this mesh has no constraints.
-      [[maybe_unused]] Number surrounding_avg
-			 = surrounding_E_sum/(stencil_size-1);
+      Number surrounding_avg = surrounding_E_sum/(stencil_size-1);
 
 #ifdef DEBUG_OUTPUT
       std::cout << "Node: " << node << " row length is " << sparsity_level.row_length(node)
 		<< " and the node_avg E is " << total_stencil_E/stencil_size
 		<< " and the average from the surrouning nodes is "
 		<< surrounding_avg <<  std::endl;
-      std::cout << "While the state E is " << state_E
+      std::cout << "While the E_node is " <<  E_node
 		<< " and the surrounding maximum E " << maximum_surrounding_E
 		<< std::endl;
 #endif
       // Prevent E from being small.
-      state_node[dim+1] = std::max(state_E, Number(1e-8));//FIXME: doe we need to update all other
-							  //parts of this state here?
+      state_node[dim+1] = std::max(E_node, Number(1e-8));//TODO: change this to eps_E
 
       // Finally, disallow very large E.
-      if(std::abs(state_node[dim+1]/total_stencil_E) > 0.9)
+      if(std::abs(state_node[dim+1]) > 3*surrounding_avg)
       {
 	// If E is too large compared to the surrounding nodes, we replace all the vector data from
 	// the data of the largest surrounding node.
@@ -343,7 +338,7 @@ namespace mgrit_functions{
       // Next, we need to verify that the each node's state is admissible, if not, then
       // it is likely that the internal energy is negative, so we calculate a delta E based
       // on (Internal Energy).
-      const Number eps = 1e-8;
+      const Number eps = 1e-8;//TODO: change to eps_E
       if(!view.is_admissible(state_node))
       {
 	std::cout << "calling=" << calling
