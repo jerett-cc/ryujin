@@ -39,7 +39,8 @@ int main(int argc, char* argv[]){
   std::cout << "use_fmg " << ((app.use_fmg == false)? " OK": " NOT OK") << std::endl;
   std::cout << "max iter " << ((app.max_iter == 2)? " OK": " NOT OK") << std::endl;
   std::cout << "base name " << ((app.base_name == "TESTAPP")? " OK": " NOT OK") << std::endl;
-  std::cout << "cfactor " << ((app.minimal_tpoints_coarsest_level == 3)? " OK": " NOT OK")
+  std::cout << "minimal tpoints coarsest level "
+	    << ((app.minimal_tpoints_coarsest_level == 2)? " OK": " NOT OK")
 	    << std::endl;
   std::cout << "nrelax " << ((app.n_relax == 1)? " OK": " NOT OK") << std::endl;
   std::cout << "tstart " << ((std::abs(app.tstart-0.0) < 1e-8)? " OK": " NOT OK") << std::endl;

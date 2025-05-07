@@ -1,0 +1,26 @@
+[INFO] Creating Required Level Structures
+All MG levels created
+[INFO] Preparing Required Level Structures
+All MG levels prepared 
+[INFO] Preparing additional offline_data and discretization for interpolation purposes.
+Additional offline_data and discretization prepared
+Cumulative coarsening by a factor of 9
+cfactor  OK
+finest level  OK
+coarsest level  OK
+num bricks  OK
+access level  OK
+use_fmg  OK
+max iter  OK
+base name  OK
+minimal tpoints coarsest level  OK
+nrelax  OK
+tstart  OK
+tstop  OK
+print factor  OK
+print solution bool  OK
+timeloops  OK
+level_structures  OK
+discretization levels  OK
+offline data for interpolation  OK
+level map  OK
