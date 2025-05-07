@@ -1,0 +1,14 @@
+[INFO] Creating Required Level Structures
+All MG levels created
+[INFO] Preparing Required Level Structures
+All MG levels prepared 
+[INFO] Preparing additional offline_data and discretization for interpolation purposes.
+Additional offline_data and discretization prepared
+Cumulative coarsening by a factor of 1
+E is too large (E=1000.000000) compared to threshold 900.000000 at t 0.000000 at local_dof_index 0 with xbraid calling function 0
+E exceeds threshold like we expect.
+Replacing E in projection operation.
+Projection has lowered E.
+Projection operation is identity on physical vector.
+my_Uafter_projection - my_Ucopy=0
+my_U_ok_after_projection - my_U_ref=0

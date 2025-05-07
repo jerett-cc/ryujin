@@ -7,7 +7,7 @@ include_directories(
   ${CMAKE_BINARY_DIR}/source/
   )
 # MGRIT is only for euler equations now.
-set(TEST_LIBRARIES obj_common obj_euler obj_euler_dependent obj_mgrit obj_mgrit_dependent)
+set(TEST_LIBRARIES obj_common obj_euler obj_euler_dependent obj_mgrit)
 
   deal_ii_pickup_tests()
 

@@ -8,7 +8,43 @@
 #include "state_vector.h"
 #include "mgrit_functions.template.h"
 
-
+const std::string parameters =
+  "subsection App\n"
+  "  set print_solution_bool = true\n"
+  "  set Time Bricks = 16 \n"
+  "  set min_num_coarsest_points = 2\n"
+  "  set print factor = 2 # how many cpoints do we skip during output?\n"
+  "  set Start Time = 0.0\n"
+  "  set Stop Time = 2.0\n"
+  "  set cfactor = 2 ## 2 is default\n"
+  "  set max_iter = 2 # do this many iterations\n"
+  "  set use_fmg = false ## use f multigrid cycle\n"
+  "  set n relax = 1\n"
+  "  set access_level = 3\n"
+  "  set base name = ./test_interpolate_03_\n"
+  "end\n"
+  "subsection A - TimeLoop\n"
+  "  set enable output full = true\n"
+  "end\n"
+  "subsection C - Discretization\n"
+  " set geometry            = cylinder_mgrit\n"
+  " subsection cylinder_mgrit\n"
+  "   set height                 = 2\n"
+  "   set length                 = 4\n"
+  "   set object diameter        = 0.5\n"
+  "   set object position        = 0.6\n"
+  "   set second object diameter = 0.5\n"
+  "  end\n"
+  "end\n"
+  "subsection J - VTUOutput\n"
+  "  set manifolds                  = \n"
+  "  set schlieren beta             = 10\n"
+  "  set schlieren quantities       = rho\n"
+  "  set schlieren recompute bounds = true\n"
+  "  set use mpi io                 = true\n"
+  "  set vorticity quantities       = \n"
+  "  set vtu output quantities      = rho, m_1, m_2, E\n"
+  "end\n";
 
 /**
  * Right now, this executable runs a simulation equivalent to a ryujin run.
@@ -32,15 +68,13 @@ void set_E_and_rho_at_single_point(const double new_point_E, const double new_rh
 
 int main(int argc, char *argv[]){
 
-  const std::string prm_name = argv[1];
   const std::vector<int> refinement_levels = {0};
-
-  dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);  //create objects
-  const MPI_Comm comm_world = MPI_COMM_WORLD;
-  
-  mgrit::MyApp<double, ryujin::Euler::Description, 2> app(comm_world, comm_world, refinement_levels);
-
-  app.initialize(prm_name);
+  dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv);
+  mgrit::MyApp<double, ryujin::Euler::Description, 2> app(MPI_COMM_WORLD,
+							  MPI_COMM_WORLD,
+							  refinement_levels);
+  std::istringstream prm_stream(parameters);
+  app.initialize(prm_stream);
 
   // Set up data.
   mgrit::MyVector<double, ryujin::Euler::Description, 2> my_U_ok, my_U, my_U_copy, my_U_ref;
@@ -71,11 +105,11 @@ int main(int argc, char *argv[]){
 										      0,
 										      0,
 										      E_threshold,
-										      true))
+										      false))
   {
-    std::cout << "Did Exceed, see above for where." << std::endl;
+    std::cout << "E exceeds threshold like we expect." << std::endl;
   } else {
-    std::cout << "Problem, E should have exceeded at a point." << std::endl;
+    std::cout << "Problem, E should have exceeded at some point." << std::endl;
   }
 
   // Now, we project to stable manifold defined by positive density, and not too large E.
@@ -90,14 +124,14 @@ int main(int argc, char *argv[]){
 								     0,
 								     0,
 								     E_threshold,
-								     true,
+								     false,
 								     "afterenforcephysicality"))
   {
-    std::cout << "Projection did not lower E, see file ./after*.vtu above for where." << std::endl;
-    app.print_solution(my_U.U, 0., 0, "./E_exceeds_afterprojection", 0);
+    std::cout << "Projection did not lower E, though it should have." << std::endl;
+    // app.print_solution(my_U.U, 0., 0, "./E_exceeds_afterprojection", 0);
   } else {
     std::cout << "Projection has lowered E." << std::endl;
-    app.print_solution(my_U.U, 0., 0, "./E_lowered_afterprojection", 0);
+    // app.print_solution(my_U.U, 0., 0, "./E_lowered_afterprojection", 0);
   }
 
   // we also need to check that the projection is the identity when acting on
@@ -107,18 +141,18 @@ int main(int argc, char *argv[]){
   const double ref_size = std::get<0>(my_U_ref.U).l1_norm();
   const double modified_size = std::get<0>(my_U.U).l1_norm();
   const double copy_size = std::get<0>(my_U_copy.U).l1_norm();
-  app.print_solution(my_U_ok.U, 0., 0, "./OK_U_before_projection", 0);
+  // app.print_solution(my_U_ok.U, 0., 0, "./OK_U_before_projection", 0);
   // project an OK vector, expect that we have the same norm as the ref.
   mgrit_functions::enforce_physicality_bounds(my_U_ok,0,app,0.);
-  app.print_solution(my_U_ok.U, 0., 0, "./OK_U_after_projection", 0);
+  // app.print_solution(my_U_ok.U, 0., 0, "./OK_U_after_projection", 0);
   const double ok_size = std::get<0>(my_U_ok.U).l1_norm();
   std::get<0>(my_U_ok.U).sadd(1., -1., std::get<0>(my_U_ref.U));
-  app.print_solution(my_U_ok.U, 0., 0, "./OK_U__diff_after_projection", 0);
+  // app.print_solution(my_U_ok.U, 0., 0, "./OK_U__diff_after_projection", 0);
   const double diff_size = std::get<0>(my_U_ok.U).l1_norm();
-  app.print_solution(my_U_ok.U, 0., 0, "./U_ref", 0);
+  // app.print_solution(my_U_ok.U, 0., 0, "./U_ref", 0);
   if ( diff_size >= 1e-5)
   {
-    std::cout << "Projection operation not identity on physical vector." << std::endl;
+    std::cout << "Projection operation NOT identity on physical vector." << std::endl;
   } else {
     std::cout << "Projection operation is identity on physical vector." << std::endl;
   }
