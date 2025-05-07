@@ -200,9 +200,9 @@ namespace mgrit_functions{
     // And we have the following equations of interest, which define the invariant domain of
     // ryujin's authors. When we are done with this function, we hope that the following
     // inequalities hold: 
-    // (Density)          rho                                   >= 0
-    // (Specific Entropy) psi   = internal_energy*(1/rho)^gamma >= 0
-    // (Internal Energy)  rho*e = (E - 0.5/rho*|m|^2)           >= 0
+    // (Density)          rho                                   > 0
+    // (Specific Entropy) psi   = internal_energy*(1/rho)^gamma > 0
+    // (Internal Energy)  rho*e = (E - 0.5/rho*|m|^2)           > 0
 
     // For this projection, we also know that the pressure is given by the following EOS:
     // (Pressure) P = (gamma-1)*internal_energy
@@ -244,6 +244,14 @@ namespace mgrit_functions{
 	   dealii::ExcMessage("enforce_physicality only designed for the Euler case"
 			      " with a gamma law EOS.")); 
     
+
+    // Calculate global averages in density and total energy, for use in the eps
+    // terms which limit the sensity and internal energy, rather than a non-physical
+    // term like 1e-8.
+
+    // state  avgs    = global_average_rho_E();
+    // Number eps_rho = avgs[0]     * 1e-2;
+    // Number eps_E   = avgs[dim+1] * 1e-2;
     
     // First, we limit the density to be non-negative, and update all the relations
     // with this new density.
@@ -252,7 +260,7 @@ namespace mgrit_functions{
       auto state = std::get<0>(u.U).get_tensor(node);
       Number old_rho = state[0];
       
-      state[0] = std::max(old_rho, 1e-8);
+      state[0] = std::max(old_rho, 1e-8);// set this to eps_rho
       std::get<0>(u.U).write_tensor(state, node);
     }
     // Communicate the changes.
@@ -346,7 +354,7 @@ namespace mgrit_functions{
 		  << "on level=" << level
 		  << " is not admissible node="
 		  << node << " and state=" << state_node << std::endl;
-	Number deltaE = -view.internal_energy(state_node)+eps;
+	Number deltaE = -view.internal_energy(state_node)+eps;//TODO: change to eps_E
 	state_node[dim+1] += deltaE;
       }
       
