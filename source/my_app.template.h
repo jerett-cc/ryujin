@@ -1105,7 +1105,7 @@ namespace mgrit{
 							  true/*print this if does exceed*/,
 							  "Elarge_cycle_" + std::to_string(mgCycle)
 							  + "forcalling_");
-    bool violates = admissible || spike;
+    bool violates = !admissible || spike;
     
     if(violates)
     {
