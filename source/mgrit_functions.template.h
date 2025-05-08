@@ -560,13 +560,13 @@ namespace mgrit_functions{
   }
 
   template <typename Description, int dim, typename Number>
-  dealii::Tensor<1, Description::problem_dimension, Number> global_average_rho_E(mgrit::MyVector<Number, Description, dim> &u,
+  dealii::Tensor<1, Description::problem_dimension, Number> global_average_state(mgrit::MyVector<Number, Description, dim> &u,
 										 const unsigned int level,
-										 const mgrit::MyApp<Number, Description, dim> &app)
+										 mgrit::MyApp<Number, Description, dim> &app)
   {
     using T = typename dealii::Tensor<1, Description::problem_dimension, Number>;
 
-    T avg_state(); 
+    T avg_state; 
 
     // Loop over all locally owned nodes, adding to avg_state.
     const auto view = app.levels[level]->hyperbolic_system->get().template view<dim,Number>();
