@@ -916,7 +916,8 @@ namespace mgrit{
 	     dealii::ExcMessage("Cannot interpolate t=0 conditions onto a vector "
 				"that assumes t="+std::to_string(t)));
       // Interpolate t=0 condition.
-      std::get<0>(u->U) = levels[finest_level]->initial_values->get().interpolate_hyperbolic_vector(t/*=0.0*/);
+      std::get<0>(u->U) =
+	levels[finest_level]->initial_values->get().interpolate_hyperbolic_vector(t/*=0.0*/);
       *u_ptr = (braid_Vector)u.release();
       return 0;
     }
@@ -1086,50 +1087,52 @@ namespace mgrit{
 
     std::string fname = "./" + base_name +"_cycle" + std::to_string(mgCycle);
 
-    
+#ifdef DEBUG
     /*all vectors live on finest level, unless interpolated to a coarser one*/
-    bool violates = mgrit_functions::does_E_exceed_threshold(*u_,
-							     *this,
-							     finest_level,
-							     t,
-							     t_idx,
-							     caller_id,
-							     200./*check whenever E is
+    bool admissible = mgrit_functions::state_admissible_everywhere(*u_,
+								   finest_level,
+								   *this,
+								   t,
+								   caller_id);
+    bool spike = mgrit_functions::does_E_exceed_threshold(*u_,
+							  *this,
+							  finest_level,
+							  t,
+							  t_idx,
+							  caller_id,
+							  200./*check whenever E is
 								   larger than 200*/,
-							     true/*print this if does exceed*/,
-							     "Elarge_cycle_" + std::to_string(mgCycle)
-							     + "forcalling_");
+							  true/*print this if does exceed*/,
+							  "Elarge_cycle_" + std::to_string(mgCycle)
+							  + "forcalling_");
+    bool violates = admissible || spike;
     
     if(violates)
     {
-      std::cout << "E for brick " << t_idx << " at t= " << t << " on cycle " << mgCycle
-		<< " is bad for caller " << caller_id << std::endl;
-      //      mgrit_functions::enforce_physicality_bounds(*u_, finest_level, *this, t);
-    }
-
-#ifdef DEBUG
-    std::set<int> tau_like_accessors{17,21};
-    bool need_assert = !tau_like_accessors.contains(caller_id);
-    if(need_assert){
-      bool admissible = mgrit_functions::state_admissible_everywhere(*u_,
-								     finest_level,
-								     *this,
-								     t,
-								     caller_id);
-       
-      if(!admissible)  
-	{
-	  std::cout << "U is not admissible on MG level " << level << " on cycle "
-		    << mgCycle << std::endl;  
+      std::cout << "Something is not OK forbrick " << t_idx << " at t= "
+		<< t << " on cycle " << mgCycle
+		<< " for caller " << caller_id << " What:" << std::endl;
+      if(!admissible)
+      {
+	std::cout << "U is not admissible on MG level " << level << " on cycle "
+		  << mgCycle << std::endl;  
 	  print_solution(u_->U,
 			 t,
 			 finest_level /*level that every u lives on*/,
-			 "./notadmissible_caller"+std::to_string(caller_id),
+			 "./inadmissible_caller"+std::to_string(caller_id),
 			 t_idx);
-	}
-      Assert(admissible,
-	     dealii::ExcMessage("A state is not admissible, see file "
-				"./notadmissible_caller"+std::to_string(caller_id)));
+      }
+
+      if(spike)
+      {
+	std::cout << "U has spike on MG level " << level << " on cycle "
+		  << mgCycle << std::endl;  
+	  print_solution(u_->U,
+			 t,
+			 finest_level /*level that every u lives on*/,
+			 "./spike_caller"+std::to_string(caller_id),
+			 t_idx);
+      }
     }
 #endif
     
@@ -1156,6 +1159,7 @@ namespace mgrit{
         dealii::Tensor<1, dim> forces =
             mgrit_functions::calculate_drag_and_lift<Number, Description>(this, *u_, t);
 
+	// TODO: make a global out stream here
 	std::cout << "cycle." + std::to_string(mgCycle) + " drag." +
 	                   std::to_string(forces[0]) + " lift." +
 	                   std::to_string(forces[1]) + " time." +
@@ -1203,14 +1207,6 @@ namespace mgrit{
     *size_ptr =
         (size + 1) * sizeof(Number); //+1 is for the size of the buffers being
                                      // stored in the first component.
-    // if (dealii::Utilities::MPI::this_mpi_process(comm_t) == 0) {
-    //   pout << "Size in bytes of the Number: " << sizeof(Number)
-    //             << std::endl;
-    //   pout << "Problem_dimension: " << problem_dimension
-    //             << " n_dofs: " << n_fine_dofs << std::endl;
-    //   pout << "buf_size: " << *size_ptr << std::endl;
-    // }
-
     return 0;
   }
 
@@ -1223,10 +1219,6 @@ namespace mgrit{
     pout << "[INFO] BufPack Called" << std::endl;
     
     ryujin::Scope scope(computing_timer, "buf_pack");
-
-    mgrit_functions::
-        enforce_physicality_bounds<Description, dim, Number>(
-							     *u_, finest_level, *this, 0.0, -2);
     
     Number *dbuffer = (Number *)buffer;
     unsigned int n_locally_owned =
@@ -1297,12 +1289,7 @@ namespace mgrit{
     }
 
     *(u_ptr) = (braid_Vector)u; // modify the u_ptr does this create a memory leak as we just
-                  // point this pointer somewhere else?
-
-#ifdef CHECK_BOUNDS
-    // Test that the outgoing vector is physical at the fine level.
-    test_physicality(std::get<0>(u->U), 0, "my_BufUnpack: unpacked vector.");
-#endif
+                                // point this pointer somewhere else?
 
     return 0;
   }
