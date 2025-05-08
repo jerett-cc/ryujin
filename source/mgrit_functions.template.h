@@ -349,14 +349,28 @@ namespace mgrit_functions{
       const Number eps = 1e-8;//TODO: change to eps_E
       if(!view.is_admissible(state_node))
       {
+#ifdef DEBUG
 	std::cout << "calling=" << calling
 		  << " enforce_physicality() state after limiting density and E/Pressure "
 		  << "on level=" << level
 		  << " is not admissible node="
 		  << node << " and state=" << state_node << std::endl;
+#endif
 	Number deltaE = -view.internal_energy(state_node)+eps;//TODO: change to eps_E
 	state_node[dim+1] += deltaE;
       }
+
+#ifdef DEBUG
+      // Double ckeck that now the state is admissible.
+      if(view.is_admissible(state_node))
+      {
+	std::cout << "calling=" << calling
+		  << " enforce_physicality() state after limiting density and E/Pressure "
+		  << "on level=" << level
+		  << " has been made admissible node="
+		  << node << " and state=" << state_node << std::endl;
+      }
+#endif
       
       // Write new state in the copied vector. TODO: does this need to happen every time
       // or only in the case that the above if(...) triggers?

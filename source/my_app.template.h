@@ -737,75 +737,70 @@ namespace mgrit{
     pstatus.GetLevel(&level);
     pstatus.GetTIndex(&t_idx);
     pstatus.GetIter(&iter);
-    pstatus.GetCallingFunction(&calling);
+    pstatus.GetCallingFunction(&calling); 
 
 
-    std::string brick_name_prefix = "VMG_brick_80Brick_iter_" + std::to_string(iter) +
-      "_tidx_" + std::to_string(t_idx); 
-
-
+    //TODO: do I need this conditional at all? #F-relaxations differ on each level, and
+    //      based on relaxation strategy (FC or FCF, etc.)
     if(level == finest_level)
     {
       std::pair<int,int> tidx_iter(t_idx, iter);
       f_brick_relaxation_count[tidx_iter] += 1;
     }
+    
+    std::string fname = "step" + std::to_string(num_step_calls) + "_cycle" +
+      std::to_string(n_cycles) + "_level_" +
+      std::to_string(level) + "_interval_[" +
+      std::to_string(lvl_tstart) + "_" + std::to_string(lvl_tstop) +"]";
+    
     // Start a timer for step::level
     ryujin::Scope scope(computing_timer, "step::" + std::to_string(level));
-
     
     bool fails = false;
-      // This is the first time we see a spike, so let's visualize this.
-      fails =
-	fails || mgrit_functions::does_E_exceed_threshold(*u_,
-							  *this,
-							  finest_level,
-							  lvl_tstart,
-							  t_idx,
-							  calling,
-							  400./*threshold*/,
-							  true/*yes, print*/,
-							  "./Onlevel" + std::to_string(finest_level)
-							  +"_before_enforce_physicality_calling_");
-
-      if(num_step_calls == 60)
-	print_solution(u_->U, lvl_tstart, finest_level /*level that every u lives on*/, "./fine_issue_60_before_projection", t_idx);
-      
-    // Ensure this is a physical vector.
-    mgrit_functions::
-        enforce_physicality_bounds<Description, dim, Number>(
-							     *u_, finest_level, *this, lvl_tstart, -3);
     
-    // This is the first time we see a spike, so let's visualize this.
-      fails =
-	fails || mgrit_functions::does_E_exceed_threshold(*u_,
-							  *this,
-							  finest_level,
-							  lvl_tstart,
-							  t_idx,
-							  calling,
-							  400./*threshold*/,
-							  true/*yes, print*/,
-							  "./Onlevel" + std::to_string(finest_level)
-							  +"_after_enforce_physicality_calling_");
-    
-
 #ifdef DEBUG
-    pout << "[INFO] Stepping on level: " + std::to_string(level) +
+    fails = fails ||
+	mgrit_functions::state_admissible_everywhere(*u_,
+						     finest_level,
+						     *this,
+						     lvl_tstart,
+						     calling);
+    if(fails)
+      print_solution(u_->U,
+		       lvl_tstart, finest_level, fname
+		     +"not_admissible_before_enforce_physicality_before_step_"
+		     +"level_"+std::to_string(level),
+		       t_idx);
+#endif
+    
+      // Ensure this is a physical vector.
+    mgrit_functions::
+        enforce_physicality_bounds<Description, dim, Number>(*u_,
+							     finest_level,
+							     *this,
+							     lvl_tstart,
+							     -3);
+    
+#ifdef DEBUG
+      fails = fails ||
+	mgrit_functions::state_admissible_everywhere(*u_,
+						     finest_level,
+						     *this,
+						     lvl_tstart,
+						     calling);
+      if(fails)
+	print_solution(u_->U,
+		       lvl_tstart, finest_level, fname
+		       +"not_admissible_after_enforce_physicality_before_step_"+
+		       "level_"+std::to_string(level),
+		       t_idx);
+	
+      pout << "[INFO] Stepping on level: " + std::to_string(level) +
       "\non interval: [" + std::to_string(lvl_tstart) + ", " +
       std::to_string(lvl_tstop) + "]\n" +
       "total step call number " +
       std::to_string(num_step_calls)
 	 << std::endl;
-#endif
-
-    std::string fname = "step" + std::to_string(num_step_calls) + "_cycle" +
-                        std::to_string(n_cycles) + "_level_" +
-                        std::to_string(level) + "_interval_[" +
-                        std::to_string(lvl_tstart) + "_" + std::to_string(lvl_tstop) +
-                        "]";
-#ifdef CHECK_BOUNDS
-    // Test that the incoming vector is physical at the fine level.
-    test_physicality(std::get<0>(u_->U), 0, "before interpolation.");
 #endif
 
     // use a macro to get rid of some unused variables to avoid -Wall messages
@@ -821,8 +816,6 @@ namespace mgrit{
     my_vector *u_to_step = new (my_vector);
     reinit_to_level(u_to_step, level);
 
-    //pout << "norm of initialized u_to_step: " << std::get<0>(u_to_step->U).l2_norm() << std::endl;
-
     // Interpolate between levels, put data from u (fine level) onto the
     // u_to_step (coarse level), if the level is not zero (this is because all
     // the vectors are assumed to be at the finest level spatially.) This allows
@@ -830,33 +823,11 @@ namespace mgrit{
     // larger mesh size.
 
     interpolate_between_levels(*u_to_step, level, *u_, 0);
-
-    bool printTHIS = false;
-    //Debugging: if we are in a place where we see a bad data, we output the before on each level
-    if (num_step_calls  == 60)
-    {
-      print_solution(u_->U, lvl_tstart, finest_level /*level that every u lives on*/, "./fine_issue_60_after_projection", t_idx);
-      print_solution(u_to_step->U, lvl_tstart, level /*level that every u lives on*/, "./coarse_issue_60_to_step", t_idx);
-      printTHIS = true;
-    }
-    // This is the first time we see a spike, so let's visualize this.
-    fails =
-      fails || mgrit_functions::does_E_exceed_threshold(*u_to_step,
-							*this,
-							level,
-							lvl_tstart,
-							t_idx,
-							calling,
-							400./*threshold*/,
-							true/*yes, print*/,
-							"./Onlevel" + std::to_string(level)
-							+"_after_interpolate_between_levels_calling_");
-
-#ifdef CHECK_BOUNDS
-    // Test physicality of interpolated vector.
-    test_physicality(std::get<0>(u_to_step->U), level, "before step.");
+    
+    bool print_every_step = false;//TODO Remove these things.
+#ifdef DEBUG
+    print_every_step = (level == 1) && (t_idx == 3) && (calling == braid_ASCaller_FInterp);
 #endif
-    bool print_every_step = (level == 1) && (t_idx == 3) && (calling == braid_ASCaller_FInterp);
     // step the function on this level
     // TODO: make sure that the last parameter is set properly, hardcoded
     // is not the best course here.
@@ -868,67 +839,13 @@ namespace mgrit{
         print_every_step,
 	[](const StateVector&, double){},
 	print_every_step);//print every step of the integration
-
-      // This is the first time we see a spike, so let's visualize this.
-      fails =
-	fails || mgrit_functions::does_E_exceed_threshold(*u_to_step,
-							  *this,
-							  level,
-							  lvl_tstop,
-							  t_idx,
-							  calling,
-							  400./*threshold*/,
-							  true/*yes, print*/,
-							  "./Onlevel" + std::to_string(level)
-							  +"_after_stepping_calling_");
     
-#ifdef CHECK_BOUNDS
-    // Test physicality of vector after it has been stepped.
-    test_physicality(std::get<0>(u_to_step->U), level, "after step.");
-
-    double norm = std::get<0>(u_to_step->U).l1_norm();
-
-    if (!dealii::numbers::is_finite(norm)) {
-      // ryujin::Checkpointing::write_checkpoint(
-      //         *(levels[level]->offline_data), fname, u_to_step->U, lvl_tstop,
-      //         num_step_calls, comm_x);
-      pout << "nan in file " << fname << std::endl;
-      pout << "Norm was " << norm << std::endl;
-      // exit(EXIT_FAILURE);
-    }
-#endif
     // Interpolate the updated state back to the fine level.
     interpolate_between_levels(*u_, 0, *u_to_step, level);
-    
-    // This is the first time we see a spike, so let's visualize this.
-    fails =
-      fails || mgrit_functions::does_E_exceed_threshold(*u_,
-							*this,
-							finest_level,
-							lvl_tstop,
-							t_idx,
-							calling,
-							400./*threshold*/,
-							true/*yes, print*/,
-							"./Onlevel" + std::to_string(finest_level)
-							+"_after_interpolating_back_finest_calling_");
-    
-#ifdef CHECK_BOUNDS
-    // Test physicality of interpolated vector on fine level, after the step.
-    test_physicality(
-        std::get<0>(u_->U), 0, "after step, after interpolation.");
-#endif
-
-    if(print_every_step)
-    {
-      print_solution(u_->U,
-      lvl_tstart, finest_level, fname+"_after_interpolation", t_idx);
-    }
 
     num_step_calls++;
-    // done.
-
     delete u_to_step;
+   
     return 0;
   }
 
