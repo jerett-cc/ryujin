@@ -7,14 +7,29 @@
 #include "my_app.h"
 #include "state_vector.h"
 
+const std::string parameters =
+  "subsection App\n"
+  "  set print_solution_bool = true\n"
+  "  set Time Bricks = 16 \n"
+  "  set min_num_coarsest_points = 2\n"
+  "  set print factor = 2 # how many cpoints do we skip during output?\n"
+  "  set Start Time = 0.0\n"
+  "  set Stop Time = 2.0\n"
+  "  set cfactor = 2 ## 2 is default\n"
+  "  set max_iter = 2 # do this many iterations\n"
+  "  set use_fmg = false ## use f multigrid cycle\n"
+  "  set n relax = 1\n"
+  "  set access_level = 3 ## if this dips, then we will not have the projection operation,\n"
+  "                       ## which is key for stability \n"
+  "		       ## 3 = projection operations happen\n"
+  "		       ## 4 = many tau visualizations at all levels\n"
+  "  set base name = problem_brick_E_r346_two_cycle_VMG\n"
+  "end\n";
 
 
-/**
- * Right now, this executable runs a simulation equivalent to a ryujin run.
-*/
 int main(int argc, char *argv[]){
-
-  const std::string prm_name = "skip_brick.prm";
+  
+  std::istringstream prm_stream(parameters);
   const std::vector<int> refinement_levels = {0, 1, 2};
 
   dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);  //create objects
@@ -22,7 +37,7 @@ int main(int argc, char *argv[]){
   
   mgrit::MyApp<NUMBER, ryujin::Euler::Description, 2> app(comm_world, comm_world, refinement_levels);
 
-  app.initialize(prm_name);
+  app.initialize(prm_stream);
 
   using StateVector = mgrit::MyApp<NUMBER, ryujin::Euler::Description, 2>::StateVector;
 
@@ -31,7 +46,7 @@ int main(int argc, char *argv[]){
 
   // Initialize data needs to be at t = 0.
   ryujin::Vectors::reinit_state_vector<ryujin::Euler::Description>(U, *(app.levels[0]->offline_data));
-  std::get<0>(U) = app.levels[0]->initial_values->interpolate_hyperbolic_vector(0.0);
+  std::get<0>(U) = app.levels[0]->initial_values->get().interpolate_hyperbolic_vector(0.0);
 
    //pretend that we are on cycle 2, check that all bricks which should not step on this cycle don't;
   
@@ -79,5 +94,5 @@ int main(int argc, char *argv[]){
   std::cout << ((app.brick_converged(level, 1, cycle)) ? "OK":"Not OK") << std::endl;
   std::cout << ((app.brick_converged(level, 2, cycle)) ? "Not OK":"OK") << std::endl;
   
-  return 1;
+  return 0;
 }

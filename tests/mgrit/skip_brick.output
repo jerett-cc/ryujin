@@ -1,22 +1,11 @@
-[INFO] Setting Structures in App at level 2
-Level 2 created.
-[INFO] Setting Structures in App at level 1
-Level 1 created.
-[INFO] Setting Structures in App at level 0
-Level 0 created.
-2
-exists
-1
-exists
-0
-exists
-[INFO] Preparing Structures in App at level 2
-Level 2 prepared.
-[INFO] Preparing Structures in App at level 1
-Level 1 prepared.
-[INFO] Preparing Structures in App at level 0
-Level 0 prepared.
-Number of Bricks expected = 12 Number from prm = 12
+[INFO] Creating Required Level Structures
+All MG levels created
+[INFO] Preparing Required Level Structures
+All MG levels prepared 
+[INFO] Preparing additional offline_data and discretization for interpolation purposes.
+Additional offline_data and discretization prepared
+Cumulative coarsening by a factor of 4
+Number of Bricks expected = 12 Number from prm = 40
 OK
 OK
 OK
