@@ -758,7 +758,7 @@ namespace mgrit{
     
     bool fails = false;
     
-#ifdef DEBUG
+#ifdef DEBUG_MGRIT
     fails = fails ||
 	!mgrit_functions::state_admissible_everywhere(*u_,
 						      finest_level,
@@ -781,7 +781,7 @@ namespace mgrit{
 							     lvl_tstart,
 							     -3);
     
-#ifdef DEBUG
+#ifdef DEBUG_MGRIT
       fails = fails ||
 	!mgrit_functions::state_admissible_everywhere(*u_,
 						      finest_level,
@@ -864,7 +864,7 @@ namespace mgrit{
   template<typename Number, typename Description, int dim>
   braid_Int MyApp<Number, Description, dim>::Clone(braid_Vector u, braid_Vector *v_ptr)
   {
-#ifdef DEBUG
+#ifdef DEBUG_MGRIT
     pout << "[INFO] Cloning XBraid vectors" << std::endl;
 #endif
     ryujin::Scope scope(computing_timer, "clone");
@@ -1015,7 +1015,7 @@ namespace mgrit{
   template<typename Number, typename Description, int dim>
   braid_Int MyApp<Number, Description, dim>::Free(braid_Vector u)
   {
-#ifdef DEBUG
+#ifdef DEBUG_MGRIT
     pout << "[INFO] Freeing XBraid vectors" << std::endl;
 #endif
     my_vector *u_ = (my_vector*) u;
@@ -1036,7 +1036,7 @@ namespace mgrit{
     my_vector *x_ = (my_vector *) x;
     my_vector *y_ = (my_vector *) y;
 
-#ifdef DEBUG
+#ifdef DEBUG_MGRIT
     pout << "[INFO] Summing XBraid vectors" << std::endl;
     pout << alpha << "x + " << beta << "y" << std::endl;
 #endif
@@ -1053,7 +1053,7 @@ namespace mgrit{
   template<typename Number, typename Description, int dim>
   braid_Int MyApp<Number, Description, dim>::SpatialNorm(braid_Vector u, braid_Real *norm_ptr)
   {
-#ifdef DEBUG
+#ifdef DEBUG_MGRIT
     pout << "[INFO] Calculating XBraid vector spatial norm" << std::endl;
 #endif
 
@@ -1087,7 +1087,7 @@ namespace mgrit{
 
     std::string fname = "./" + base_name +"_cycle" + std::to_string(mgCycle);
 
-#ifdef DEBUG
+#ifdef DEBUG_MGRIT
     /*all vectors live on finest level, unless interpolated to a coarser one*/
     bool not_admissible = mgrit_functions::state_admissible_everywhere(*u_,
 								       finest_level,
@@ -1191,7 +1191,7 @@ namespace mgrit{
   braid_Int MyApp<Number, Description, dim>::BufSize(braid_Int *size_ptr,
                            BraidBufferStatus &bstatus)
   {
-#ifdef DEBUG
+#ifdef DEBUG_MGRIT
     pout << "[INFO] Buf_size Called" << std::endl;
 #endif
 

@@ -350,7 +350,7 @@ namespace mgrit_functions{
       const Number eps = 1e-8;//TODO: change to eps_E
       if(!view.is_admissible(state_node))
       {
-#ifdef DEBUG
+#ifdef DEBUG_MGRIT
 	std::cout << "calling=" << calling
 		  << " enforce_physicality() state after limiting density and E/Pressure "
 		  << "on level=" << level
@@ -360,7 +360,7 @@ namespace mgrit_functions{
 	Number deltaE = -view.internal_energy(state_node)+eps;//TODO: change to eps_E
 	state_node[dim+1] += deltaE;
 	
-#ifdef DEBUG
+#ifdef DEBUG_MGRIT
 	// Double check that now the state is admissible.
 	if(view.is_admissible(state_node))
 	  {
@@ -549,10 +549,12 @@ namespace mgrit_functions{
       auto state = std::get<0>(u.U).get_tensor(node);
       if(!view.is_admissible(state))
       {
+#ifdef DEBUG_MGRIT
 	std::cout << "calling=" << calling
 		  << " a state at time t=" << t
 		  << " is not admissible node="
 		  << node << " and state=" << state << std::endl;
+#endif
 	return false;
       }
     }
