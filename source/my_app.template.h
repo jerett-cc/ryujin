@@ -760,11 +760,11 @@ namespace mgrit{
     
 #ifdef DEBUG
     fails = fails ||
-	mgrit_functions::state_admissible_everywhere(*u_,
-						     finest_level,
-						     *this,
-						     lvl_tstart,
-						     calling);
+	!mgrit_functions::state_admissible_everywhere(*u_,
+						      finest_level,
+						      *this,
+						      lvl_tstart,
+						      calling);
     if(fails)
       print_solution(u_->U,
 		       lvl_tstart, finest_level, fname
@@ -783,11 +783,11 @@ namespace mgrit{
     
 #ifdef DEBUG
       fails = fails ||
-	mgrit_functions::state_admissible_everywhere(*u_,
-						     finest_level,
-						     *this,
-						     lvl_tstart,
-						     calling);
+	!mgrit_functions::state_admissible_everywhere(*u_,
+						      finest_level,
+						      *this,
+						      lvl_tstart,
+						      calling);
       if(fails)
 	print_solution(u_->U,
 		       lvl_tstart, finest_level, fname
@@ -1089,11 +1089,11 @@ namespace mgrit{
 
 #ifdef DEBUG
     /*all vectors live on finest level, unless interpolated to a coarser one*/
-    bool admissible = mgrit_functions::state_admissible_everywhere(*u_,
-								   finest_level,
-								   *this,
-								   t,
-								   caller_id);
+    bool not_admissible = mgrit_functions::state_admissible_everywhere(*u_,
+								       finest_level,
+								       *this,
+								       t,
+								       caller_id);
     bool spike = mgrit_functions::does_E_exceed_threshold(*u_,
 							  *this,
 							  finest_level,
@@ -1105,7 +1105,7 @@ namespace mgrit{
 							  true/*print this if does exceed*/,
 							  "Elarge_cycle_" + std::to_string(mgCycle)
 							  + "forcalling_");
-    bool violates = !admissible || spike;
+    bool violates = not_admissible || spike;
     
     if(violates)
     {
