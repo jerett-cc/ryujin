@@ -255,7 +255,7 @@ namespace mgrit_functions{
     
     // First, we limit the density to be non-negative, and update all the relations
     // with this new density.
-
+    // TAG: #1 projection: Loop over all nodes.
     for(unsigned int node=0; node < app.n_locally_owned_at_level(level); node++)
     {
       auto state = std::get<0>(u.U).get_tensor(node);
@@ -278,7 +278,7 @@ namespace mgrit_functions{
     mgrit::MyVector<Number, Description,dim> copy;
     app.reinit_to_level(&copy,level);
     std::get<0>(copy.U) = std::get<0>(u.U);
-    
+    // TAG: #2 loop over all nodes
     // Compute the local average in E and use this as a limit on E in the copy.
     for(unsigned int node=0; node < app.n_locally_owned_at_level(level); node++)
     {
@@ -291,6 +291,7 @@ namespace mgrit_functions{
       Assert(stencil_size > 1,
 	     dealii::ExcMessage("Enforce physicality only works for now on "
 				"triangulations without constraints."));
+      //TAG: #2.1 loop over local nodes
       for(auto jt = sparsity_level.begin(node); jt != sparsity_level.end(node); ++jt)
       {
 	const auto stencil_node_j = jt->column();
