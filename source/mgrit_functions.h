@@ -151,9 +151,10 @@ namespace mgrit_functions{
   /// @param level The level that describes the vector.
   /// @param app The app containing the level structures we need to do work on u.
   template <typename Description, int dim, typename Number>
-  dealii::Tensor<1, Description::problem_dimension, Number> global_average_rho_E(mgrit::MyVector<Number, Description, dim> &u,
-										 const unsigned int level,
-										 const mgrit::MyApp<Number, Description, dim> &app);
+  dealii::Tensor<1, Description::HyperbolicSystemView::problem_dimension, Number>
+  global_average_state(mgrit::MyVector<Number, Description, dim> &u,
+		       const unsigned int level,
+		       mgrit::MyApp<Number, Description, dim> &app);
 
   
   

@@ -564,26 +564,22 @@ namespace mgrit_functions{
   }
 
   template <typename Description, int dim, typename Number>
-  dealii::Tensor<1, Description::problem_dimension, Number> global_average_rho_E(mgrit::MyVector<Number, Description, dim> &u,
-										 const unsigned int level,
-										 const mgrit::MyApp<Number, Description, dim> &app)
+  dealii::Tensor<1, dim+2, Number>
+  global_average_state(mgrit::MyVector<Number, Description, dim> &u,
+		       const unsigned int level,
+		       mgrit::MyApp<Number, Description, dim> &app)
   {
-    using T = typename dealii::Tensor<1, Description::problem_dimension, Number>;
-
-    T avg_state(); 
+    using Tensor = dealii::Tensor<1, dim+2, Number>;
+    Tensor avg_state; 
 
     // Loop over all locally owned nodes, adding to avg_state.
-    const auto view = app.levels[level]->hyperbolic_system->get().template view<dim,Number>();
     auto &od_level = app.levels[level]->offline_data;// TODO: const?
-    const auto &sparsity_level = od_level->sparsity_pattern();
-
-    Assert(app.vector_size_match_level(u.U, level),
-	   dealii::ExcMessage("enforce_physicality only works if the vector's size and the size "
-			      "from the level match. This is because a copy is made from the size "
-			      "from the offline_data."));
+    
     Assert((std::is_same<Description,typename ryujin::Euler::Description>::value),
-	   dealii::ExcMessage("enforce_physicality only designed for the Euler case"
-			      " with a gamma law EOS.")); 
+	   dealii::ExcMessage("global_average_state only designed for the Euler case"
+			      " so that problem dimension = space_dim+2, since this function"
+			      " returns a (1,dim+2) tensor, which only makes sense if"
+			      " the state vector is dim+2 long.")); 
     unsigned int n_local_dof = app.n_locally_owned_at_level(level);
     for(unsigned int node=0; node < n_local_dof; node++)
     {
@@ -595,12 +591,19 @@ namespace mgrit_functions{
     
     // Now all local contributions have been calculated, we do a communication/allreduce
     // to sum all the states, and then divide by the global n_dofs.
-    unsigned int n_global_dof = od_level.dof_handler().n_dofs();
-    avg_state = dealii::Utilities::MPI::all_reduce(avg_state,
-						   app.comm_x,
-						   [](const T& u,const T& v) -> T{
-						     return u + v;
-						   });
+    const unsigned int n_global_dof = od_level->dof_handler().n_dofs();
+    const unsigned int tensor_size  = Tensor::dimension;
+    Assert(tensor_size == dim+2,
+	   dealii::ExcMessage("global_average_state fails vector dimension sanity "
+			      "check for the Euler equations."));
+    const std::function<Number(const Number&, const Number&)>
+      sum([](const Number&u, const Number&v){ return u+v; });
+    for(unsigned int i = 0; i < tensor_size; i++)
+    {
+      avg_state[i] = dealii::Utilities::MPI::all_reduce(avg_state[i],
+							app.comm_x,
+							sum);
+    }
     avg_state /= n_global_dof;
     
     return avg_state;
