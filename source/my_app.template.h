@@ -824,10 +824,8 @@ namespace mgrit{
 
     interpolate_between_levels(*u_to_step, level, *u_, 0);
     
-    bool print_every_step = false;//TODO Remove these things.
-#ifdef DEBUG
-    print_every_step = (level == 1) && (t_idx == 3) && (calling == braid_ASCaller_FInterp);
-#endif
+    bool print_every_step = fails;
+
     // step the function on this level
     // TODO: make sure that the last parameter is set properly, hardcoded
     // is not the best course here.
