@@ -774,12 +774,16 @@ namespace mgrit{
 #endif
     
       // Ensure this is a physical vector.
-    mgrit_functions::
+    {
+      // Time this bit of code.
+      ryujin::Scope scope(computing_timer, "projection_operator_step");
+      mgrit_functions::
         enforce_physicality_bounds<Description, dim, Number>(*u_,
 							     finest_level,
 							     *this,
 							     lvl_tstart,
 							     -3);
+    }
     
 #ifdef DEBUG_MGRIT
       fails = fails ||
@@ -1147,7 +1151,12 @@ namespace mgrit{
 	pout << "[INFO] Access Called" << std::endl;
         pout << "Cycles done: " << mgCycle << std::endl;
 
-	mgrit_functions::enforce_physicality_bounds(*u_, finest_level, *this, t, caller_id);//Needed?
+	{
+	  // Time this bit of code.
+	  ryujin::Scope scope(computing_timer, "projection_operator_endcycle");
+	  // Is below needed?
+	  mgrit_functions::enforce_physicality_bounds(*u_, finest_level, *this, t, caller_id);
+	}
 	
 	std::cout << "Printing brick " << t_idx << " at t= " << t << " on cycle " << mgCycle
 		  << std::endl;
@@ -1173,6 +1182,8 @@ namespace mgrit{
       }
     case braid_ASCaller_FInterp_Projection :
       {
+	// Time this bit of code.
+	ryujin::Scope scope(computing_timer, "projection_operator_FInterp");
 	mgrit_functions::enforce_physicality_bounds(*u_, finest_level, *this, t, caller_id);
       }
       default:
