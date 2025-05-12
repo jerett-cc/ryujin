@@ -297,10 +297,11 @@ namespace mgrit_functions{
     // Calculate global averages in density and total energy, for use in the eps
     // terms which limit the sensity and internal energy, rather than a non-physical
     // term like 1e-8.
-
-    // state  avgs    = global_average_rho_E(u);
-    // Number eps_rho = avgs[0]     * 1e-2;
-    // Number eps_E   = avgs[dim+1] * 1e-2;
+    // Here, we calculate an averaged density and set a minimum density to be
+    // one hundredth of the average density. Likewise for the total energy.
+    const auto avgs = global_average_state<Description, dim, Number>(u, level, app);
+    Number eps_rho  = avgs[0]     * 1e-2;
+    Number eps_E    = avgs[dim+1] * 1e-2;
     
     // First, we limit the density to be non-negative, and update all the relations
     // with this new density.
@@ -310,7 +311,7 @@ namespace mgrit_functions{
       auto state = std::get<0>(u.U).get_tensor(node);
       Number old_rho = state[0];
       
-      state[0] = std::max(old_rho, 1e-8);// set this to eps_rho
+      state[0] = std::max(old_rho, eps_rho);
       std::get<0>(u.U).write_tensor(state, node);
     }
     // Communicate the changes.
@@ -383,7 +384,7 @@ namespace mgrit_functions{
 		<< std::endl;
 #endif
       // Prevent E from being small.
-      state_node[dim+1] = std::max(E_node, Number(1e-8));//TODO: change this to eps_E
+      state_node[dim+1] = std::max(E_node, eps_E);
 
       // Finally, disallow very large E.
       if(std::abs(state_node[dim+1]) > 3*surrounding_avg)
@@ -397,7 +398,6 @@ namespace mgrit_functions{
       // Next, we need to verify that the each node's state is admissible, if not, then
       // it is likely that the internal energy is negative, so we calculate a delta E based
       // on (Internal Energy).
-      const Number eps = 1e-8;//TODO: change to eps_E
       if(!view.is_admissible(state_node))
       {
 #ifdef DEBUG_MGRIT
@@ -407,7 +407,7 @@ namespace mgrit_functions{
 		  << " is not admissible node="
 		  << node << " and state=" << state_node << std::endl;
 #endif
-	Number deltaE = -view.internal_energy(state_node)+eps;//TODO: change to eps_E
+	Number deltaE = -view.internal_energy(state_node) + eps_E;
 	state_node[dim+1] += deltaE;
 	
 #ifdef DEBUG_MGRIT
