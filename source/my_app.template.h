@@ -577,7 +577,7 @@ namespace mgrit{
                              std::to_string(i)));
 
       if (!pressure_no_nans || !is_admissible) {
-        exit(EXIT_FAILURE);
+        exit(EXIT_FAILURE);//FIXME: this is bad
       }
     }
   }
@@ -721,6 +721,7 @@ namespace mgrit{
                         braid_Vector fstop,
                         BraidStepStatus &pstatus)
   {
+    // clear floating point exceptions so that ryujin doesn't trigger them. TODO: add code below
     my_vector *u_ = (my_vector*) u;
     // this variable is used for writing data to
     // different files during the parallel computations.
@@ -992,6 +993,9 @@ namespace mgrit{
     
     // Now interpolate the data we loaded on the coarsest level to the finest level,
     // using the levels data structure, as unrefined_level has done it's work:
+
+    // TODO: now the logic of this file goes between the unrefined_level and the finest_level
+    // with the caveat that unrefined_level might not be equal to coarsest_level. REFACTOR BELOW FUNCTION.
     interpolate_between_levels(*u,
 			       finest_level,
 			       *temp_coarse,
@@ -1047,6 +1051,8 @@ namespace mgrit{
 
     ryujin::sadd(y_->U, beta, alpha, x_->U);
 
+    // Communicate?
+    
     sum_count++;
 
     return 0;
