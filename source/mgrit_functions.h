@@ -50,6 +50,22 @@ namespace mgrit_functions{
 			  const mgrit::MyVector<Number, Description, 3> &u,
 			  const braid_Real t);
 
+  /// @brief This function figures out a globally averaged state. In other words, we calculate
+  ///        \frac{\sum_i U_i}{N}, where N is the number of DOF on the global mesh. If the mesh
+  ///        is distributed, we compute local averages, then allreduce each component.
+  /// @tparam Description The description of the system, providing a pressure
+  ///         function and an entropy function.
+  /// @tparam dim The spatial dimension.
+  /// @tparam Number Either a double or float.
+  /// @param u The solution state on the mesh that we want use to compute an average state.
+  /// @param level The level that describes the vector.
+  /// @param app The app containing the level structures we need to do work on u.
+  template <typename Description, int dim, typename Number>
+  dealii::Tensor<1, Description::HyperbolicSystemView::problem_dimension, Number>
+  global_average_state(mgrit::MyVector<Number, Description, dim> &u,
+		       const unsigned int level,
+		       const mgrit::MyApp<Number, Description, dim> &app);
+  
   /// @brief This function ensures that the solution state @u produces physical
   /// quantities. For example, if u represents the conservative states of a
   /// system, we ensure that the solution is on the invariant domain
@@ -139,23 +155,5 @@ namespace mgrit_functions{
 				   const mgrit::MyApp<Number, Description, dim> &app,
 				   const Number t,
 				   const braid_Int calling = -1);
-
-  /// @brief This function figures out a globally averaged state. In other words, we calculate
-  ///        \frac{\sum_i U_i}{N}, where N is the number of DOF on the global mesh. If the mesh
-  ///        is distributed, we compute local averages, then allreduce each component.
-  /// @tparam Description The description of the system, providing a pressure
-  ///         function and an entropy function.
-  /// @tparam dim The spatial dimension.
-  /// @tparam Number Either a double or float.
-  /// @param u The solution state on the mesh that we want use to compute an average state.
-  /// @param level The level that describes the vector.
-  /// @param app The app containing the level structures we need to do work on u.
-  template <typename Description, int dim, typename Number>
-  dealii::Tensor<1, Description::HyperbolicSystemView::problem_dimension, Number>
-  global_average_state(mgrit::MyVector<Number, Description, dim> &u,
-		       const unsigned int level,
-		       mgrit::MyApp<Number, Description, dim> &app);
-
-  
   
 }// Namespace mgrit_functions

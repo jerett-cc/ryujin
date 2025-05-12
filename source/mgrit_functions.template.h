@@ -181,6 +181,55 @@ namespace mgrit_functions{
   }
 
   template <typename Description, int dim, typename Number>
+  dealii::Tensor<1, dim+2, Number>
+  global_average_state(mgrit::MyVector<Number, Description, dim> &u,
+		       const unsigned int level,
+		       const mgrit::MyApp<Number, Description, dim> &app)
+  {
+    using Tensor = dealii::Tensor<1, dim+2, Number>;
+    Tensor avg_state; 
+
+    // Loop over all locally owned nodes, adding to avg_state.
+    auto &od_level = app.levels[level]->offline_data;// TODO: const?
+    
+    Assert((std::is_same<Description,typename ryujin::Euler::Description>::value),
+	   dealii::ExcMessage("global_average_state only designed for the Euler case"
+			      " so that problem dimension = space_dim+2, since this function"
+			      " returns a (1,dim+2) tensor, which only makes sense if"
+			      " the state vector is dim+2 long."));
+    
+    unsigned int n_local_dof = app.n_locally_owned_at_level(level);
+    for(unsigned int node=0; node < n_local_dof; node++)
+    {
+      auto state = std::get<0>(u.U).get_tensor(node);
+      avg_state+=state;
+    }
+    // // Once all local nodes have been touched, divide the avg_state by the #dofs touched.
+    // avg_state/=n_locally_owned_dof;
+    
+    // Now all local contributions have been calculated, we do a communication/allreduce
+    // to sum all the states, and then divide by the global n_dofs.
+    const unsigned int n_global_dof = od_level->dof_handler().n_dofs();
+    const unsigned int tensor_size  = Tensor::dimension;
+    Assert(tensor_size == dim+2,
+	   dealii::ExcMessage("global_average_state fails vector dimension sanity "
+			      "check for the Euler equations."));
+    const std::function<Number(const Number&, const Number&)>
+      sum([](const Number&u, const Number&v){ return u+v; });
+
+    // FIXME: is there a more efficient way to do this?
+    for(unsigned int i = 0; i < tensor_size; i++)
+    {
+      avg_state[i] = dealii::Utilities::MPI::all_reduce(avg_state[i],
+							app.comm_x,
+							sum);
+    }
+    avg_state /= n_global_dof;
+    
+    return avg_state;
+  }
+
+  template <typename Description, int dim, typename Number>
   void enforce_physicality_bounds(mgrit::MyVector<Number, Description, dim> &u,
                                   const unsigned int level,
                                   const mgrit::MyApp<Number, Description, dim> &app,
@@ -561,52 +610,6 @@ namespace mgrit_functions{
     }
 
     return true;
-  }
-
-  template <typename Description, int dim, typename Number>
-  dealii::Tensor<1, dim+2, Number>
-  global_average_state(mgrit::MyVector<Number, Description, dim> &u,
-		       const unsigned int level,
-		       mgrit::MyApp<Number, Description, dim> &app)
-  {
-    using Tensor = dealii::Tensor<1, dim+2, Number>;
-    Tensor avg_state; 
-
-    // Loop over all locally owned nodes, adding to avg_state.
-    auto &od_level = app.levels[level]->offline_data;// TODO: const?
-    
-    Assert((std::is_same<Description,typename ryujin::Euler::Description>::value),
-	   dealii::ExcMessage("global_average_state only designed for the Euler case"
-			      " so that problem dimension = space_dim+2, since this function"
-			      " returns a (1,dim+2) tensor, which only makes sense if"
-			      " the state vector is dim+2 long.")); 
-    unsigned int n_local_dof = app.n_locally_owned_at_level(level);
-    for(unsigned int node=0; node < n_local_dof; node++)
-    {
-      auto state = std::get<0>(u.U).get_tensor(node);
-      avg_state+=state;
-    }
-    // // Once all local nodes have been touched, divide the avg_state by the #dofs touched.
-    // avg_state/=n_locally_owned_dof;
-    
-    // Now all local contributions have been calculated, we do a communication/allreduce
-    // to sum all the states, and then divide by the global n_dofs.
-    const unsigned int n_global_dof = od_level->dof_handler().n_dofs();
-    const unsigned int tensor_size  = Tensor::dimension;
-    Assert(tensor_size == dim+2,
-	   dealii::ExcMessage("global_average_state fails vector dimension sanity "
-			      "check for the Euler equations."));
-    const std::function<Number(const Number&, const Number&)>
-      sum([](const Number&u, const Number&v){ return u+v; });
-    for(unsigned int i = 0; i < tensor_size; i++)
-    {
-      avg_state[i] = dealii::Utilities::MPI::all_reduce(avg_state[i],
-							app.comm_x,
-							sum);
-    }
-    avg_state /= n_global_dof;
-    
-    return avg_state;
   }
   
 } // Namespace mgrit_functions
