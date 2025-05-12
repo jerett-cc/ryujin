@@ -428,18 +428,17 @@ namespace mgrit_functions{
       std::get<0>(copy.U).write_tensor(state_node, node);
     }
 
-    //TODO: the equations (1), (2), (3),(4) maybe not satisfied with these
+    //TODO: the equations (1), (2), (3), (4) maybe not satisfied with these
     //      arbitrary additions and limitations?
 
     // Exchange projection changes in copy.
     std::get<0>(copy.U).update_ghost_values();
 
-    // now that the copy is fixed up, we move the copied data into the one we wish to change,
+    // Now that the copy is fixed up, we move the copied data into the one we wish to change,
     // and update ghost to finish change.
     std::get<0>(u.U) = std::get<0>(copy.U);
-    //std::cout << "---------------------------------------------------" << std::endl;
-    // Make sure boundary conditions are satisfied on these states.
-    //FIXME: this function also calls update_ghost_values(), do I need the one above?
+    
+    //FIXME: Do I need to precompute values with the modifications I have done above?
     //app.levels[level]->hyperbolic_module->prepare_state_vector(u.U, t);
   }
 
@@ -593,7 +592,7 @@ namespace mgrit_functions{
 	   dealii::ExcMessage("admissible_everywhere() only works if the vector's size and the size "
 			      "from the level match. This is because the function loops over "
 			      "all the locally owned dofs at the supposed level."));
-
+    ryujin::Scope scope(app.computing_timer, "state_admissible_everywhere");
     for(unsigned int node=0; node < app.n_locally_owned_at_level(level); node++)
     {
       auto state = std::get<0>(u.U).get_tensor(node);
