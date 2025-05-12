@@ -64,7 +64,7 @@ namespace ryujin
         [[maybe_unused]],
         const OfflineData<dim, Number> &offline_data [[maybe_unused]])
     {
-#ifdef DEBUG
+#if defined(DEBUG) && defined(DEBUG_POISON_VECTORS)
       auto &[U, precomputed, V] = state_vector;
 
       const unsigned int n_owned = offline_data.n_locally_owned();
@@ -94,7 +94,7 @@ namespace ryujin
         [[maybe_unused]],
         const OfflineData<dim, Number> &offline_data [[maybe_unused]])
     {
-#ifdef DEBUG
+#if defined(DEBUG) && defined(DEBUG_POISON_VECTORS)
       auto &[U, precomputed, V] = state_vector;
 
       constexpr auto nan = std::numeric_limits<Number>::signaling_NaN();
@@ -138,7 +138,7 @@ namespace ryujin
         V.block(i).reinit(offline_data.scalar_partitioner());
       }
 
-#ifdef DEBUG
+#if defined(DEBUG) && defined(DEBUG_POISON_VECTORS) 
       /* Poison all vectors: */
       using state_type = typename View::state_type;
 

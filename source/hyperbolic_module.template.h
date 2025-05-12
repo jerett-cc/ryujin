@@ -1230,9 +1230,11 @@ namespace ryujin
       }
     }
 
+#if defined(DEBUG) && defined(DEBUG_POISON_VECTORS)
     /* In debug mode poison precomputed values: */
     Vectors::debug_poison_precomputed_values<Description>(new_state_vector,
                                                           *offline_data_);
+#endif
 
     /* Return the time step size tau: */
     return tau;
