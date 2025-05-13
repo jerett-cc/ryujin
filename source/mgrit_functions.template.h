@@ -392,7 +392,9 @@ namespace mgrit_functions{
 	// If E is too large compared to the surrounding nodes, we replace all the vector data from
 	// the data of the largest surrounding node.
 	state_node = std::get<0>(u.U).get_tensor(max_surrounding_idx);
+#ifdef DEBUG_OUTPUT
 	std::cout << "Replacing E in projection operation." << std::endl;
+#endif
       }
 
       // Next, we need to verify that the each node's state is admissible, if not, then

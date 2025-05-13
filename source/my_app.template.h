@@ -799,14 +799,13 @@ namespace mgrit{
 		       +"not_admissible_after_enforce_physicality_before_step_"+
 		       "level_"+std::to_string(level),
 		       t_idx);
-	
+#endif
       pout << "[INFO] Stepping on level: " + std::to_string(level) +
       "\non interval: [" + std::to_string(lvl_tstart) + ", " +
       std::to_string(lvl_tstop) + "]\n" +
       "total step call number " +
       std::to_string(num_step_calls)
 	 << std::endl;
-#endif
 
     // use a macro to get rid of some unused variables to avoid -Wall messages
     // TODO: make use of the [[maybe_unused]] tag instead.
