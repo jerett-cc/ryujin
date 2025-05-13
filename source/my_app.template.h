@@ -250,7 +250,7 @@ namespace mgrit{
     // Now that we know the total coarsening, we need to determine the ntime variable
     // giving the correct number of coarse time points.
     ntime = num_bricks * total_cfactor * minimal_tpoints_coarsest_level;
-    ntime = 40;//TODO: remove me.
+    ntime = num_bricks;//TODO: remove me.
     Assert((print_factor >=1 && print_factor < ntime),
 	   dealii::ExcMessage("Print factor must be at least one, and less than the number of "
 			      "time points total."));
@@ -668,7 +668,7 @@ namespace mgrit{
     // The number of c-points is equal to the number of time points divided by the
     // cfactor.
 
-    braid_Int num_cpoints = ntime/cfactor;
+    braid_Int num_cpoints = ntime/total_cfactor;
     pout << "ntime = " << ntime << " num_cpoints = " << num_cpoints << std::endl;
     Assert(num_cpoints > 0, dealii::ExcInternalError());
 // #ifdef DEBUG
