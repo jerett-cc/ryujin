@@ -327,6 +327,10 @@ namespace mgrit{
     unsigned int n_parabolic_state_vectors;
 
     // Conditional output stream.
-    dealii::ConditionalOStream pout;
+    // pout: output only on the 0th processor in the global communicator (0 in x and 0 in t)
+    // gout: global output, all processors in space and time 
+    // tout: output if 0th processor in comm_t
+    // xout: output if 0th processor in comm_x
+    dealii::ConditionalOStream pout, gout, tout, xout;
   };
 }// Namespace mgrit
