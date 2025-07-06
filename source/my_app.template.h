@@ -77,9 +77,10 @@ namespace mgrit{
       , finest_level(0) // for XBRAID, the finest level is always 0.
       , discretization_vec(1)
       , offline_data_vec(1) // initialize this with only one level, will resize later.
-      , pout(std::cout)
-      , gout(std::cout)
-      , tout(std::cout)
+      , pout(std::cout, dealii::Utilities::MPI::this_mpi_process(MPI_COMM_WORLD)==0)
+      , gout(std::cout, true)
+      , tout(std::cout, dealii::Utilities::MPI::this_mpi_process(comm_t)==0)
+      , xout(std::cout, dealii::Utilities::MPI::this_mpi_process(comm_x)==0)
   {
     coarsest_level = refinement_levels.size() - 1;
     print_solution_bool = false;
@@ -159,15 +160,6 @@ namespace mgrit{
   {
     ryujin::Scope scope(computing_timer, "initialize");
 
-    // Set the condition for the pout, only output on p0 in the global communicator.
-    // TODO: add a parameter 'print_to_terminal' or something like that and replace
-    // the condition below with an p0=0 $$ print_to_terminal.
-    pout.set_condition(dealii::Utilities::MPI::this_mpi_process(MPI_COMM_WORLD)==0);
-    // This one always prints for every processor in COMM_WORLD, is this notation bad practice?
-    gout.set_condition(true);
-    tout.set_condition(dealii::Utilities::MPI::this_mpi_process(comm_t)==0);
-    xout.set_condition(dealii::Utilities::MPI::this_mpi_process(comm_x)==0);
-    
     // Reorder refinement levels in descending order of refinement,
     // this matches the fact that Xbraid has the finest level of MG
     // as 0. I.E. the most refined data is accessed with refinement_levels[0]
