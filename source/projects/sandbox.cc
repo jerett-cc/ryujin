@@ -241,7 +241,7 @@ int main(int argc, char *argv[]){
   std::get<0>(U) = app.levels[0]->initial_values->get().interpolate_hyperbolic_vector(0.0);
 
 
-  calculate_conserved_and_entropy(U,0.0);
+//  calculate_conserved_and_entropy(U,0.0);
 
   app.time_loops[0]->change_base_name(restart_fname);
   //now that we have the data, we call the run function
@@ -249,7 +249,9 @@ int main(int argc, char *argv[]){
 					   tstop,
 					   tstart,
 					   /*mgrit_specified_printing*/true,
-					   calculate_drag_and_lift);
+					   [&](const StateVector &U, const NUMBER t){
+					     // do nothing on postprocess
+					     return;});
 
   return 1;
 }
