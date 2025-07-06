@@ -540,6 +540,24 @@ namespace ryujin
   unsigned int timer_cycle = 0;
   unsigned int cycle = 1;
 
+  if (resume_) {
+    print_info("resume: reading mesh and loading state vector");
+    
+    read_checkpoint(U,
+		    base_name_ensemble_,
+		    t,
+		    timer_cycle,
+		    [](){
+		      // the compute kernels are already set up correctly, we just need to return modify the discretization
+		      return;});
+    
+    if (resume_at_time_zero_) {
+      /* Reset the current time t and the output cycle count to zero: */
+      t = 0.;
+      timer_cycle = 0;
+    }
+  }
+
   /* Loop: */
   //std::vector<Number> print_times({0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0});
   //auto next_t = print_times[timer_cycle];
