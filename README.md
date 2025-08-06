@@ -133,7 +133,7 @@ Contributors
 
  - Wolfgang Bangerth [@bangerth](https://github.com/bangerth), Colorado State University
  - Taylor Boylan ([@tmboylan](https://github.com/tmboylan)),
- - Jerett Cherry ([@jerret-cc](https://github.com/jerett-cc)), Colorado State University
+ - Jerett Cherry ([@jerett-cc](https://github.com/jerett-cc)), Colorado State University
  - Gregory Christian ([@gregorychristian](https://github.com/gregorychristian))
  - Bennett Clayton ([@bgclayto](https://github.com/bgclayto))
  - Seth Gerberding ([@Gerbeset](https://github.com/Gerbeset)), Texas A&M University, TX, USA
