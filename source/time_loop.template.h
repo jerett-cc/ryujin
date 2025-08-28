@@ -576,6 +576,7 @@ namespace ryujin
       if (write_output_files) {
         output(U, base_name_ + "-solution", t, timer_cycle);
       }
+      pp_step(U,t);
       ++timer_cycle;
       //next_t = print_times[timer_cycle];
       //std::cout << "Next t is " << next_t << std::endl;
@@ -587,11 +588,11 @@ namespace ryujin
       break;
 
     /* Take a step: */
-    const auto tau = time_integrator_->step(U, t, end_time);
+    const auto tau = time_integrator_->step(U, t, std::min(timer_granularity_*(timer_cycle), end_time));
     t += tau;
 
     /*Optional Postprocess Step*/
-    pp_step(U,t); //FIXME: where should this be called?
+    // pp_step(U,t); //FIXME: where should this be called?
 
   } /* end of loop */
   /* We have actually performed one cycle less. */

@@ -249,9 +249,10 @@ int main(int argc, char *argv[]){
 					   tstop,
 					   tstart,
 					   /*mgrit_specified_printing*/true,
-					   [&](const StateVector &U, const NUMBER t){
-					     // do nothing on postprocess
-					     return;});
+					   calculate_drag_and_lift);
+					   // [&](const StateVector &U, const NUMBER t){
+					   //   // do nothing on postprocess
+					   //   return;});
 
-  return 1;
+  return 0;
 }
