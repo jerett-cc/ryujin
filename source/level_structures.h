@@ -9,34 +9,36 @@
 
 #include <compile_time_options.h>
 
-//deal.II includes
+// deal.II includes
 #include <deal.II/base/parameter_acceptor.h>
 
-//ryujin includes
+// ryujin includes
 #include "discretization.h"
 #include "hyperbolic_module.h"
 #include "initial_values.h"
-#include "offline_data.h"
-#include "parabolic_module.h"
 #include "mesh_adaptor.h"
-#include "postprocessor.h"
-#include "quantities.h"
-#include "time_integrator.h"
-#include "vtu_output.h"
 #include "mpi_ensemble.h"
 #include "mpi_ensemble_container.h"
+#include "offline_data.h"
+#include "parabolic_module.h"
+#include "postprocessor.h"
+#include "quantities.h"
 #include "solution_transfer.h"
+#include "time_integrator.h"
+#include "vtu_output.h"
 
-#include <deal.II/base/timer.h>
 #include <deal.II/base/tensor.h>
+#include <deal.II/base/timer.h>
 
 #include <fstream>
 #include <future>
 #include <sstream>
 
-namespace ryujin{
-  namespace mgrit{
-    ///A struct containing all relevant objects to a given MGRIT level
+namespace ryujin
+{
+  namespace mgrit
+  {
+    /// A struct containing all relevant objects to a given MGRIT level
     /**
      * This struct stores all the relevant information for a given level
      * in the mgrit algorithm.
@@ -52,93 +54,96 @@ namespace ryujin{
      *    const auto current_offline_data = levels[level]->offline_data;
      *
      */
-    template<typename Description, int dim, typename Number = double>
+    template <typename Description, int dim, typename Number = double>
     class LevelStructures : public dealii::ParameterAcceptor
     {
 
-      public:
-
+    public:
       LevelStructures(const std::shared_ptr<ryujin::MPIEnsemble> mpi_ensemble_x,
-            const int refinement = 0);
+                      const int refinement = 0);
 
-        void prepare(std::string base_name);
+      void prepare(std::string base_name);
 
-        /*Describe relevant typenames*/
-        using HyperbolicSystem = typename Description::HyperbolicSystem;
-        using HyperbolicSystemView
-            = typename Description::template HyperbolicSystemView<dim, Number>;
-        using ParabolicSystem
-            = typename Description::ParabolicSystem;
-        using OfflineData
-            = typename ryujin::OfflineData<dim, Number>;
-        using HyperbolicModule
-            = typename ryujin::HyperbolicModule<Description,dim, Number>;
-        using Discretization = ryujin::Discretization<dim>;
-        using ParabolicModule = ryujin::ParabolicModule<Description,dim, Number>;
-        using TimeIntegrator = ryujin::TimeIntegrator<Description, dim, Number>;
-        using InitialValues = ryujin::InitialValues<Description, dim, Number>;
-        using VTUOutput = ryujin::VTUOutput<Description, dim, Number>;
-        using Postprocessor = ryujin::Postprocessor<Description, dim, Number>;
-        using Quantities = ryujin::Quantities<Description,dim,Number>;
-        using MeshAdaptor = ryujin::MeshAdaptor<Description,dim,Number>;
+      /*Describe relevant typenames*/
+      using HyperbolicSystem = typename Description::HyperbolicSystem;
+      using HyperbolicSystemView =
+          typename Description::template HyperbolicSystemView<dim, Number>;
+      using ParabolicSystem = typename Description::ParabolicSystem;
+      using OfflineData = typename ryujin::OfflineData<dim, Number>;
+      using HyperbolicModule =
+          typename ryujin::HyperbolicModule<Description, dim, Number>;
+      using Discretization = ryujin::Discretization<dim>;
+      using ParabolicModule = ryujin::ParabolicModule<Description, dim, Number>;
+      using TimeIntegrator = ryujin::TimeIntegrator<Description, dim, Number>;
+      using InitialValues = ryujin::InitialValues<Description, dim, Number>;
+      using VTUOutput = ryujin::VTUOutput<Description, dim, Number>;
+      using Postprocessor = ryujin::Postprocessor<Description, dim, Number>;
+      using Quantities = ryujin::Quantities<Description, dim, Number>;
+      using MeshAdaptor = ryujin::MeshAdaptor<Description, dim, Number>;
 
       std::shared_ptr<ryujin::MPIEnsemble> mpi_ensemble_;
-        //The communicator used for computations spatially on this level
-        MPI_Comm level_comm_x;
-        //The amount of refinement for the mesh describing this level.
-        const int level_refinement;
-        //The dimension for this problem, i.e. the number of unknowns for each
-        //node in the mesh.
-        static constexpr unsigned int problem_dimension
-          = HyperbolicSystemView::problem_dimension;
-        static constexpr unsigned int n_precomputed_values 
-          = HyperbolicSystemView::n_precomputed_values;
+      // The communicator used for computations spatially on this level
+      MPI_Comm level_comm_x;
+      // The amount of refinement for the mesh describing this level.
+      const int level_refinement;
+      // The dimension for this problem, i.e. the number of unknowns for each
+      // node in the mesh.
+      static constexpr unsigned int problem_dimension =
+          HyperbolicSystemView::problem_dimension;
+      static constexpr unsigned int n_precomputed_values =
+          HyperbolicSystemView::n_precomputed_values;
 
-        //TODO: do I need this timer?
-        //A map that is used to time different sections of code
-        //The string is typically the section, and the timer corresponds to this.
-        std::map<std::string, dealii::Timer> computing_timer;
+      // TODO: do I need this timer?
+      // A map that is used to time different sections of code
+      // The string is typically the section, and the timer corresponds to this.
+      std::map<std::string, dealii::Timer> computing_timer;
 
-        //The necessary structures to run a simulation on this level.
-        std::shared_ptr<MPIEnsembleContainer<HyperbolicSystem>> hyperbolic_system;
-        std::shared_ptr<MPIEnsembleContainer<ParabolicSystem>> parabolic_system;
-        std::shared_ptr<Discretization> discretization;
-        std::shared_ptr<OfflineData> offline_data;
-        std::shared_ptr<MPIEnsembleContainer<InitialValues>> initial_values;
-        std::shared_ptr<HyperbolicModule> hyperbolic_module;
-        std::shared_ptr<ParabolicModule> parabolic_module;
-        std::shared_ptr<TimeIntegrator> time_integrator;
-        std::shared_ptr<MeshAdaptor> mesh_adaptor;
-        std::shared_ptr<SolutionTransfer<Description, dim, Number>> solution_transfer;
-        std::shared_ptr<Postprocessor> postprocessor;
-        std::shared_ptr<VTUOutput> vtu_output;
-        std::shared_ptr<Quantities> quantities;
-
+      // The necessary structures to run a simulation on this level.
+      std::shared_ptr<MPIEnsembleContainer<HyperbolicSystem>> hyperbolic_system;
+      std::shared_ptr<MPIEnsembleContainer<ParabolicSystem>> parabolic_system;
+      std::shared_ptr<Discretization> discretization;
+      std::shared_ptr<OfflineData> offline_data;
+      std::shared_ptr<MPIEnsembleContainer<InitialValues>> initial_values;
+      std::shared_ptr<HyperbolicModule> hyperbolic_module;
+      std::shared_ptr<ParabolicModule> parabolic_module;
+      std::shared_ptr<TimeIntegrator> time_integrator;
+      std::shared_ptr<MeshAdaptor> mesh_adaptor;
+      std::shared_ptr<SolutionTransfer<Description, dim, Number>>
+          solution_transfer;
+      std::shared_ptr<Postprocessor> postprocessor;
+      std::shared_ptr<VTUOutput> vtu_output;
+      std::shared_ptr<Quantities> quantities;
     };
 
-    //Constructor that takes a @p MPI_Comm to be used by all objects, and
-    //a global @p refinement for the underlying triangulation.
+    // Constructor that takes a @p MPI_Comm to be used by all objects, and
+    // a global @p refinement for the underlying triangulation.
     template <typename Description, int dim, typename Number>
     LevelStructures<Description, dim, Number>::LevelStructures(
-      const std::shared_ptr<ryujin::MPIEnsemble> mpi_ensemble_x, const int refinement)
+        const std::shared_ptr<ryujin::MPIEnsemble> mpi_ensemble_x,
+        const int refinement)
         : ParameterAcceptor("/LevelStructures")
-	, mpi_ensemble_(mpi_ensemble_x)
-        , level_comm_x(mpi_ensemble_->ensemble_communicator()) // what constructor is used here? copy?
+        , mpi_ensemble_(mpi_ensemble_x)
+        , level_comm_x(
+              mpi_ensemble_->ensemble_communicator()) // what constructor is
+                                                      // used here? copy?
         , level_refinement(refinement)
-        , hyperbolic_system(std::make_shared<MPIEnsembleContainer<HyperbolicSystem>>(*(mpi_ensemble_),
-										     "/B - Equation"))
-        , parabolic_system(std::make_shared<MPIEnsembleContainer<ParabolicSystem>>(*(mpi_ensemble_),
-										   "/B - Equation"))
+        , hyperbolic_system(
+              std::make_shared<MPIEnsembleContainer<HyperbolicSystem>>(
+                  *(mpi_ensemble_), "/B - Equation"))
+        , parabolic_system(
+              std::make_shared<MPIEnsembleContainer<ParabolicSystem>>(
+                  *(mpi_ensemble_), "/B - Equation"))
         , discretization(std::make_shared<Discretization>(
               *(mpi_ensemble_), level_refinement, "/C - Discretization"))
         , offline_data(std::make_shared<OfflineData>(
               *(mpi_ensemble_), *discretization, "/OfflineData"))
-        , initial_values(std::make_shared<MPIEnsembleContainer<InitialValues>>(*(mpi_ensemble_),
-							 "/E - InitialValues",
-							 *(mpi_ensemble_),
-							 *offline_data,
-							 *hyperbolic_system,
-							 *parabolic_system))
+        , initial_values(std::make_shared<MPIEnsembleContainer<InitialValues>>(
+              *(mpi_ensemble_),
+              "/E - InitialValues",
+              *(mpi_ensemble_),
+              *offline_data,
+              *hyperbolic_system,
+              *parabolic_system))
         , hyperbolic_module(
               std::make_shared<HyperbolicModule>(*(mpi_ensemble_),
                                                  computing_timer,
@@ -160,28 +165,41 @@ namespace ryujin{
                                                *hyperbolic_module,
                                                *parabolic_module,
                                                "/H - TimeIntegrator"))
-        , mesh_adaptor(std::make_shared<MeshAdaptor>(*(mpi_ensemble_),
-                                                     *offline_data,
-                                                     *hyperbolic_system,
-                                                     *parabolic_system,
-						     hyperbolic_module->initial_precomputed(),
-                                                     hyperbolic_module->alpha(),
-                                                     "/I - MeshAdaptor"))
-	, solution_transfer(std::make_shared<SolutionTransfer<Description, dim, Number>>(
-											 *(mpi_ensemble_), *offline_data, *hyperbolic_system, *parabolic_system))
-        , postprocessor(std::make_shared<Postprocessor>(
-              *(mpi_ensemble_), *offline_data, *hyperbolic_system, *parabolic_system,  "/J - VTUOutput"))
-        , vtu_output(std::make_shared<VTUOutput>(*(mpi_ensemble_),
-                    *offline_data,
-                    *hyperbolic_system,
-                    *parabolic_system,
-                    *postprocessor,
-                    hyperbolic_module->initial_precomputed(),
-                    hyperbolic_module->alpha(),
-                    "/J - VTUOutput"))
-        , quantities(std::make_shared<Quantities>(
-              *(mpi_ensemble_), *offline_data, *hyperbolic_system, *parabolic_system, "/K - Quantities"))
-    {}
+        , mesh_adaptor(std::make_shared<MeshAdaptor>(
+              *(mpi_ensemble_),
+              *offline_data,
+              *hyperbolic_system,
+              *parabolic_system,
+              hyperbolic_module->initial_precomputed(),
+              hyperbolic_module->alpha(),
+              "/I - MeshAdaptor"))
+        , solution_transfer(
+              std::make_shared<SolutionTransfer<Description, dim, Number>>(
+                  *(mpi_ensemble_),
+                  *offline_data,
+                  *hyperbolic_system,
+                  *parabolic_system))
+        , postprocessor(std::make_shared<Postprocessor>(*(mpi_ensemble_),
+                                                        *offline_data,
+                                                        *hyperbolic_system,
+                                                        *parabolic_system,
+                                                        "/J - VTUOutput"))
+        , vtu_output(std::make_shared<VTUOutput>(
+              *(mpi_ensemble_),
+              *offline_data,
+              *hyperbolic_system,
+              *parabolic_system,
+              *postprocessor,
+              hyperbolic_module->initial_precomputed(),
+              hyperbolic_module->alpha(),
+              "/J - VTUOutput"))
+        , quantities(std::make_shared<Quantities>(*(mpi_ensemble_),
+                                                  *offline_data,
+                                                  *hyperbolic_system,
+                                                  *parabolic_system,
+                                                  "/K - Quantities"))
+    {
+    }
 
     /**
      * This function prepares all the data structure pointers.
@@ -189,13 +207,15 @@ namespace ryujin{
      * The implementation essentially calls .prepare() for all
      * underlying structures.
      */
-    template<typename Description, int dim, typename Number>
-    void LevelStructures<Description, dim, Number>::prepare(std::string base_name)
+    template <typename Description, int dim, typename Number>
+    void
+    LevelStructures<Description, dim, Number>::prepare(std::string base_name)
     {
       discretization->prepare(base_name);
-      offline_data->prepare(problem_dimension,
-			    n_precomputed_values,
-			    parabolic_system->get().n_parabolic_state_vectors());
+      offline_data->prepare(
+          problem_dimension,
+          n_precomputed_values,
+          parabolic_system->get().n_parabolic_state_vectors());
       initial_values->unsafe_get().parse_parameters_callback();
       mesh_adaptor->prepare(0.0 /*needs current time point*/);
       hyperbolic_module->prepare();
@@ -206,12 +226,5 @@ namespace ryujin{
       quantities->prepare(base_name);
     }
 
-  }//namespace mgrit
-}//namespace ryujin
-
-
-
-
-
-
-
+  } // namespace mgrit
+} // namespace ryujin

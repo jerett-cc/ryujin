@@ -15,24 +15,24 @@ namespace mgrit
   template class MyApp<NUMBER, ryujin::Euler::Description, 2>;
   template class MyApp<NUMBER, ryujin::Euler::Description, 3>;
 
-//   /* instantiations EulerAEOS */
-//   template class MyApp<NUMBER, ryujin::EulerAEOS::Description, 1>;
-//   template class MyApp<NUMBER, ryujin::EulerAEOS::Description, 2>;
-//   template class MyApp<NUMBER, ryujin::EulerAEOS::Description, 3>;
+  //   /* instantiations EulerAEOS */
+  //   template class MyApp<NUMBER, ryujin::EulerAEOS::Description, 1>;
+  //   template class MyApp<NUMBER, ryujin::EulerAEOS::Description, 2>;
+  //   template class MyApp<NUMBER, ryujin::EulerAEOS::Description, 3>;
 
-//   /* instantiations NavierStokes */
-//   template class MyApp<NUMBER, ryujin::NavierStokes::Description, 1>;
-//   template class MyApp<NUMBER, ryujin::NavierStokes::Description, 2>;
-//   template class MyApp<NUMBER, ryujin::NavierStokes::Description, 3>;
+  //   /* instantiations NavierStokes */
+  //   template class MyApp<NUMBER, ryujin::NavierStokes::Description, 1>;
+  //   template class MyApp<NUMBER, ryujin::NavierStokes::Description, 2>;
+  //   template class MyApp<NUMBER, ryujin::NavierStokes::Description, 3>;
 
-//     /* instantiations ScalarConservation */
-//   template class MyApp<NUMBER, ryujin::ScalarConservation::Description, 1>;
-//   template class MyApp<NUMBER, ryujin::ScalarConservation::Description, 2>;
-//   template class MyApp<NUMBER, ryujin::ScalarConservation::Description, 3>;
+  //     /* instantiations ScalarConservation */
+  //   template class MyApp<NUMBER, ryujin::ScalarConservation::Description, 1>;
+  //   template class MyApp<NUMBER, ryujin::ScalarConservation::Description, 2>;
+  //   template class MyApp<NUMBER, ryujin::ScalarConservation::Description, 3>;
 
-//     /* instantiations ShallowWater */
-//   template class MyApp<NUMBER, ryujin::ShallowWater::Description, 1>;
-//   template class MyApp<NUMBER, ryujin::ShallowWater::Description, 2>;
-//   template class MyApp<NUMBER, ryujin::ShallowWater::Description, 3>;
+  //     /* instantiations ShallowWater */
+  //   template class MyApp<NUMBER, ryujin::ShallowWater::Description, 1>;
+  //   template class MyApp<NUMBER, ryujin::ShallowWater::Description, 2>;
+  //   template class MyApp<NUMBER, ryujin::ShallowWater::Description, 3>;
 
-} /* namespace ryujin */
+} // namespace mgrit

@@ -1,30 +1,30 @@
 #pragma once
-#include <vector>
-#include <string>
-#include <memory>
 #include <iostream>
+#include <memory>
+#include <string>
+#include <vector>
 
-//ryujin includes
-#include <compile_time_options.h>
-#include "time_loop.h"
+// ryujin includes
 #include "scope.h"
+#include "time_loop.h"
+#include <compile_time_options.h>
 
 
-//MPI
+// MPI
 #include <deal.II/base/mpi.h>
 
-//deal.II includes
-#include <deal.II/base/parameter_acceptor.h>
+// deal.II includes
 #include <deal.II/base/conditional_ostream.h>
+#include <deal.II/base/parameter_acceptor.h>
 
-//xbraid include
+// xbraid include
 #include <braid.h>
 #include <braid.hpp>
 
-//mgrit includes
+// mgrit includes
 #include "level_structures.h"
 
-//ryujin includes
+// ryujin includes
 #include "mpi_ensemble.h"
 
 /*
@@ -44,18 +44,20 @@
 
 // This preprocessor macro is used on function arguments
 // that are not used in the function. It is used to
-// suppress compiler warnings especially when some variable is not used in 
+// suppress compiler warnings especially when some variable is not used in
 // release mode, while it is in debug mode.
 #define UNUSED(x) (void)(x)
 
 // This struct contains all data that changes with time. For now
 // this is just the solution data at interpolated always to the finest level.
 /**
- * \brief Struct that contains a ryujin::TimeLoop::vector_type of size problem_dimension*n_dofs.
+ * \brief Struct that contains a ryujin::TimeLoop::vector_type of size
+ * problem_dimension*n_dofs.
  */
-namespace mgrit{
+namespace mgrit
+{
 
-  template<typename Number, typename Description, int dim>
+  template <typename Number, typename Description, int dim>
   class MyVector
   {
     using HyperbolicSystemView =
@@ -69,25 +71,26 @@ namespace mgrit{
     // Vector type
     ryujin::Vectors::StateVector<Number, problem_dim, n_prec> U;
 
-    // Constructor, empty since the user must call an initialization for the public member U.
-    MyVector() {};
+    // Constructor, empty since the user must call an initialization for the
+    // public member U.
+    MyVector(){};
 
     // Destructor, the user's responsibility is to clear the memory for U.
-    ~MyVector() {};
+    ~MyVector(){};
   };
 
   /**
    * \brief A Cpp wrapper for all of the required XBraid functions and data.
    */
-  template<typename Number, typename Description, int dim>
+  template <typename Number, typename Description, int dim>
   class MyApp : public BraidApp, public dealii::ParameterAcceptor
   {
-    public:
-    using LevelType =
-        std::shared_ptr<ryujin::mgrit::LevelStructures<Description, dim, Number>>;
+  public:
+    using LevelType = std::shared_ptr<
+        ryujin::mgrit::LevelStructures<Description, dim, Number>>;
     using TimeLoopType =
         std::shared_ptr<ryujin::TimeLoop<Description, dim, Number>>;
-    using OfflineDataType = ryujin::OfflineData<dim,Number>;
+    using OfflineDataType = ryujin::OfflineData<dim, Number>;
     using DiscretizationType = ryujin::Discretization<dim>;
     using HyperbolicSystemView =
         typename Description::template HyperbolicSystemView<dim, Number>;
@@ -96,15 +99,16 @@ namespace mgrit{
     static constexpr unsigned int n_precomputed_values =
         HyperbolicSystemView::n_precomputed_values;
     using scalar_type = ryujin::Vectors::ScalarVector<Number>;
-    using vector_type =
-        ryujin::Vectors::MultiComponentVector<Number,
-                                     problem_dimension>; // TODO: determine if I
-                                                         // need these typenames
-                                                         // at all in app;
-    using StateVector = ryujin::Vectors::StateVector<Number, problem_dimension, n_precomputed_values>;
+    using vector_type = ryujin::Vectors::MultiComponentVector<
+        Number,
+        problem_dimension>; // TODO: determine if I
+                            // need these typenames
+                            // at all in app;
+    using StateVector = ryujin::Vectors::
+        StateVector<Number, problem_dimension, n_precomputed_values>;
     using precomputed_type =
         ryujin::Vectors::MultiComponentVector<Number, n_precomputed_values>;
-    
+
     using my_vector = MyVector<Number, Description, dim>;
 
     /// @brief Constructor.
@@ -178,10 +182,10 @@ namespace mgrit{
     /// @param fname The name of the file we wish to print.
     /// @param t_idx The brick we are on.
     void write_checkpoint(StateVector &v,
-			  const double t = 0,
-			  const std::string fname = "./checkpoint",
-			  const unsigned int t_idx = 0);
-    
+                          const double t = 0,
+                          const std::string fname = "./checkpoint",
+                          const unsigned int t_idx = 0);
+
     /// @brief Returns the number of locally owned dofs at the specified level.
     /// @param level Level we are querying.
     /// @return Number of dofs owned on this process, at this level.
@@ -189,20 +193,23 @@ namespace mgrit{
 
     /// @brief Return whether a brick we wish to integrate is exact yet.
     /// @param level the level of MGRIT we are stepping on.
-    /// @param brick the brick we are integrating on this level, typically specified with the t_idx
+    /// @param brick the brick we are integrating on this level, typically
+    /// specified with the t_idx
     /// @param iter the MG iteration we are currently on.
     bool brick_converged(const braid_Int level,
-			 const braid_Int brick,
-			 const braid_Int iter);
+                         const braid_Int brick,
+                         const braid_Int iter);
 
-    /// @brief Returns a vector representing the c points that the app will use, according
+    /// @brief Returns a vector representing the c points that the app will use,
+    /// according
     ///        to xbraid's definitions.
     /// @return Vector of Number which are the c-points.
     std::vector<Number> c_points();
 
-    /// @brief This function implements iteration 0 of MGRIT. It uses all the available
-    ///        processors to write checkpoint data at the c-points. Then, during the
-    ///        the app's Init, we simply read in the checkpoint data.
+    /// @brief This function implements iteration 0 of MGRIT. It uses all the
+    /// available
+    ///        processors to write checkpoint data at the c-points. Then, during
+    ///        the the app's Init, we simply read in the checkpoint data.
     void write_coarse_points();
 
   private:
@@ -212,9 +219,10 @@ namespace mgrit{
     void prepare_mg_objects();
 
   public: // Braid Required Routines
-
-    /// Tests whether the n_dofs from the vector matches that on the supposed level.
-    bool vector_size_match_level(const StateVector& v, const braid_Int level) const;
+    /// Tests whether the n_dofs from the vector matches that on the supposed
+    /// level.
+    bool vector_size_match_level(const StateVector &v,
+                                 const braid_Int level) const;
 
     /// Print walltime for various pieces of code.
     void print_times();
@@ -223,8 +231,8 @@ namespace mgrit{
 
     /** @brief Apply the time stepping routine to the input vector @a u
          corresponding to time @a tstart, and return in the same vector @a u the
-          computed result for time @a tstop. The values of @a tstart and @a tstop
-          can be obtained from @a pstatus.
+          computed result for time @a tstop. The values of @a tstart and @a
+       tstop can be obtained from @a pstatus.
 
           @param[in,out] u Input: approximate solution at time @a tstart.
                             Output: computed solution at time @a tstop.
@@ -303,14 +311,17 @@ namespace mgrit{
     braid_Int n_relax;
     unsigned int n_cycles = 0;
     braid_Int access_level;
-    braid_Int num_bricks; // We use this to calculate the number of time points later.
-    braid_Int total_cfactor = 1; // total factor of coarsening from finest to coarsest level.
+    braid_Int
+        num_bricks; // We use this to calculate the number of time points later.
+    braid_Int total_cfactor =
+        1; // total factor of coarsening from finest to coarsest level.
     braid_Int minimal_tpoints_coarsest_level;
     braid_Int print_factor;
 
     // A vector used to store ALL levels of refinement offline_data for when we
     // need to interpolate vectors between levels.
-    // TODO: refactor into a vector of paris, one the discretization, one the offline_data_vec
+    // TODO: refactor into a vector of paris, one the discretization, one the
+    // offline_data_vec
     std::vector<std::shared_ptr<DiscretizationType>> discretization_vec;
     std::vector<std::shared_ptr<OfflineDataType>> offline_data_vec;
     // std::vector<std::shared_ptr< todo make this pairs
@@ -320,7 +331,8 @@ namespace mgrit{
     std::string base_name;
     std::map<std::string, dealii::Timer> computing_timer;
     std::vector<std::vector<dealii::Tensor<1, dim>>> drag_history;
-    std::map<std::pair<int/*t_idx*/, int/*iteration*/>, int/*count*/> f_brick_relaxation_count;
+    std::map<std::pair<int /*t_idx*/, int /*iteration*/>, int /*count*/>
+        f_brick_relaxation_count;
 
     std::string storage_name;
     bool calculate_conserved_quantities;
@@ -328,10 +340,9 @@ namespace mgrit{
     unsigned int n_parabolic_state_vectors;
 
     // Conditional output stream.
-    // pout: output only on the 0th processor in the global communicator (0 in x and 0 in t)
-    // gout: global output, all processors in space and time 
-    // tout: output if 0th processor in comm_t
-    // xout: output if 0th processor in comm_x
+    // pout: output only on the 0th processor in the global communicator (0 in x
+    // and 0 in t) gout: global output, all processors in space and time tout:
+    // output if 0th processor in comm_t xout: output if 0th processor in comm_x
     dealii::ConditionalOStream pout, gout, tout, xout;
   };
-}// Namespace mgrit
+} // Namespace mgrit
