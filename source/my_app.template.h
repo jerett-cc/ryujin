@@ -1196,7 +1196,7 @@ namespace mgrit{
       }
     }
 
-    return 0;;
+    return 0;
   }
 
   template<typename Number, typename Description, int dim>
