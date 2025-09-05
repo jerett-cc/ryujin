@@ -998,13 +998,6 @@ namespace mgrit{
 			       *temp_coarse,
 			       coarsest_level);
 
-    // FIXME: the whole cpp interface as awkward use of pointers for the vector objects.
-    // See above TODO and relace the poutwith pout here.
-    if( !(std::get<0>(u->U).l1_norm()) ){
-      pout << "Norm of u_ptr is not one." << std::endl;
-      exit(EXIT_FAILURE);
-    }
-
     // reassign pointer XBraid will use by turning ownership of the
     // vector 'u' points to over to 'u_ptr':
     *u_ptr = (braid_Vector)u.release();
