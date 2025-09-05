@@ -1,5 +1,5 @@
-#include "mgrit_functions.h"
 #include "level_structures.h"
+#include "mgrit_functions.h"
 
 #include <type_traits>
 
@@ -8,7 +8,8 @@
 // suppress compiler warnings.
 #define UNUSED(x) (void)(x)
 
-namespace mgrit_functions{
+namespace mgrit_functions
+{
 
   // Specialize dim=2
   template <typename Number, typename Description>
@@ -23,22 +24,15 @@ namespace mgrit_functions{
     // We do not care what t is in this case.
     UNUSED(t);
 
-      const auto offline_data = app->levels[app->finest_level]->offline_data;
-      const auto mpi_communicator = app->comm_x;
-      const auto hyperbolic_system_view =
-          app->levels[app->finest_level]
-	  ->hyperbolic_system->get().template view<2, Number>();
-      // first, set up the finite element, the data, and the facevalues
-      // const dealii::FiniteElement<2,2> fe =
-      // app->levels[app->finest_level]->offline_data->discretization().finite_element();
-      // // the finite element const int degree =
-      // app->levels[app->finest_level]->offline_data->discretization().finite_element().degree;
-      // dealii::QGauss<1> face_quadrature_formula =
-      // app->levels[app->finest_level]->offline_data->discretization().quadrature_1d();
-      const int n_q_points = app->levels[app->finest_level]
-                                 ->offline_data->discretization()
-                                 .quadrature_1d()
-                                 .size();
+    const auto offline_data = app->levels[app->finest_level]->offline_data;
+    const auto mpi_communicator = app->comm_x;
+    const auto hyperbolic_system_view = app->levels[app->finest_level]
+                                            ->hyperbolic_system->get()
+                                            .template view<2, Number>();
+    const int n_q_points = app->levels[app->finest_level]
+                               ->offline_data->discretization()
+                               .quadrature_1d()
+                               .size();
 
     std::vector<double> pressure_values(n_q_points);
 
@@ -138,10 +132,10 @@ namespace mgrit_functions{
               drag += forces[0];
               lift += forces[1];
             } // loop over q points
-          } // if cell face is at boundary && on the object
-        } // face loop
-      } // locally_owned cells
-    } // cell loop
+          }   // if cell face is at boundary && on the object
+        }     // face loop
+      }       // locally_owned cells
+    }         // cell loop
 
     // now, sum the values across all processes.
     lift = dealii::Utilities::MPI::sum(lift, mpi_communicator);
@@ -152,7 +146,7 @@ namespace mgrit_functions{
     return forces;
   }
 
-   // Specialize dim=1
+  // Specialize dim=1
   template <typename Number, typename Description>
   dealii::Tensor<1, 1>
   calculate_drag_and_lift(mgrit::MyApp<Number, Description, 1> *app,
@@ -166,7 +160,7 @@ namespace mgrit_functions{
     return dealii::Tensor<1, 1>();
   }
 
-   // Specialize dim=3
+  // Specialize dim=3
   template <typename Number, typename Description>
   dealii::Tensor<1, 3>
   calculate_drag_and_lift(mgrit::MyApp<Number, Description, 3> *app,
@@ -181,60 +175,60 @@ namespace mgrit_functions{
   }
 
   template <typename Description, int dim, typename Number>
-  dealii::Tensor<1, dim+2, Number>
+  dealii::Tensor<1, dim + 2, Number>
   global_average_state(mgrit::MyVector<Number, Description, dim> &u,
-		       const unsigned int level,
-		       const mgrit::MyApp<Number, Description, dim> &app)
+                       const unsigned int level,
+                       const mgrit::MyApp<Number, Description, dim> &app)
   {
-    using Tensor = dealii::Tensor<1, dim+2, Number>;
-    Tensor avg_state; 
+    using Tensor = dealii::Tensor<1, dim + 2, Number>;
+    Tensor avg_state;
 
     // Loop over all locally owned nodes, adding to avg_state.
-    auto &od_level = app.levels[level]->offline_data;// TODO: const?
-    
-    Assert((std::is_same<Description,typename ryujin::Euler::Description>::value),
-	   dealii::ExcMessage("global_average_state only designed for the Euler case"
-			      " so that problem dimension = space_dim+2, since this function"
-			      " returns a (1,dim+2) tensor, which only makes sense if"
-			      " the state vector is dim+2 long."));
-    
-    unsigned int n_local_dof = app.n_locally_owned_at_level(level);
-    for(unsigned int node=0; node < n_local_dof; node++)
-    {
-      auto state = std::get<0>(u.U).get_tensor(node);
-      avg_state+=state;
-    }
-    // // Once all local nodes have been touched, divide the avg_state by the #dofs touched.
-    // avg_state/=n_locally_owned_dof;
-    
-    // Now all local contributions have been calculated, we do a communication/allreduce
-    // to sum all the states, and then divide by the global n_dofs.
-    const unsigned int n_global_dof = od_level->dof_handler().n_dofs();
-    const unsigned int tensor_size  = Tensor::dimension;
-    Assert(tensor_size == dim+2,
-	   dealii::ExcMessage("global_average_state fails vector dimension sanity "
-			      "check for the Euler equations."));
-    const std::function<Number(const Number&, const Number&)>
-      sum([](const Number&u, const Number&v){ return u+v; });
+    auto &od_level = app.levels[level]->offline_data; // TODO: const?
 
-    // FIXME: is there a more efficient way to do this?
-    for(unsigned int i = 0; i < tensor_size; i++)
-    {
-      avg_state[i] = dealii::Utilities::MPI::all_reduce(avg_state[i],
-							app.comm_x,
-							sum);
+    Assert(
+        (std::is_same<Description, typename ryujin::Euler::Description>::value),
+        dealii::ExcMessage(
+            "global_average_state only designed for the Euler case"
+            " so that problem dimension = space_dim+2, since this function"
+            " returns a (1,dim+2) tensor, which only makes sense if"
+            " the state vector is dim+2 long."));
+
+    unsigned int n_local_dof = app.n_locally_owned_at_level(level);
+    for (unsigned int node = 0; node < n_local_dof; node++) {
+      auto state = std::get<0>(u.U).get_tensor(node);
+      avg_state += state;
     }
+
+    // Now all local contributions have been calculated, we do a
+    // communication/allreduce to sum all the states, and then divide by the
+    // global n_dofs.
+    const unsigned int n_global_dof = od_level->dof_handler().n_dofs();
+    const unsigned int tensor_size = Tensor::dimension;
+    Assert(
+        tensor_size == dim + 2,
+        dealii::ExcMessage("global_average_state fails vector dimension sanity "
+                           "check for the Euler equations."));
+    const std::function<Number(const Number &, const Number &)> sum(
+        [](const Number &u, const Number &v) { return u + v; });
+
+    // FIXME: is there a more efficient way to do this without the loop?
+    for (unsigned int i = 0; i < tensor_size; i++)
+      avg_state[i] =
+          dealii::Utilities::MPI::all_reduce(avg_state[i], app.comm_x, sum);
+
     avg_state /= n_global_dof;
-    
+
     return avg_state;
   }
 
   template <typename Description, int dim, typename Number>
-  void enforce_physicality_bounds(mgrit::MyVector<Number, Description, dim> &u,
-                                  const unsigned int level,
-                                  const mgrit::MyApp<Number, Description, dim> &app,
-                                  [[maybe_unused]]const Number t,
-				  const braid_Int calling)
+  void
+  enforce_physicality_bounds(mgrit::MyVector<Number, Description, dim> &u,
+                             const unsigned int level,
+                             const mgrit::MyApp<Number, Description, dim> &app,
+                             [[maybe_unused]] const Number t,
+                             const braid_Int calling)
   {
     // The incoming u.U should already respect the following equalities:
     // (1) u.U[0]     = rho
@@ -242,275 +236,293 @@ namespace mgrit_functions{
     // (3) u.U[dim+1] = E
 
     // Here, we assume an ideal gas (with a gamma law).
-    // Further, these variable are related to each other via the following equality:
-    // where e is the specific energy density
-    // (4)               E = rho*e + 1/2*(|m|^2)/rho
-    
-    // And we have the following equations of interest, which define the invariant domain of
-    // ryujin's authors. When we are done with this function, we hope that the following
-    // inequalities hold: 
-    // (Density)          rho                                   > 0
+    // Further, these variable are related to each other via the following
+    // equality: where e is the specific energy density (4)               E =
+    // rho*e + 1/2*(|m|^2)/rho
+
+    // And we have the following equations of interest, which define the
+    // invariant domain of ryujin's authors. When we are done with this
+    // function, we hope that the following inequalities hold: (Density) rho > 0
     // (Specific Entropy) psi   = internal_energy*(1/rho)^gamma > 0
     // (Internal Energy)  rho*e = (E - 0.5/rho*|m|^2)           > 0
 
-    // For this projection, we also know that the pressure is given by the following EOS:
-    // (Pressure) P = (gamma-1)*internal_energy
+    // For this projection, we also know that the pressure is given by the
+    // following EOS: (Pressure) P = (gamma-1)*internal_energy
 
     // This function works in the following steps
-    //   - The tau-like corrections from MGRIT cause negative densities, so we first
+    //   - The tau-like corrections from MGRIT cause negative densities, so we
+    //   first
     //     set a small, but nonzero density.
-    //   - We observed spikes in E, presumably caused by the tau corrections, so we
-    //     next limit E at each node to the maximum of its neighbors if the node's
-    //     E contributes more than 90% of the total E in the area. (A spike).
-    //   - Next, we have to ensure that all of our changes are in the invariant domain
-    //     described by (Density), (Specific Entropy), (Internal Energy). Density ought
-    //     to be OK, but we need to check the other conditions. If these fail, we then
-    //     compute incremental delta E energy increases, until both (Specific Entropy)
-    //     and (Internal Energy) are satisfied. In principle, thes could be calculated
-    //     independently for different PDE systems or EOS. For the assumptions outlined above,
-    //     we note that (Internal Energy) implies (Specific Entropy). So we just add to E until
-    //     E > 0.5/rho*|m|^2 + epsilon (the parameter epsilon is to ensure we are small,
-    //     but not negative).
-    //   - Finally, we update the vector reference u with all the states that needed modifying .
-    
-    // Since this function modifies rho and E, we need to make sure this is done in a compatible way.
-    // Meaning that if we limit rho >= 0, then we need to update all the states, since (1), (2), and
-    // (4) all involve rho.
+    //   - We observed spikes in E, presumably caused by the tau corrections, so
+    //   we
+    //     next limit E at each node to the maximum of its neighbors if the
+    //     node's E contributes more than 90% of the total E in the area. (A
+    //     spike).
+    //   - Next, we have to ensure that all of our changes are in the invariant
+    //   domain
+    //     described by (Density), (Specific Entropy), (Internal Energy).
+    //     Density ought to be OK, but we need to check the other conditions. If
+    //     these fail, we then compute incremental delta E energy increases,
+    //     until both (Specific Entropy) and (Internal Energy) are satisfied. In
+    //     principle, thes could be calculated independently for different PDE
+    //     systems or EOS. For the assumptions outlined above, we note that
+    //     (Internal Energy) implies (Specific Entropy). So we just add to E
+    //     until E > 0.5/rho*|m|^2 + epsilon (the parameter epsilon is to ensure
+    //     we are small, but not negative).
+    //   - Finally, we update the vector reference u with all the states that
+    //   needed modifying .
 
-    // Similarly, modifying E should entail modifying rho*e, and hence needs to modify
-    // somehow rho, e, and m?
-    
-    // Create Hyperbolic System View, where we can compute functions like pressure.
-    const auto view = app.levels[level]->hyperbolic_system->get().template view<dim,Number>();
-    auto &od_level = app.levels[level]->offline_data;// TODO: const?
+    // Since this function modifies rho and E, we need to make sure this is done
+    // in a compatible way. Meaning that if we limit rho >= 0, then we need to
+    // update all the states, since (1), (2), and (4) all involve rho.
+
+    // Similarly, modifying E should entail modifying rho*e, and hence needs to
+    // modify somehow rho, e, and m?
+
+    // Create Hyperbolic System View, where we can compute functions like
+    // pressure.
+    const auto view = app.levels[level]
+                          ->hyperbolic_system->get()
+                          .template view<dim, Number>();
+    auto &od_level = app.levels[level]->offline_data; // TODO: const?
     const auto &sparsity_level = od_level->sparsity_pattern();
 
-    Assert(app.vector_size_match_level(u.U, level),
-	   dealii::ExcMessage("enforce_physicality only works if the vector's size and the size "
-			      "from the level match. This is because a copy is made from the size "
-			      "from the offline_data."));
-    Assert((std::is_same<Description,typename ryujin::Euler::Description>::value),
-	   dealii::ExcMessage("enforce_physicality only designed for the Euler case"
-			      " with a gamma law EOS.")); 
-    
+    Assert(
+        app.vector_size_match_level(u.U, level),
+        dealii::ExcMessage(
+            "enforce_physicality only works if the vector's size and the size "
+            "from the level match. This is because a copy is made from the "
+            "size "
+            "from the offline_data."));
+    Assert(
+        (std::is_same<Description, typename ryujin::Euler::Description>::value),
+        dealii::ExcMessage(
+            "enforce_physicality only designed for the Euler case"
+            " with a gamma law EOS."));
+
 
     // Calculate global averages in density and total energy, for use in the eps
-    // terms which limit the sensity and internal energy, rather than a non-physical
-    // term like 1e-8.
-    // Here, we calculate an averaged density and set a minimum density to be
-    // one hundredth of the average density. Likewise for the total energy.
-    const auto avgs = global_average_state<Description, dim, Number>(u, level, app);
-    Number eps_rho  = avgs[0]     * 1e-2;
-    Number eps_E    = avgs[dim+1] * 1e-2;
-    
-    // First, we limit the density to be non-negative, and update all the relations
-    // with this new density.
-    // TAG: #1 projection: Loop over all nodes.
-    for(unsigned int node=0; node < app.n_locally_owned_at_level(level); node++)
-    {
+    // terms which limit the sensity and internal energy, rather than a
+    // non-physical term like 1e-8. Here, we calculate an averaged density and
+    // set a minimum density to be one hundredth of the average density.
+    // Likewise for the total energy.
+    const auto avgs =
+        global_average_state<Description, dim, Number>(u, level, app);
+    Number eps_rho = avgs[0] * 1e-2;
+    Number eps_E = avgs[dim + 1] * 1e-2;
+
+    // First, we limit the density to be non-negative, and update all the
+    // relations with this new density. TAG: #1 projection: Loop over all nodes.
+    for (unsigned int node = 0; node < app.n_locally_owned_at_level(level);
+         node++) {
       auto state = std::get<0>(u.U).get_tensor(node);
       Number old_rho = state[0];
-      
+
       state[0] = std::max(old_rho, eps_rho);
       std::get<0>(u.U).write_tensor(state, node);
     }
     // Communicate the changes.
     std::get<0>(u.U).update_ghost_values();
-    
+
     // Now that the densities are fixed, let's ensure that E is not too large
-    // by checking if it contributes greater than 90% of the total enegry of a local
-    // stencil. Then, if it does, we replace it with the largest (hopefully reasonable
-    // FIXME) of the surrounding connected nodes, in all solution components. This way,
-    // we are guranteed to satisfy (1), (2), (3), (4) since we assume that incoming data
-    // already satisfies this.
-    
-    // First, set up some temporary data which we will store our modifications, if needed.
-    mgrit::MyVector<Number, Description,dim> copy;
-    app.reinit_to_level(&copy,level);
+    // by checking if it contributes greater than 90% of the total enegry of a
+    // local stencil. Then, if it does, we replace it with the largest
+    // (hopefully reasonable
+    // FIXME) of the surrounding connected nodes, in all solution components.
+    // This way, we are guranteed to satisfy (1), (2), (3), (4) since we assume
+    // that incoming data already satisfies this.
+
+    // First, set up some temporary data which we will store our modifications,
+    // if needed.
+    mgrit::MyVector<Number, Description, dim> copy;
+    app.reinit_to_level(&copy, level);
     std::get<0>(copy.U) = std::get<0>(u.U);
     // TAG: #2 loop over all nodes
     // Compute the local average in E and use this as a limit on E in the copy.
-    for(unsigned int node=0; node < app.n_locally_owned_at_level(level); node++)
-    {
+    for (unsigned int node = 0; node < app.n_locally_owned_at_level(level);
+         node++) {
       auto state_node = std::get<0>(u.U).get_tensor(node);
-      auto E_node = state_node[dim+1];
+      auto E_node = state_node[dim + 1];
       // Prevent E from being small.
-      state_node[dim+1] = std::max(E_node, eps_E);
-      // Next, we need to verify that the each node's state is admissible, if not, then
-      // it is likely that the internal energy is negative, so we calculate a delta E based
-      // on (Internal Energy).
-      if(!view.is_admissible(state_node))
-      {
+      state_node[dim + 1] = std::max(E_node, eps_E);
+      // Next, we need to verify that the each node's state is admissible, if
+      // not, then it is likely that the internal energy is negative, so we
+      // calculate a delta E based on (Internal Energy).
+      if (!view.is_admissible(state_node)) {
 #ifdef DEBUG_MGRIT
-	std::cout << "calling=" << calling
-		  << " enforce_physicality() state after limiting density and E/Pressure "
-		  << "on level=" << level
-		  << " is not admissible node="
-		  << node << " and state=" << state_node << std::endl;
+        std::cout << "calling=" << calling
+                  << " enforce_physicality() state after limiting density and "
+                     "E/Pressure "
+                  << "on level=" << level << " is not admissible node=" << node
+                  << " and state=" << state_node << std::endl;
 #endif
-	Number deltaE = -view.internal_energy(state_node) + eps_E;
-	state_node[dim+1] += deltaE;
-	
+        Number deltaE = -view.internal_energy(state_node) + eps_E;
+        state_node[dim + 1] += deltaE;
+
 #ifdef DEBUG_MGRIT
-	// Double check that now the state is admissible.
-	if(view.is_admissible(state_node))
-	  {
-	    std::cout << "calling=" << calling
-		      << " enforce_physicality() state after limiting density and E/Pressure "
-		      << "on level=" << level
-		      << " has been made admissible node="
-		      << node << " and state=" << state_node << std::endl;
-	  }
+        // Double check that now the state is admissible.
+        if (view.is_admissible(state_node)) {
+          std::cout << "calling=" << calling
+                    << " enforce_physicality() state after limiting density "
+                       "and E/Pressure "
+                    << "on level=" << level
+                    << " has been made admissible node=" << node
+                    << " and state=" << state_node << std::endl;
+        }
 #endif
       }
-      
-      // Write new state in the copied vector. TODO: does this need to happen every time
-      // or only in the case that the above if(...) triggers?
+
+      // Write new state in the copied vector. TODO: does this need to happen
+      // every time or only in the case that the above if(...) triggers?
       std::get<0>(copy.U).write_tensor(state_node, node);
     }
 
-    //TODO: the equations (1), (2), (3), (4) maybe not satisfied with these
-    //      arbitrary additions and limitations?
+    // TODO: the equations (1), (2), (3), (4) maybe not satisfied with these
+    //       arbitrary additions and limitations?
 
     // Exchange projection changes in copy.
     std::get<0>(copy.U).update_ghost_values();
 
-    // Now that the copy is fixed up, we move the copied data into the one we wish to change,
-    // and update ghost to finish change.
+    // Now that the copy is fixed up, we move the copied data into the one we
+    // wish to change, and update ghost to finish change.
     std::get<0>(u.U) = std::get<0>(copy.U);
   }
 
   template <typename Description, int dim, typename Number>
-  void conserved_and_entropy_in_system(const mgrit::MyVector<Number, Description, dim> &u,
-				       const mgrit::MyApp<Number, Description, dim> *app,
-				       const braid_Int level,
-				       const Number time)
+  void conserved_and_entropy_in_system(
+      const mgrit::MyVector<Number, Description, dim> &u,
+      const mgrit::MyApp<Number, Description, dim> *app,
+      const braid_Int level,
+      const Number time)
   {
-    [[maybe_unused]] int n_dofs       = app->n_locally_owned_at_level(level);
+    [[maybe_unused]] int n_dofs = app->n_locally_owned_at_level(level);
     [[maybe_unused]] int n_components = app->problem_dimension;
-    [[maybe_unused]] int n_vector_dof = std::get<0>(u.U).locally_owned_size()/n_components;
+    [[maybe_unused]] int n_vector_dof =
+        std::get<0>(u.U).locally_owned_size() / n_components;
 
     Assert((level == app->finest_level),
-	   dealii::ExcMessage("Can only calculate entropy on finest level."));
+           dealii::ExcMessage("Can only calculate entropy on finest level."));
     Assert((n_dofs == n_vector_dof),
-	   dealii::ExcMessage("Total entropy can only be calculated when dofs match on mesh and u."
-			      "Here, level="+ std::to_string(level)+ " which has "+
-		      std::to_string(n_vector_dof)+ " when the expected "+
-		      "number of dofs on the finest level is "+
-		      std::to_string(n_dofs)));
+           dealii::ExcMessage("Total entropy can only be calculated when dofs "
+                              "match on mesh and u."
+                              "Here, level=" +
+                              std::to_string(level) + " which has " +
+                              std::to_string(n_vector_dof) +
+                              " when the expected " +
+                              "number of dofs on the finest level is " +
+                              std::to_string(n_dofs)));
     // Calculate the entropy in the system
-    const auto hyperbolic_system_view =
-      app->levels[level]->hyperbolic_system->get().template view<dim,Number>();
+    const auto hyperbolic_system_view = app->levels[level]
+                                            ->hyperbolic_system->get()
+                                            .template view<dim, Number>();
 
     Number total_entropy = 0;
-    Number mass          = 0;
-    Number momentum_sqr  = 0;
-    Number E             = 0;
+    Number mass = 0;
+    Number momentum_sqr = 0;
+    Number E = 0;
 
     const auto comm_x = app->comm_x;
-    const auto od     = app->levels[app->finest_level]->offline_data;
-    const auto &fe    = od->discretization().finite_element();
-    const auto &quad  = od->discretization().quadrature();
+    const auto od = app->levels[app->finest_level]->offline_data;
+    const auto &fe = od->discretization().finite_element();
+    const auto &quad = od->discretization().quadrature();
 
-    dealii::FEValues<dim> fe_vals(fe,
-				  quad,
-				  dealii::update_values | dealii::update_JxW_values);
-    
-    for (const auto &cell: od->dof_handler().active_cell_iterators())
-      {
-	fe_vals.reinit(cell);
-	if(cell->is_locally_owned())
-	  {
-	    for (const unsigned int q_idx: fe_vals.quadrature_point_indices())
-	      {
-		const auto state = std::get<0>(u.U).get_tensor(q_idx);
-		const Number point_entropy = hyperbolic_system_view.specific_entropy(state);
-		const Number point_rho = state[0];
-		Number point_mom_sqr = 0;
-		for (int d=0; d<dim; d++)
-		  point_mom_sqr += state[1+d]*state[1+d];
-		const Number point_E = state[dim+1];
-		
-		for (const unsigned int i: fe_vals.dof_indices())
-		  {
-		    total_entropy += (fe_vals.shape_value(i,q_idx) *
-				      point_entropy *
-				      fe_vals.JxW(q_idx));
-		    mass          += (fe_vals.shape_value(i,q_idx) *
-				      point_rho *
-				      fe_vals.JxW(q_idx));
-		    momentum_sqr  += (fe_vals.shape_value(i,q_idx) *
-				      point_mom_sqr *
-				      fe_vals.JxW(q_idx));
-		    E             += (fe_vals.shape_value(i,q_idx) *
-				      point_E *
-				      fe_vals.JxW(q_idx));
-		  }// dof contributions for each cell
-	      } // quadrature points in cell
-	  } // locally owned
-      } //cells
-   
+    dealii::FEValues<dim> fe_vals(
+        fe, quad, dealii::update_values | dealii::update_JxW_values);
+
+    for (const auto &cell : od->dof_handler().active_cell_iterators()) {
+      fe_vals.reinit(cell);
+      if (cell->is_locally_owned()) {
+        for (const unsigned int q_idx : fe_vals.quadrature_point_indices()) {
+          const auto state = std::get<0>(u.U).get_tensor(q_idx);
+          const Number point_entropy =
+              hyperbolic_system_view.specific_entropy(state);
+          const Number point_rho = state[0];
+          Number point_mom_sqr = 0;
+          for (int d = 0; d < dim; d++)
+            point_mom_sqr += state[1 + d] * state[1 + d];
+          const Number point_E = state[dim + 1];
+
+          for (const unsigned int i : fe_vals.dof_indices()) {
+            total_entropy += (fe_vals.shape_value(i, q_idx) * point_entropy *
+                              fe_vals.JxW(q_idx));
+            mass += (fe_vals.shape_value(i, q_idx) * point_rho *
+                     fe_vals.JxW(q_idx));
+            momentum_sqr += (fe_vals.shape_value(i, q_idx) * point_mom_sqr *
+                             fe_vals.JxW(q_idx));
+            E += (fe_vals.shape_value(i, q_idx) * point_E * fe_vals.JxW(q_idx));
+          } // dof contributions for each cell
+        }   // quadrature points in cell
+      }     // locally owned
+    }       // cells
+
     // communicate across space
     dealii::Utilities::MPI::sum(total_entropy, comm_x);
     dealii::Utilities::MPI::sum(mass, comm_x);
     dealii::Utilities::MPI::sum(momentum_sqr, comm_x);
     dealii::Utilities::MPI::sum(E, comm_x);
-    if(dealii::Utilities::MPI::this_mpi_process(app->comm_x)==0){
-      std::cout << "Total entropy at time t= " << time << " is " << total_entropy << std::endl;
-      std::cout << "Total Mass at time t= " << time << " is " << mass << std::endl;
-      std::cout << "Total Momentum Squared at time t= " << time << " is " << momentum_sqr << std::endl;
+    if (dealii::Utilities::MPI::this_mpi_process(app->comm_x) == 0) {
+      std::cout << "Total entropy at time t= " << time << " is "
+                << total_entropy << std::endl;
+      std::cout << "Total Mass at time t= " << time << " is " << mass
+                << std::endl;
+      std::cout << "Total Momentum Squared at time t= " << time << " is "
+                << momentum_sqr << std::endl;
       std::cout << "Total E at time t= " << time << " is " << E << std::endl;
     }
   }
 
   template <typename Description, int dim, typename Number>
   bool does_E_exceed_threshold(mgrit::MyVector<Number, Description, dim> &u,
-			       mgrit::MyApp<Number, Description, dim> &app,
-			       [[maybe_unused]]const braid_Int level,
-			       const Number time,
-			       const braid_Int t_idx,
-			       const braid_Int calling,
-			       const braid_Real E_threshold,
-			       const bool do_print,
-			       std::string fname)
+                               mgrit::MyApp<Number, Description, dim> &app,
+                               [[maybe_unused]] const braid_Int level,
+                               const Number time,
+                               const braid_Int t_idx,
+                               const braid_Int calling,
+                               const braid_Real E_threshold,
+                               const bool do_print,
+                               std::string fname)
   {
     // Assert(level == app.finest_level,
-    // 	   dealii::ExcMessage("Can only verify E is not too large on the finest level."));
-    
+    // 	   dealii::ExcMessage("Can only verify E is not too large on the finest
+    // level."));
+
     [[maybe_unused]] const auto od = app.levels[level]->offline_data;
-    // Check that the level claimed matches the level of the vector by comparing sizes.
-    //std::cout << "n_locally_owned_on_level(" << level << ") is " << app.n_locally_owned_at_level(level) << std::endl;
-    Assert(od->n_locally_owned() == (int)std::get<0>(u.U).locally_owned_size()/app.problem_dimension,
-	   dealii::ExcMessage("The number of DOF's from the vector is "
-			      + std::to_string(std::get<0>(u.U).locally_owned_size()/app.problem_dimension)
-			      + " which does not match the number that the offline data requires "
-			      + std::to_string(od->n_locally_owned())
-			      + "for checking if E is too large."));
-    
+    // Check that the level claimed matches the level of the vector by comparing
+    // sizes.
+    // std::cout << "n_locally_owned_on_level(" << level << ") is " <<
+    // app.n_locally_owned_at_level(level) << std::endl;
+    Assert(
+        od->n_locally_owned() ==
+            (int)std::get<0>(u.U).locally_owned_size() / app.problem_dimension,
+        dealii::ExcMessage(
+            "The number of DOF's from the vector is " +
+            std::to_string(std::get<0>(u.U).locally_owned_size() /
+                           app.problem_dimension) +
+            " which does not match the number that the offline data requires " +
+            std::to_string(od->n_locally_owned()) +
+            "for checking if E is too large."));
+
     bool violates = false;
     const unsigned int local_size = od->n_locally_owned();
-    for (unsigned int i = 0; i < local_size; i++)
-    {
+    for (unsigned int i = 0; i < local_size; i++) {
       const auto state = std::get<0>(u.U).get_tensor(i);
-      const Number point_E = state[dim+1];
-      if ( point_E > E_threshold )
-      {
-	violates = true;
-	std::string ostring = "E is too large (E=" + std::to_string(point_E) 
-	  + ") compared to threshold "
-	  + std::to_string(E_threshold)
-	  + " at t " + std::to_string(time) + " at local_dof_index "
-	  + std::to_string(i) + " with xbraid calling function "
-	  + std::to_string(calling);
-	//FIXME: make this a conditional ostream?
-	std::cout << ostring << std::endl;
-	break;
+      const Number point_E = state[dim + 1];
+      if (point_E > E_threshold) {
+        violates = true;
+        std::string ostring =
+            "E is too large (E=" + std::to_string(point_E) +
+            ") compared to threshold " + std::to_string(E_threshold) +
+            " at t " + std::to_string(time) + " at local_dof_index " +
+            std::to_string(i) + " with xbraid calling function " +
+            std::to_string(calling);
+        // FIXME: make this a conditional ostream?
+        std::cout << ostring << std::endl;
+        break;
       }
     } // locally dofs
 
-    if (violates && do_print)
-    {
-      fname+=std::to_string(calling);
+    if (violates && do_print) {
+      fname += std::to_string(calling);
       app.print_solution(u.U, time, level, fname, t_idx);
     }
 
@@ -518,35 +530,38 @@ namespace mgrit_functions{
   }
 
   template <typename Description, int dim, typename Number>
-  bool state_admissible_everywhere(mgrit::MyVector<Number, Description, dim> &u,
-				   const unsigned int level,
-				   const mgrit::MyApp<Number, Description, dim> &app,
-				   const Number t,
-				   const braid_Int calling)
+  bool
+  state_admissible_everywhere(mgrit::MyVector<Number, Description, dim> &u,
+                              const unsigned int level,
+                              const mgrit::MyApp<Number, Description, dim> &app,
+                              const Number t,
+                              const braid_Int calling)
   {
     // Create Hyperbolic System View, where we can query admissibility.
-    const auto view = app.levels[level]->hyperbolic_system->get().template view<dim,Number>();
+    const auto view = app.levels[level]
+                          ->hyperbolic_system->get()
+                          .template view<dim, Number>();
     Assert(app.vector_size_match_level(u.U, level),
-	   dealii::ExcMessage("admissible_everywhere() only works if the vector's size and the size "
-			      "from the level match. This is because the function loops over "
-			      "all the locally owned dofs at the supposed level."));
+           dealii::ExcMessage(
+               "admissible_everywhere() only works if the vector's size and "
+               "the size "
+               "from the level match. This is because the function loops over "
+               "all the locally owned dofs at the supposed level."));
     ryujin::Scope scope(app.computing_timer, "state_admissible_everywhere");
-    for(unsigned int node=0; node < app.n_locally_owned_at_level(level); node++)
-    {
+    for (unsigned int node = 0; node < app.n_locally_owned_at_level(level);
+         node++) {
       auto state = std::get<0>(u.U).get_tensor(node);
-      if(!view.is_admissible(state))
-      {
+      if (!view.is_admissible(state)) {
 #ifdef DEBUG_MGRIT
-	std::cout << "calling=" << calling
-		  << " a state at time t=" << t
-		  << " is not admissible node="
-		  << node << " and state=" << state << std::endl;
+        std::cout << "calling=" << calling << " a state at time t=" << t
+                  << " is not admissible node=" << node
+                  << " and state=" << state << std::endl;
 #endif
-	return false;
+        return false;
       }
     }
 
     return true;
   }
-  
+
 } // Namespace mgrit_functions

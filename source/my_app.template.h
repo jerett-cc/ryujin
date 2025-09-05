@@ -137,11 +137,18 @@ namespace mgrit{
 		  "and so on.");
 
     storage_name = "./initial_coarse/";
-    add_parameter("the location of where you wish to store the initial guesses",
-		  storage_name,
-		  "if you want it to be in the run directory, simply use './name_you_desire/' ");
+    add_parameter("storage name",
+                  storage_name,
+                  "the location of where you wish to store the initial guesses"
+                  "if you want it to be in the run directory, simply use "
+                  "'./name_you_desire/' ");
+    calculate_conserved_quantities = false;
+    add_parameter(
+        "calculate conserved quantities",
+        calculate_conserved_quantities,
+        "Should the mass and entropy of the state be computed and printed "
+        "to see if the method is conservative? Happens only at end of cycle.");
 
-    // drag_history()//TODO: how to init? need this to have max_iter num of vectors, each of size n_coarse_points(at least the ones I am printing.)
   };
 
   template<typename Number, typename Description, int dim>
@@ -1084,55 +1091,6 @@ namespace mgrit{
     ryujin::Scope scope(computing_timer, "access::" + std::to_string(level));
 
     std::string fname = "./" + base_name +"_cycle" + std::to_string(mgCycle);
-
-#ifdef DEBUG_MGRIT
-    /*all vectors live on finest level, unless interpolated to a coarser one*/
-    bool not_admissible = mgrit_functions::state_admissible_everywhere(*u_,
-								       finest_level,
-								       *this,
-								       t,
-								       caller_id);
-    bool spike = mgrit_functions::does_E_exceed_threshold(*u_,
-							  *this,
-							  finest_level,
-							  t,
-							  t_idx,
-							  caller_id,
-							  200./*check whenever E is
-								   larger than 200*/,
-							  true/*print this if does exceed*/,
-							  "Elarge_cycle_" + std::to_string(mgCycle)
-							  + "forcalling_");
-    bool violates = not_admissible || spike;
-    
-    if(violates)
-    {
-      std::cout << "Something is not OK forbrick " << t_idx << " at t= "
-		<< t << " on cycle " << mgCycle
-		<< " for caller " << caller_id << " What:" << std::endl;
-      if(!admissible)
-      {
-	std::cout << "U is not admissible on MG level " << level << " on cycle "
-		  << mgCycle << std::endl;  
-	  print_solution(u_->U,
-			 t,
-			 finest_level /*level that every u lives on*/,
-			 "./inadmissible_caller"+std::to_string(caller_id),
-			 t_idx);
-      }
-
-      if(spike)
-      {
-	std::cout << "U has spike on MG level " << level << " on cycle "
-		  << mgCycle << std::endl;  
-	  print_solution(u_->U,
-			 t,
-			 finest_level /*level that every u lives on*/,
-			 "./spike_caller"+std::to_string(caller_id),
-			 t_idx);
-      }
-    }
-#endif
     
     switch (caller_id)//FIXME: need switch here? 
     {
@@ -1168,11 +1126,15 @@ namespace mgrit{
 	                   std::to_string(forces[1]) + " time." +
 	                   std::to_string(t)
 	     << std::endl;
-	// calculate the conserved quantities in the system, as well as entropy
-	mgrit_functions::conserved_and_entropy_in_system<Description,dim,Number>(*u_,
-										 this,
-										 finest_level,
-										 t);
+	if(calculate_conserved_quantities)
+	{
+	  // calculate the conserved quantities in the system, as well as entropy
+	  mgrit_functions::conserved_and_entropy_in_system<Description,dim,Number>(*u_,
+										   this,
+										   finest_level,
+										   t);
+	}
+	
         n_cycles = mgCycle;
         break;
       }
@@ -1221,7 +1183,9 @@ namespace mgrit{
                            BraidBufferStatus &bstatus)
   {
     my_vector *u_ = (my_vector *) u;
+#ifdef DEBUG_MGRIT
     pout << "[INFO] BufPack Called" << std::endl;
+#endif
     
     ryujin::Scope scope(computing_timer, "buf_pack");
     
@@ -1251,7 +1215,9 @@ namespace mgrit{
     bstatus.SetSize((buf_size + 1) * sizeof(Number));
     // set the number of bytes stored in this buffer (TODO:
     // this is off since the dbuffer[0] is a integer.)
+#ifdef DEBUG_MGRIT
     pout << "[INFO] BufPack Finished." << std::endl;
+#endif
     
     return 0;
   }
@@ -1261,8 +1227,10 @@ namespace mgrit{
                              braid_Vector *u_ptr,
                              BraidBufferStatus &bstatus)
   {
+#ifdef DEBUG_MGRIT
     pout << "[INFO] BufUnpack Called" << std::endl;
-
+#endif
+    
     UNUSED(bstatus);
     ryujin::Scope scope(computing_timer, "buf_unpack");
 
