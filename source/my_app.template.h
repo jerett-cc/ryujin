@@ -150,7 +150,6 @@ namespace mgrit
         calculate_conserved_quantities,
         "Should the mass and entropy of the state be computed and printed "
         "to see if the method is conservative? Happens only at end of cycle.");
-
   };
 
   template <typename Number, typename Description, int dim>
@@ -1143,10 +1142,11 @@ namespace mgrit
           u_->U, t, finest_level /*level that every u lives on*/, fname, t_idx);
 
       // calculate drag (at end of cycle...)
-      [[maybe_unused]]dealii::Tensor<1, dim> forces =
-	mgrit_functions::calculate_forces_on_object<Number, Description, dim>(
-									      this, *u_, t, mgCycle);
-
+      [[maybe_unused]] dealii::Tensor<1, dim> forces =
+          mgrit_functions::calculate_forces_on_object<Number, Description, dim>(
+              this, *u_, t, mgCycle);
+      std::cout << "[Cycle:" << mgCycle << "] forces[0]=" << forces[0]
+                << " on brick " << t_idx << std::endl;
       if (calculate_conserved_quantities) {
         // calculate the conserved quantities in the system, as well as entropy
         mgrit_functions::
@@ -1259,8 +1259,8 @@ namespace mgrit
         static_cast<unsigned int>(dbuffer[0]); // TODO: is this dangerous?
 
     // The vector should be size (dim + 2) X n_dofs at finest level.
-    my_vector *u = new (my_vector); // TODO: where does this get deleted?
-                                    // Probably wherever owns the u_ptr.
+    my_vector *u = new (my_vector);   // TODO: where does this get deleted?
+                                      // Probably wherever owns the u_ptr.
     reinit_to_level(u, finest_level); // each U is at the finest level.
 
     // unpack the sent data into the right level
