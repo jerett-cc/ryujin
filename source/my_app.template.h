@@ -1143,15 +1143,10 @@ namespace mgrit
           u_->U, t, finest_level /*level that every u lives on*/, fname, t_idx);
 
       // calculate drag (at end of cycle...)
-      dealii::Tensor<1, dim> forces =
-          mgrit_functions::calculate_drag_and_lift<Number, Description>(
-              this, *u_, t);
+      [[maybe_unused]]dealii::Tensor<1, dim> forces =
+	mgrit_functions::calculate_forces_on_object<Number, Description, dim>(
+									      this, *u_, t, mgCycle);
 
-      // TODO: make a global out stream here
-      std::cout << "cycle." + std::to_string(mgCycle) + " drag." +
-                       std::to_string(forces[0]) + " lift." +
-                       std::to_string(forces[1]) + " time." + std::to_string(t)
-                << std::endl;
       if (calculate_conserved_quantities) {
         // calculate the conserved quantities in the system, as well as entropy
         mgrit_functions::
