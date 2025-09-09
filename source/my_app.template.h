@@ -141,7 +141,7 @@ namespace mgrit
     storage_name = "./initial_coarse/";
     add_parameter("storage name",
                   storage_name,
-                  "the location of where you wish to store the initial guesses"
+                  "the location where you wish to store the initial guesses"
                   "if you want it to be in the run directory, simply use "
                   "'./name_you_desire/' ");
     calculate_conserved_quantities = false;
@@ -720,6 +720,12 @@ namespace mgrit
     time_loops[0]->change_checkpoint_and_frequency_and_basename(
         true, dt, storage_name);
     time_loops[0]->set_use_cycle_in_name(true);
+
+    // check that the requested directory for the storage exists,
+    // if not, then make it.
+    std::filesystem::path path(storage_name);
+    if (!std::filesystem::is_directory(path.parent_path()))
+      std::filesystem::create_directory(path.parent_path());
 
     // with the time_loop, run on the coarsest level
     time_loops[0]->set_t_final(tstop);
