@@ -311,9 +311,7 @@ namespace mgrit_functions
 
     // First, set up some temporary data which we will store our modifications,
     // if needed.
-    mgrit::MyVector<Number, Description, dim> copy;
-    app.reinit_to_level(&copy, level);
-    std::get<0>(copy.U) = std::get<0>(u.U);
+
     // TAG: #2 loop over all nodes
     // Compute the local average in E and use this as a limit on E in the copy.
     for (unsigned int node = 0; node < app.n_locally_owned_at_level(level);
@@ -351,18 +349,14 @@ namespace mgrit_functions
 
       // Write new state in the copied vector. TODO: does this need to happen
       // every time or only in the case that the above if(...) triggers?
-      std::get<0>(copy.U).write_tensor(state_node, node);
+      std::get<0>(u.U).write_tensor(state_node, node);
     }
 
     // TODO: the equations (1), (2), (3), (4) maybe not satisfied with these
     //       arbitrary additions and limitations?
 
     // Exchange projection changes in copy.
-    std::get<0>(copy.U).update_ghost_values();
-
-    // Now that the copy is fixed up, we move the copied data into the one we
-    // wish to change, and update ghost to finish change.
-    std::get<0>(u.U) = std::get<0>(copy.U);
+    std::get<0>(u.U).update_ghost_values();
   }
 
   template <typename Description, int dim, typename Number>
