@@ -1,257 +1,122 @@
 #include "discretization.h"
-#include "level_structures.h"//for all the objects that are needed for a run.
-#include "time_loop.h"
-#include <deal.II/base/mpi.h>
 #include "euler/description.h"
 #include "euler/hyperbolic_system.h"
+#include "level_structures.h" //for all the objects that are needed for a run.
 #include "my_app.h"
 #include "state_vector.h"
+#include "time_loop.h"
+#include <deal.II/base/mpi.h>
 
+// Postprocessing
+#include "mgrit_functions.template.h"
 
+bool is_print_time(mgrit::MyApp<NUMBER, ryujin::Euler::Description, 2> &app,
+                   const NUMBER time)
+{
+  // get print frequency from app
+  const NUMBER pdt = (app.tstop - app.tstart) / app.num_bricks;
+
+  // check if this time is close to any of the print times.
+  for (int i = 0; i < app.num_bricks + 1; i++) {
+    if (std::abs(i * pdt - time) < 1e-11)
+      return true;
+  }
+
+  return false;
+};
 
 /**
  * Right now, this executable runs a simulation equivalent to a ryujin run.
-*/
-int main(int argc, char *argv[]){
+ */
+int main(int argc, char *argv[])
+{
 
   const std::string prm_name = argv[1];
   const std::string restart_fname = argv[2];
   const double tstart = std::stof(argv[3]);
-  const double tstop  = std::stof(argv[4]);
+  const double tstop = std::stof(argv[4]);
   const unsigned int refinement = std::stoul(argv[5]);
 
-  std::cout << "Restarting computation with file " << restart_fname << "\nending at time t in [" << tstart << ", " <<  tstop << "]." << std::endl;
+  std::cout << "Restarting computation with file " << restart_fname
+            << "\nending at time t in [" << tstart << ", " << tstop << "]."
+            << std::endl;
 
-  dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);  //create objects
-  mgrit::MyApp<NUMBER, ryujin::Euler::Description, 2> app(MPI_COMM_WORLD, MPI_COMM_WORLD, {(int)refinement});
+  dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(
+      argc, argv, 1); // create objects
+  mgrit::MyApp<NUMBER, ryujin::Euler::Description, 2> app(
+      MPI_COMM_WORLD, MPI_COMM_WORLD, {(int)refinement});
   std::cout << "Initializing with prm = " + prm_name << std::endl;
 
   app.initialize(prm_name);
 
-  using StateVector = mgrit::MyApp<NUMBER, ryujin::Euler::Description, 2>::StateVector;
-  /**
-   * Deifne the postprocess lambdas
-   */
-  [[maybe_unused]] const auto calculate_conserved_and_entropy = [&](const StateVector U, double time){
-    // Calculate the entropy in the system
-    const auto hyperbolic_system_view =
-      app.levels[app.finest_level]->hyperbolic_system->get().template view<2,NUMBER>();
-
-    NUMBER total_entropy = 0.0;
-    NUMBER total_harten_entropy = 0.0;
-    NUMBER mass = 0.0;
-    NUMBER momentum_sqr = 0.0;
-    NUMBER E = 0.0;
-    NUMBER maxE_pointwise = 0.0;
-    NUMBER minE_pointwise = std::numeric_limits<NUMBER>::max();
-
-    const auto comm_x = MPI_COMM_WORLD;
-    const auto od     = app.levels[app.finest_level]->offline_data;
-    const auto &fe    = od->discretization().finite_element();
-    const auto &quad  = od->discretization().quadrature();
-
-    dealii::FEValues<2> fe_vals(fe,
-				quad,
-				dealii::update_values | dealii::update_JxW_values);
-    
-    for (const auto &cell: od->dof_handler().active_cell_iterators())
-      {
-	fe_vals.reinit(cell);
-	if(cell->is_locally_owned())
-	  {
-	    for (const unsigned int q_idx: fe_vals.quadrature_point_indices())
-	      {
-		const auto state = std::get<0>(U).get_tensor(q_idx);
-		const NUMBER point_entropy = hyperbolic_system_view.specific_entropy(state);
-		const NUMBER point_harten_entropy = hyperbolic_system_view.harten_entropy(state);
-		const NUMBER point_rho = state[0];
-		NUMBER point_mom_sqr = 0;
-		for (int d=0; d<2; d++)
-		  point_mom_sqr += state[1+d]*state[1+d];
-		const NUMBER point_E = state[2+1];
-		// update min E
-		minE_pointwise = (point_E < minE_pointwise) ? point_E : minE_pointwise;
-		// update max E
-		maxE_pointwise = (point_E > maxE_pointwise) ? point_E : maxE_pointwise ;
-		for (const unsigned int i: fe_vals.dof_indices())
-		  {
-		    total_entropy += (fe_vals.shape_value(i,q_idx) *
-				      point_entropy *
-				      fe_vals.JxW(q_idx));
-		    total_harten_entropy += (fe_vals.shape_value(i,q_idx) *
-					     point_harten_entropy *
-					     fe_vals.JxW(q_idx));
-		    mass          += (fe_vals.shape_value(i,q_idx) *
-				      point_rho *
-				      fe_vals.JxW(q_idx));
-		    momentum_sqr  += (fe_vals.shape_value(i,q_idx) *
-				      point_mom_sqr *
-				      fe_vals.JxW(q_idx));
-		    E             += (fe_vals.shape_value(i,q_idx) *
-				      point_E *
-				      fe_vals.JxW(q_idx));
-		  }// dof contributions for each cell
-	      } // quadrature points in cell
-	  } // locally owned
-      } //cells
-   
-    // communicate across space
-    total_entropy = dealii::Utilities::MPI::sum(total_entropy, comm_x);
-    total_harten_entropy = dealii::Utilities::MPI::sum(total_harten_entropy, comm_x);
-    mass = dealii::Utilities::MPI::sum(mass, comm_x);
-    momentum_sqr = dealii::Utilities::MPI::sum(momentum_sqr, comm_x);
-    E = dealii::Utilities::MPI::sum(E, comm_x);
-    // communicate the largest and smallest values for E in this group
-    maxE_pointwise = dealii::Utilities::MPI::max(maxE_pointwise, comm_x);
-    minE_pointwise = dealii::Utilities::MPI::min(minE_pointwise, comm_x);
-    if(dealii::Utilities::MPI::this_mpi_process(comm_x)==0){
-      std::cout << "Total entropy at time t= " << time << " is " << std::setprecision(16) << total_entropy << std::endl;
-      std::cout << "Total harten entropy at time t= " << time << " is " << std::setprecision(16) << total_harten_entropy << std::endl;
-      std::cout << "Total Mass at time t= " << time << " is " << mass << std::endl;
-      std::cout << "Total Momentum Squared at time t= " << time << " is " << momentum_sqr << std::endl;
-      std::cout << "Total E at time t= " << time << " is " << E << std::endl;
-
-      std::cout << "Maximum E at time t= " << time << " is " << maxE_pointwise << std::endl;
-      std::cout << "Minimum E at time t= " << time << " is " << minE_pointwise << std::endl;
-    }
-  };
-  
-    [[maybe_unused]] const auto calculate_drag_and_lift = [&](const StateVector U, double t){
-    using scalar_type = dealii::LinearAlgebra::distributed::Vector<NUMBER>;
-    unsigned int dim = 2;
-    const auto hyperbolic_system_view = app.levels[0]->hyperbolic_system->get().template view<2/*dim*/, NUMBER>();
-    // first, set up the finite element, the data, and the facevalues
-    
-    const int n_q_points = app.levels[0]->offline_data->discretization().quadrature_1d().size();
-    std::vector<double> pressure_values(n_q_points);
-    scalar_type density, pressure, energy_density;
-    std::vector<scalar_type> momentum(dim);
-    // initialize partitions
-    density.reinit(app.levels[0]->offline_data->scalar_partitioner(), app.levels[0]->level_comm_x);
-    pressure.reinit(app.levels[0]->offline_data->scalar_partitioner(), app.levels[0]->level_comm_x);
-    energy_density.reinit(app.levels[0]->offline_data->scalar_partitioner(), app.levels[0]->level_comm_x);
-    for (unsigned int c = 0; c < dim; c++)
-      momentum.at(c).reinit(app.levels[0]->offline_data->scalar_partitioner(),
-                            app.levels[0]->level_comm_x);
-    dealii::Tensor<1, 2/*dim*/> normal_vector;
-    dealii::SymmetricTensor<2, 2/*dim*/> fluid_stress;
-    dealii::SymmetricTensor<2, 2/*dim*/> fluid_pressure;
-    dealii::Tensor<1, 2/*dim*/> forces;
-    dealii::FEFaceValues<2/*dim*/> fe_face_values(
-        app.levels[0]->offline_data->discretization().finite_element()/*FE_Q<dim>*/,
-        app.levels[0]->offline_data->discretization().quadrature_1d()/*QGauss<dim-1*/,
-        dealii::update_values | dealii::update_quadrature_points |
-            dealii::update_gradients | dealii::update_JxW_values |
-            dealii::update_normal_vectors); // the face values
-    // min and max E across the domain we will track
-    NUMBER maxE_pointwise = 0.0;
-    NUMBER minE_pointwise = std::numeric_limits<NUMBER>::max();
-    
-    // Create vectors that store the locally owned parts on every process
-    std::get<0>(U).extract_component(density, 0);        // extract density
-    std::get<0>(U).extract_component(pressure, dim + 1); // extract
-
-    
-    // extract momentum, and convert to velocity
-    for (unsigned int c = 0; c < dim; c++) {
-      int comp =
-          c + 1; // momentum is stored in positions [1,...,dim], so add one to c
-      std::get<0>(U).extract_component(momentum.at(c), comp);
-    }
-    // extract energy
-    std::get<0>(U).extract_component(energy_density, dim + 1);
- 
-    // convert E to pressure
-    for (unsigned int k = 0; k < app.levels[0]->offline_data->n_locally_owned(); k++) {
-      // calculate momentum norm squared
-      const double &E = energy_density.local_element(k);
-      //update mins and maxes
-      maxE_pointwise = std::max(E, maxE_pointwise);
-      minE_pointwise = std::min(E, minE_pointwise);
-      const double &rho = density.local_element(k);
-      double m_square = 0;
-      for (unsigned int d = 0; d < dim; d++)
-        m_square += std::pow(momentum.at(d).local_element(k), 2);
-      // pressure = (gamma-1)*internal_energy
-      pressure.local_element(k) = (hyperbolic_system_view.gamma() - 1.0) * (E - 0.5 * m_square / rho);
-    }
-    density.update_ghost_values();
-    pressure.update_ghost_values();
-    for (auto mom : momentum)
-      mom.update_ghost_values();
-    double drag = 0.;
-    double lift = 0.;
-    for (const auto &cell : app.levels[0]->offline_data->dof_handler().active_cell_iterators()) {
-      if (cell->is_locally_owned()) {
-        for (unsigned int face = 0; face < cell->n_faces(); ++face) {
-          if (cell->face(face)->at_boundary() &&
-              cell->face(face)->boundary_id() == ryujin::Boundary::object) {
-            // if on circle, we do the calculation
-            // first, find if the face center is on the circle
-              fe_face_values.reinit(cell, face);
-              // pressure values
-              fe_face_values.get_function_values(pressure, pressure_values);
-              // now, loop over quadrature points calculating their contribution
-              // to the forces acting on the face
-              for (int q = 0; q < n_q_points; ++q) {
-                normal_vector = -fe_face_values.normal_vector(q);
-                // form the contributions from pressure
-                for (unsigned int d = 0; d < dim; ++d)
-                  fluid_pressure[d][d] = pressure_values[q];
-                fluid_stress = -fluid_pressure; // for the euler equations, the
-                                                // only contribution to stresses
-                                                // comes from pressure
-                forces = fluid_stress * normal_vector * fe_face_values.JxW(q);
-                // the drag is in the x direction, the lift is in the y
-                // direction but FIXME: does this hold true in higher dimension?
-                // look below for this
-                drag += forces[0];
-                lift += forces[1];
-              } // loop over q points
-          }     // if cell face is at boundary && on the object
-        }       // face loop
-      }         // locally_owned cells
-    }           // cell loop
-    // now, sum the values across all processes.
-    lift = dealii::Utilities::MPI::sum(lift, app.levels[0]->level_comm_x);
-    drag = dealii::Utilities::MPI::sum(drag, app.levels[0]->level_comm_x);
-    maxE_pointwise = dealii::Utilities::MPI::max(maxE_pointwise, app.levels[0]->level_comm_x);
-    minE_pointwise = dealii::Utilities::MPI::min(minE_pointwise, app.levels[0]->level_comm_x);
-    forces[0] = drag;
-    forces[1] = lift;
-    
-    std::string message = "t: " + std::to_string(t) + " drag: " + std::to_string(drag) + " lift: " + std::to_string(lift);
-    std::string messageE = "t: " + std::to_string(t) + " minE: " + std::to_string(minE_pointwise) + " maxE: " + std::to_string(maxE_pointwise);
-    if(dealii::Utilities::MPI::this_mpi_process(app.levels[0]->level_comm_x) == 0)
-    {
-      std::cout << message << std::endl;
-      std::cout << messageE << std::endl;
-    }
-  };
-
+  using StateVector =
+      mgrit::MyApp<NUMBER, ryujin::Euler::Description, 2>::StateVector;
   // Set up data.
-  StateVector U;
+  mgrit::MyVector<NUMBER, ryujin::Euler::Description, 2> U_data;
+
+  /**
+   * Define the postprocess lambdas
+   */
+  static int cycle = 0;
+  const auto postprocess = [&]([[maybe_unused]] const StateVector U,
+                               double time) {
+    Assert(
+        &U == &(U_data.U),
+        dealii::ExcMEssage("The data and the data being stepped need to be the "
+                           "same for meaningful postprocessing."));
+    if (dealii::Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+      std::cout << "Postprocessing at t=" << time << std::endl;
+
+    // we only want to do postprocessing at C-points
+    // then we want to know the forces if we are at a print time.
+    if (is_print_time(app, time)) {
+
+      if (dealii::Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+	std::cout << "Projecting and printing:" << time << std::endl;
+      // as a first step of postprocessing, we want to imitate the MGRIT
+      // algorithm and use a projection.
+      
+      const int caller_id = 0;
+      mgrit_functions::
+          enforce_physicality_bounds<ryujin::Euler::Description, 2, NUMBER>(
+              U_data, app.finest_level, app, time, caller_id);
+
+      dealii::Tensor<1, 2> forces = mgrit_functions::
+          calculate_forces_on_object<NUMBER, ryujin::Euler::Description, 2>(
+              &app, U_data, time, cycle);
+      if (dealii::Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+        std::cout << "Forces[0]=" << forces[0] << " at t=" << time << std::endl;
+
+      app.print_solution(U_data.U,
+			 time,
+			 0,
+			 restart_fname,
+			 cycle++);
+    }
+  };
 
   // Initialize data needs to be at t = 0.
   Assert(std::fabs(tstart) < 1.e-6,
-    dealii::StandardExceptions::ExcMessage("tstart needs to be zero for this executble."
-      "Here, tstart=" + std::to_string(tstart)));
-  // calls update_ghost_values() and reinits U and precomputed from the state_vector.
-  ryujin::Vectors::reinit_state_vector<ryujin::Euler::Description>(U, *(app.levels[0]->offline_data));
-  std::get<0>(U) = app.levels[0]->initial_values->get().interpolate_hyperbolic_vector(0.0);
-
-
-//  calculate_conserved_and_entropy(U,0.0);
+         dealii::StandardExceptions::ExcMessage(
+             "tstart needs to be zero for this executble."
+             "Here, tstart=" +
+             std::to_string(tstart)));
+  // calls update_ghost_values() and reinits U and precomputed from the
+  // state_vector.
+  ryujin::Vectors::reinit_state_vector<ryujin::Euler::Description>(
+      U_data.U, *(app.levels[0]->offline_data));
+  std::get<0>(U_data.U) =
+      app.levels[0]->initial_values->get().interpolate_hyperbolic_vector(0.0);
 
   app.time_loops[0]->change_base_name(restart_fname);
-  //now that we have the data, we call the run function
-  app.time_loops[0]->run_with_initial_data(U,
-					   tstop,
-					   tstart,
-					   /*mgrit_specified_printing*/true,
-					   [&](const StateVector &U, const NUMBER t){
-					     // do nothing on postprocess
-					     return;});
+  // postprocess t=0
+  postprocess(U_data.U, tstart);
+  // now that we have the data, we call the run function
+  app.time_loops[0]->run_with_initial_data(U_data.U,
+                                           tstop,
+                                           tstart,
+                                           /*mgrit_specified_printing*/ true,
+                                           postprocess);
 
-  return 1;
+  return 0;
 }
