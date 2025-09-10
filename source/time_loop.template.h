@@ -534,7 +534,6 @@ namespace ryujin
 #endif
 
   const bool write_output_files = mgrit_specified_print;// If the user specifies other printing option, we default to that choice.
-  //enable_output_full_ = mgrit_specified_print;
  
   Number t = start_time;
   unsigned int timer_cycle = 0;
