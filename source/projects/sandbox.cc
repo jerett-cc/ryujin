@@ -14,7 +14,7 @@ bool is_print_time(mgrit::MyApp<NUMBER, ryujin::Euler::Description, 2> &app,
                    const NUMBER time)
 {
   // get print frequency from app
-  const NUMBER pdt = (app.tstop - app.tstart) / app.num_bricks;
+  const NUMBER pdt = app.c_points()[1];
 
   // check if this time is close to any of the print times.
   for (int i = 0; i < app.num_bricks + 1; i++) {
@@ -72,10 +72,10 @@ int main(int argc, char *argv[])
     if (is_print_time(app, time)) {
 
       if (dealii::Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
-	std::cout << "Projecting and printing:" << time << std::endl;
+        std::cout << "Projecting and printing:" << time << std::endl;
       // as a first step of postprocessing, we want to imitate the MGRIT
       // algorithm and use a projection.
-      
+
       const int caller_id = 0;
       mgrit_functions::
           enforce_physicality_bounds<ryujin::Euler::Description, 2, NUMBER>(
@@ -87,11 +87,7 @@ int main(int argc, char *argv[])
       if (dealii::Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
         std::cout << "Forces[0]=" << forces[0] << " at t=" << time << std::endl;
 
-      app.print_solution(U_data.U,
-			 time,
-			 0,
-			 restart_fname,
-			 cycle++);
+      app.print_solution(U_data.U, time, 0, restart_fname, cycle++);
     }
   };
 
@@ -109,14 +105,18 @@ int main(int argc, char *argv[])
       app.levels[0]->initial_values->get().interpolate_hyperbolic_vector(0.0);
 
   app.time_loops[0]->change_base_name(restart_fname);
+  app.time_loops[0]->set_timer_granularity(app.c_points()[1]);
   // postprocess t=0
   postprocess(U_data.U, tstart);
   // now that we have the data, we call the run function
-  app.time_loops[0]->run_with_initial_data(U_data.U,
-                                           tstop,
-                                           tstart,
-                                           /*mgrit_specified_printing*/ true,
-                                           postprocess);
+  app.time_loops[0]->run_with_initial_data(
+      U_data.U,
+      tstop,
+      tstart,
+      /*mgrit_specified_printing*/ true,
+      postprocess,
+      /*print_every_step*/ false,
+      /*enforce_granularity_in_substeps*/ true);
 
   return 0;
 }

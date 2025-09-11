@@ -686,8 +686,6 @@ namespace mgrit
     // the cfactor.
 
     braid_Int num_cpoints = ntime / total_cfactor;
-    pout << "ntime = " << ntime << " num_cpoints = " << num_cpoints
-         << std::endl;
     Assert(num_cpoints > 0, dealii::ExcInternalError());
     // #ifdef DEBUG
     //     // Verify these are the same on the finest level

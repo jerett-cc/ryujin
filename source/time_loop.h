@@ -22,8 +22,8 @@
 #include "vtu_output.h"
 
 #include <deal.II/base/parameter_acceptor.h>
-#include <deal.II/base/timer.h>
 #include <deal.II/base/tensor.h>
+#include <deal.II/base/timer.h>
 
 #include <fstream>
 
@@ -78,7 +78,7 @@ namespace ryujin
     TimeLoop(const MPI_Comm &mpi_comm);
 
     /**
-     * Constructor with LevelStructures Object. 
+     * Constructor with LevelStructures Object.
      */
     TimeLoop(const mgrit::LevelStructures<Description, dim, Number> &ls);
 
@@ -88,8 +88,9 @@ namespace ryujin
     void run(const Number t_start = 0.);
 
     /**
-     * Run the high-level time loop, with a reference to existing data. 
-     * Optional postprocess function which needs to take the vector and the current time.
+     * Run the high-level time loop, with a reference to existing data.
+     * Optional postprocess function which needs to take the vector and the
+     * current time.
      */
     void run_with_initial_data(
         StateVector &U,
@@ -97,23 +98,26 @@ namespace ryujin
         const Number start_time = 0,
         const bool mgrit_specified_print = false,
         std::function<void(const StateVector & /*U*/, double /*current time*/)>
-	pp_step = [](const StateVector &, double) {},//TODO: make this templated on CALLABLE
-	const bool print_every_step = false);
-    
+            pp_step = [](const StateVector &,
+                         double) {}, // TODO: make this templated on CALLABLE
+        const bool print_every_step = false,
+        const bool enforce_granularity_in_substeps = false);
+
     /**
      * Wrapper to the checkpoint function, as I need to call this in MGRIT.
      * TODO: like above, probably unsafe, but here we are.
      */
     void write_checkpoint_wrapper(const StateVector &state_vector,
-				  const std::string &base_name,
-				  const Number &t,
-				  const unsigned int &output_cycle);
+                                  const std::string &base_name,
+                                  const Number &t,
+                                  const unsigned int &output_cycle);
     /**
      *  Overwrite checkpointing and frequency
      */
-    void change_checkpoint_and_frequency_and_basename(const bool new_checkpoint,
-					 const Number dt_frequency,
-					 const std::string new_base_name);
+    void change_checkpoint_and_frequency_and_basename(
+        const bool new_checkpoint,
+        const Number dt_frequency,
+        const std::string new_base_name);
 
   protected:
     /**
@@ -186,20 +190,34 @@ namespace ryujin
 
   public:
     void change_base_name(const std::string new_name)
-    {base_name_ = new_name;};
+    {
+      base_name_ = new_name;
+    };
 
     void set_use_cycle_in_name(const bool use)
-    {use_cycle_in_name_ = use;};
+    {
+      use_cycle_in_name_ = use;
+    };
 
     void set_t_final(const Number t_final_new)
-    {t_final_ = t_final_new;};
+    {
+      t_final_ = t_final_new;
+    };
+
+    void set_timer_granularity(const Number n_granularity)
+    {
+      timer_granularity_ = n_granularity;
+      if (mpi_ensemble_.ensemble_rank() == 0)
+        std::cout << "New granularity set in TimeLoop: " << timer_granularity_
+                  << std::endl;
+    };
 
   private:
     /**
      * @name Run time options
      */
     //@{
-    
+
     void declare_parameters();
 
     std::string base_name_;
@@ -246,13 +264,17 @@ namespace ryujin
     std::shared_ptr<MPIEnsembleContainer<ParabolicSystem>> parabolic_system_;
     std::shared_ptr<Discretization<dim>> discretization_;
     std::shared_ptr<OfflineData<dim, Number>> offline_data_;
-    std::shared_ptr<MPIEnsembleContainer<InitialValues<Description, dim, Number>>>
+    std::shared_ptr<
+        MPIEnsembleContainer<InitialValues<Description, dim, Number>>>
         initial_values_;
-    std::shared_ptr<HyperbolicModule<Description, dim, Number>> hyperbolic_module_;
-    std::shared_ptr<ParabolicModule<Description, dim, Number>> parabolic_module_;
+    std::shared_ptr<HyperbolicModule<Description, dim, Number>>
+        hyperbolic_module_;
+    std::shared_ptr<ParabolicModule<Description, dim, Number>>
+        parabolic_module_;
     std::shared_ptr<TimeIntegrator<Description, dim, Number>> time_integrator_;
     std::shared_ptr<MeshAdaptor<Description, dim, Number>> mesh_adaptor_;
-    std::shared_ptr<SolutionTransfer<Description, dim, Number>> solution_transfer_;
+    std::shared_ptr<SolutionTransfer<Description, dim, Number>>
+        solution_transfer_;
     std::shared_ptr<Postprocessor<Description, dim, Number>> postprocessor_;
     std::shared_ptr<VTUOutput<Description, dim, Number>> vtu_output_;
     std::shared_ptr<Quantities<Description, dim, Number>> quantities_;

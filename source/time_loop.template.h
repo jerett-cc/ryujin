@@ -165,75 +165,96 @@ namespace ryujin
   }
 
   template <typename Description, int dim, typename Number>
-      TimeLoop<Description, dim, Number>::TimeLoop(const MPI_Comm &mpi_comm)
+  TimeLoop<Description, dim, Number>::TimeLoop(const MPI_Comm &mpi_comm)
       : ParameterAcceptor("/A - TimeLoop")
-      , mpi_ensemble_(mpi_comm) 
-      , hyperbolic_system_(std::make_shared<MPIEnsembleContainer<HyperbolicSystem>>(mpi_ensemble_, "/B - Equation")) 
-      , parabolic_system_(std::make_shared<MPIEnsembleContainer<ParabolicSystem>>(mpi_ensemble_, "/B - Equation")) 
-      , discretization_(std::make_shared<Discretization<dim>>(mpi_ensemble_,
-                                                       "/C - Discretization"))
+      , mpi_ensemble_(mpi_comm)
+      , hyperbolic_system_(
+            std::make_shared<MPIEnsembleContainer<HyperbolicSystem>>(
+                mpi_ensemble_, "/B - Equation"))
+      , parabolic_system_(
+            std::make_shared<MPIEnsembleContainer<ParabolicSystem>>(
+                mpi_ensemble_, "/B - Equation"))
+      , discretization_(std::make_shared<Discretization<dim>>(
+            mpi_ensemble_, "/C - Discretization"))
       , offline_data_(std::make_shared<OfflineData<dim, Number>>(
-          mpi_ensemble_, *discretization_, "/D - OfflineData"))
-      , initial_values_(std::make_shared<MPIEnsembleContainer<InitialValues<Description, dim, Number>>>(
-		        mpi_ensemble_,"/E - InitialValues", mpi_ensemble_, *offline_data_, *hyperbolic_system_, *parabolic_system_))
+            mpi_ensemble_, *discretization_, "/D - OfflineData"))
+      , initial_values_(
+            std::make_shared<
+                MPIEnsembleContainer<InitialValues<Description, dim, Number>>>(
+                mpi_ensemble_,
+                "/E - InitialValues",
+                mpi_ensemble_,
+                *offline_data_,
+                *hyperbolic_system_,
+                *parabolic_system_))
       , hyperbolic_module_(
-          std::make_shared<HyperbolicModule<Description, dim, Number>>(
-              mpi_ensemble_,
-              computing_timer_,
-              *offline_data_,
-              *hyperbolic_system_,
-              *initial_values_,
-              "/F - HyperbolicModule"))
+            std::make_shared<HyperbolicModule<Description, dim, Number>>(
+                mpi_ensemble_,
+                computing_timer_,
+                *offline_data_,
+                *hyperbolic_system_,
+                *initial_values_,
+                "/F - HyperbolicModule"))
       , parabolic_module_(
-          std::make_shared<ParabolicModule<Description, dim, Number>>(mpi_ensemble_,
-                                            computing_timer_,
-                                            *offline_data_,
-                                            *hyperbolic_system_,
-                                            *parabolic_system_,
-                                            *initial_values_,
-                                            "/G - ParabolicModule"))
+            std::make_shared<ParabolicModule<Description, dim, Number>>(
+                mpi_ensemble_,
+                computing_timer_,
+                *offline_data_,
+                *hyperbolic_system_,
+                *parabolic_system_,
+                *initial_values_,
+                "/G - ParabolicModule"))
       , time_integrator_(
-          std::make_shared<TimeIntegrator<Description,dim,Number>>(mpi_ensemble_,
-                                           *offline_data_,
-                                           *hyperbolic_module_,
-                                           *parabolic_module_,
-                                           "/H - TimeIntegrator"))
-      , mesh_adaptor_(std::make_shared<MeshAdaptor<Description, dim, Number>>(mpi_ensemble_,
-                                                  *offline_data_,
-                                                  *hyperbolic_system_,
-                                                  *parabolic_system_,
-						  hyperbolic_module_->initial_precomputed(),
-						  hyperbolic_module_->alpha(),			      
-                                                  "/I - MeshAdaptor"))
-      , solution_transfer_(std::make_shared<SolutionTransfer<
-			   Description, dim, Number>>(mpi_ensemble_, *offline_data_,
-						       *hyperbolic_system_, *parabolic_system_))
-      , postprocessor_(std::make_shared<Postprocessor<Description,dim,Number>>(mpi_ensemble_,
-                                                     *offline_data_,
-                                                     *hyperbolic_system_,
-                                                     *parabolic_system_,
-                                                     "/J - VTUOutput"))
-      , vtu_output_(std::make_shared<VTUOutput<Description,dim,Number>>(mpi_ensemble_,
-                    *offline_data_,
-                    *hyperbolic_system_,
-                    *parabolic_system_,
-                    *postprocessor_,
-                    hyperbolic_module_->initial_precomputed(),
-                    hyperbolic_module_->alpha(),
-                    "/J - VTUOutput"))
-      , quantities_(std::make_shared<Quantities<Description,dim,Number>>(mpi_ensemble_,
-                                               *offline_data_,
-                                               *hyperbolic_system_,
-                                               *parabolic_system_,
-                                               "/K - Quantities"))
+            std::make_shared<TimeIntegrator<Description, dim, Number>>(
+                mpi_ensemble_,
+                *offline_data_,
+                *hyperbolic_module_,
+                *parabolic_module_,
+                "/H - TimeIntegrator"))
+      , mesh_adaptor_(std::make_shared<MeshAdaptor<Description, dim, Number>>(
+            mpi_ensemble_,
+            *offline_data_,
+            *hyperbolic_system_,
+            *parabolic_system_,
+            hyperbolic_module_->initial_precomputed(),
+            hyperbolic_module_->alpha(),
+            "/I - MeshAdaptor"))
+      , solution_transfer_(
+            std::make_shared<SolutionTransfer<Description, dim, Number>>(
+                mpi_ensemble_,
+                *offline_data_,
+                *hyperbolic_system_,
+                *parabolic_system_))
+      , postprocessor_(
+            std::make_shared<Postprocessor<Description, dim, Number>>(
+                mpi_ensemble_,
+                *offline_data_,
+                *hyperbolic_system_,
+                *parabolic_system_,
+                "/J - VTUOutput"))
+      , vtu_output_(std::make_shared<VTUOutput<Description, dim, Number>>(
+            mpi_ensemble_,
+            *offline_data_,
+            *hyperbolic_system_,
+            *parabolic_system_,
+            *postprocessor_,
+            hyperbolic_module_->initial_precomputed(),
+            hyperbolic_module_->alpha(),
+            "/J - VTUOutput"))
+      , quantities_(std::make_shared<Quantities<Description, dim, Number>>(
+            mpi_ensemble_,
+            *offline_data_,
+            *hyperbolic_system_,
+            *parabolic_system_,
+            "/K - Quantities"))
   {
     declare_parameters();
   }
 
 
-      template <typename Description, int dim, typename Number>
-      TimeLoop<Description, dim, Number>::TimeLoop(
-          const mgrit::LevelStructures<Description, dim, Number> &ls)
+  template <typename Description, int dim, typename Number>
+  TimeLoop<Description, dim, Number>::TimeLoop(
+      const mgrit::LevelStructures<Description, dim, Number> &ls)
       : ParameterAcceptor("/A - TimeLoop")
       , mpi_ensemble_(ls.mpi_ensemble_->ensemble_communicator())
       , hyperbolic_system_(ls.hyperbolic_system)
@@ -288,7 +309,6 @@ namespace ryujin
 
     /* Create a small lambda for preparing compute kernels: */
     const auto prepare_compute_kernels = [&]() {
-
       unsigned int n_parabolic_state_vectors =
           parabolic_system_->get().n_parabolic_state_vectors();
 
@@ -331,11 +351,11 @@ namespace ryujin
 
       } else {
         print_info("creating mesh and interpolating initial values");
-	if(!(already_prepared_)) {
-	  discretization_->prepare(base_name_ensemble_);
+        if (!(already_prepared_)) {
+          discretization_->prepare(base_name_ensemble_);
 
-	  prepare_compute_kernels();
-	}
+          prepare_compute_kernels();
+        }
         Vectors::reinit_state_vector<Description>(state_vector, *offline_data_);
         std::get<0>(state_vector) =
             initial_values_->get().interpolate_hyperbolic_vector();
@@ -458,9 +478,9 @@ namespace ryujin
 
       // we also enforce that the checkpointing happens at exactly the
       // checkpoint cycles, if the use_cycle_in_name_ is turned on
-      if(use_cycle_in_name_ && (t >= relax * timer_cycle * timer_granularity_))
-      {
-	t = relax * timer_cycle * timer_granularity_; 
+      if (use_cycle_in_name_ &&
+          (t >= relax * timer_cycle * timer_granularity_)) {
+        t = relax * timer_cycle * timer_granularity_;
       }
       /* Print and record cycle statistics: */
       if (terminal_update_interval_ != Number(0.)) {
@@ -525,77 +545,84 @@ namespace ryujin
       const Number end_time,
       const Number start_time,
       const bool mgrit_specified_print,
-      std::function<void(const StateVector&,
-      double)> pp_step,
-      const bool print_every_step)
+      std::function<void(const StateVector &, double)> pp_step,
+      const bool print_every_step,
+      const bool enforce_granularity_in_substeps)
   {
 #ifdef DEBUG_OUTPUT
-    std::cout << "TimeLoop<dim, Number>::run_with_initial_data(U,start,end,pp_func())" << std::endl;
+    std::cout
+        << "TimeLoop<dim, Number>::run_with_initial_data(U,start,end,pp_func())"
+        << std::endl;
 #endif
 
-  const bool write_output_files = mgrit_specified_print;// If the user specifies other printing option, we default to that choice.
- 
-  Number t = start_time;
-  unsigned int timer_cycle = 0;
-  unsigned int cycle = 1;
+    const bool write_output_files =
+        mgrit_specified_print; // If the user specifies other printing option,
+                               // we default to that choice.
 
-  if (resume_) {
-    print_info("resume: reading mesh and loading state vector");
-    
-    read_checkpoint(U,
-		    base_name_ensemble_,
-		    t,
-		    timer_cycle,
-		    [](){
-		      // the compute kernels are already set up correctly, we just need to return modify the discretization
-		      return;});
-    
-    if (resume_at_time_zero_) {
-      /* Reset the current time t and the output cycle count to zero: */
-      t = 0.;
-      timer_cycle = 0;
-    }
-  }
+    Number t = start_time;
+    unsigned int timer_cycle = 0;
+    unsigned int cycle = 1;
 
-  /* Loop: */
-  //std::vector<Number> print_times({0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0});
-  //auto next_t = print_times[timer_cycle];
-  for (;; ++cycle) {
+    if (resume_) {
+      print_info("resume: reading mesh and loading state vector");
 
-    /* Accumulate quantities of interest: */
+      read_checkpoint(U, base_name_ensemble_, t, timer_cycle, []() {
+        // the compute kernels are already set up correctly, we just need to
+        // return modify the discretization
+        return;
+      });
 
-    if (enable_compute_quantities_) {
-      quantities_->accumulate(U, t);
-    }
-
-    /* Perform output: */
-
-    if (t >= timer_cycle * timer_granularity_ || print_every_step) {
-      //if (std::abs(t-next_t) < 1e-10) {
-      if (write_output_files) {
-        output(U, base_name_ + "-solution", t, timer_cycle);
+      if (resume_at_time_zero_) {
+        /* Reset the current time t and the output cycle count to zero: */
+        t = 0.;
+        timer_cycle = 0;
       }
-      ++timer_cycle;
-      //next_t = print_times[timer_cycle];
-      //std::cout << "Next t is " << next_t << std::endl;
     }
 
-    /* Break if we have reached the final time: */
+    /* Loop: */
+    // std::vector<Number> print_times({0.0,
+    // 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0}); auto next_t =
+    // print_times[timer_cycle];
+    for (;; ++cycle) {
 
-    if (t >= end_time)
-      break;
+      /* Accumulate quantities of interest: */
 
-    /* Take a step: */
-    const auto tau = time_integrator_->step(U, t, end_time);
-    t += tau;
+      if (enable_compute_quantities_) {
+        quantities_->accumulate(U, t);
+      }
 
-    /*Optional Postprocess Step*/
-    pp_step(U,t); //FIXME: where should this be called?
+      /* Perform output: */
 
-  } /* end of loop */
-  /* We have actually performed one cycle less. */
-  --cycle;
-  
+      if (t >= timer_cycle * timer_granularity_ || print_every_step) {
+        // if (std::abs(t-next_t) < 1e-10) {
+        if (write_output_files) {
+          output(U, base_name_ + "-solution", t, timer_cycle);
+        }
+        ++timer_cycle;
+        // next_t = print_times[timer_cycle];
+        // std::cout << "Next t is " << next_t << std::endl;
+      }
+
+      /* Break if we have reached the final time: */
+
+      if (t >= end_time)
+        break;
+
+      /* Take a step: */
+      Number next_time =
+          (enforce_granularity_in_substeps)
+              ? std::min(timer_cycle * timer_granularity_, end_time)
+              : end_time;
+
+      const auto tau = time_integrator_->step(U, t, next_time);
+      t += tau;
+
+      /*Optional Postprocess Step*/
+      pp_step(U, t); // FIXME: where should this be called?
+
+    } /* end of loop */
+    /* We have actually performed one cycle less. */
+    --cycle;
   }
 
 
@@ -704,7 +731,7 @@ namespace ryujin
 
     std::string name = base_name + "-checkpoint";
 
-    if(use_cycle_in_name_)
+    if (use_cycle_in_name_)
       name += std::to_string(output_cycle);
 
     if (mpi_ensemble_.ensemble_rank() == 0) {
@@ -990,23 +1017,25 @@ namespace ryujin
   }
 
   template <typename Description, int dim, typename Number>
-  void TimeLoop<Description, dim, Number>::write_checkpoint_wrapper(const StateVector &state_vector,
-				const std::string &base_name,
-				const Number &t,
-				const unsigned int &output_cycle)
+  void TimeLoop<Description, dim, Number>::write_checkpoint_wrapper(
+      const StateVector &state_vector,
+      const std::string &base_name,
+      const Number &t,
+      const unsigned int &output_cycle)
   {
     write_checkpoint(state_vector, base_name, t, output_cycle);
   }
 
   template <typename Description, int dim, typename Number>
-  void TimeLoop<Description, dim, Number>::change_checkpoint_and_frequency_and_basename(
-							  const bool new_checkpoint,
-							  const Number dt_frequency,
-							  const std::string new_base_name)
+  void TimeLoop<Description, dim, Number>::
+      change_checkpoint_and_frequency_and_basename(
+          const bool new_checkpoint,
+          const Number dt_frequency,
+          const std::string new_base_name)
   {
     enable_checkpointing_ = new_checkpoint;
-    timer_granularity_    = dt_frequency;
-    base_name_            = new_base_name;
+    timer_granularity_ = dt_frequency;
+    base_name_ = new_base_name;
   }
 
   /*
@@ -1481,7 +1510,8 @@ namespace ryujin
 
     output << "Information: (HYP) " << hyperbolic_system_->get().problem_name;
     if constexpr (!ParabolicSystem::is_identity) {
-      output << "\n             (PAR) " << parabolic_system_->get().problem_name;
+      output << "\n             (PAR) "
+             << parabolic_system_->get().problem_name;
     }
     output << "\n             [" << base_name_ << "] ";
     if (mpi_ensemble_.n_ensembles() > 1) {
