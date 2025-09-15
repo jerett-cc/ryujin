@@ -202,6 +202,91 @@ namespace mgrit_functions
     return avg_state;
   }
 
+  namespace internal
+  {
+    /// This function takes a node and sets the component to the global average
+    /// by stealing some of the mass from the local stencil in a way that after
+    /// we set the node to the global average the total global average did not
+    /// change.
+    template <typename Description, int dim, typename Number>
+    void redistribute_to_maintain_global_average(
+        mgrit::MyVector<Number, Description, dim> &U,
+        const unsigned int node,
+        const unsigned int level,
+        const unsigned int component,
+        const Number global_avg,
+        const mgrit::MyApp<Number, Description, dim> &app)
+    {
+      const auto &sparsity_level =
+          app.levels[level]->offline_data->sparsity_pattern();
+#ifdef DEBUG
+      const auto &view = app.levels[level]
+                             ->hyperbolic_system->get()
+                             .template view<dim, Number>();
+      // Pre-compute global averages.
+      const auto avgs =
+          global_average_state<Description, dim, Number>(U, level, app);
+#endif
+      // Loop over the sparsity on this node, and set the value to the global
+      // average, subtracting off equal parts from the surrounding nodes to
+      // ensure that the global average stays the same.
+      auto stencil_size = sparsity_level.row_length(node);
+      Assert(stencil_size > 1,
+             dealii::ExcMessage(
+                 "Average invariant mass re-sistribution only works for now on "
+                 "triangulations without constraints."));
+      // TAG: #2.1 loop over local nodes, subtracting off part of the node's
+      // value in this
+      //           component to redistribute the mass in this component.
+      auto state_node = std::get<0>(U.U).get_tensor(node);
+      const Number mass_to_subtract =
+          (global_avg + state_node[component]) / Number(stencil_size);
+
+      for (auto jt = sparsity_level.begin(node); jt != sparsity_level.end(node);
+           ++jt) {
+        const auto j = jt->column();
+        // skip the current node.
+        if (j == node)
+          continue;
+
+        auto state_j = std::get<0>(U.U).get_tensor(j);
+        state_j[component] -= mass_to_subtract;
+
+        Assert(view.is_admissible(state_j),
+               dealii::ExcMessage(
+                   "In trying to redistribute mass from other nodes to "
+                   "this node, you've created an inadmissible state. Likely, "
+                   "the node's value is too small, and the surronding nodes "
+                   "are not large enough to take any mass from."));
+
+        std::get<0>(U.U).write_tensor(state_j, j);
+      }
+
+      // now, reset the state node to global average
+      state_node[component] = global_avg;
+      Assert(
+          view.is_admissible(state_node),
+          dealii::ExcMessage(
+              "In trying to redistribute mass from other nodes to "
+              "this node, you've created an inadmissible state at this node."));
+
+      std::get<0>(U.U).update_ghost_values();
+
+#ifdef DEBUG
+      // Compute new global averages and compare to old. Nothing should have
+      // changed.
+      auto avgs_new =
+          global_average_state<Description, dim, Number>(U, level, app);
+      avgs_new -= avgs;
+      Assert(std::abs(avgs_new.norm()) < 1e-16,
+             dealii::ExcMessage(
+                 "In trying to redistribute mass from other nodes to "
+                 "this node, you've changed the global averages. The intent of"
+                 "the function is to MAINTAIN the global averages."));
+#endif
+    }
+  } // namespace internal
+
   template <typename Description, int dim, typename Number>
   void
   enforce_physicality_bounds(mgrit::MyVector<Number, Description, dim> &u,
