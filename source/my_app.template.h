@@ -150,6 +150,26 @@ namespace mgrit
         calculate_conserved_quantities,
         "Should the mass and entropy of the state be computed and printed "
         "to see if the method is conservative? Happens only at end of cycle.");
+    reference_rho = 1.4;
+    add_parameter("reference density",
+                  reference_rho,
+                  "A reference density that controls the state to which we "
+                  "make projections. "
+                  "We scale this to set a minimum allowable density which "
+                  "MGRIT must respect.");
+    reference_E = 1.4;
+    add_parameter("reference total energy",
+                  reference_E,
+                  "A reference total that controls the state to which we make "
+                  "projections. "
+                  "We scale this to set a minimum allowable total energy which "
+                  "MGRIT must respect.");
+    reference_scale = 1e-2;
+    add_parameter("reference scaling",
+                  reference_scale,
+                  "A parameter that scales reference states and sets minumum "
+                  "allowable values "
+                  "used for our projection operator.");
   };
 
   template <typename Number, typename Description, int dim>

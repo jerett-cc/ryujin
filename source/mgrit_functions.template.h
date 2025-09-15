@@ -277,10 +277,12 @@ namespace mgrit_functions
     // non-physical term like 1e-8. Here, we calculate an averaged density and
     // set a minimum density to be one hundredth of the average density.
     // Likewise for the total energy.
-    const auto avgs =
-        global_average_state<Description, dim, Number>(u, level, app);
-    Number eps_rho = avgs[0] * 1e-2;
-    Number eps_E = avgs[dim + 1] * 1e-2;
+    // const auto avgs =
+    //     global_average_state<Description, dim, Number>(u, level, app);
+    // Number eps_rho = avgs[0] * 1e-2;
+    // Number eps_E = avgs[dim + 1] * 1e-2;
+    Number eps_rho = app.reference_rho * app.reference_scale;
+    Number eps_E = app.reference_E * app.reference_scale;
 
     // First, we limit the density to be non-negative, and update all the
     // relations with this new density. TAG: #1 projection: Loop over all nodes.
@@ -290,12 +292,17 @@ namespace mgrit_functions
       Number old_rho = state[0];
 
       // if the density here is too small, set the density to the average state.
-      // NOTE: if instead we did something like setting the density to the minimum density
+      // NOTE: if instead we did something like setting the density to the
+      // minimum density
       //         rho = std::max(old_rho, eps_rho)
-      //       then multiple applications of this projection mean that the average changes
-      //       meaning that this really isn't a projection.
-      if(old_rho < eps_rho)
-	state[0] = avgs[0];
+      //       then multiple applications of this projection mean that the
+      //       average changes meaning that this really isn't a projection.
+      if (old_rho < eps_rho)
+        state[0] = eps_rho;
+      // state[0] = avgs[0];
+      // internal::redistribute_to_maintain_global_average(u, node, level, 0,
+      // avgs[0], app);
+
       std::get<0>(u.U).write_tensor(state, node);
     }
     // Communicate the changes.
@@ -310,12 +317,16 @@ namespace mgrit_functions
       // Prevent E from being small.
 
       // if the energy here is too small, set the density to the average state.
-      // NOTE: if instead we did something like setting the density to the minimum density
+      // NOTE: if instead we did something like setting the density to the
+      // minimum density
       //         E = std::max(old_E, eps_E)
-      //       then multiple applications of this projection mean that the average changes
-      //       meaning that this really isn't a projection.
-      if(E_node < eps_E)
-	E_node = avgs[dim+1];
+      //       then multiple applications of this projection mean that the
+      //       average changes meaning that this really isn't a projection.
+      if (E_node < eps_E)
+        state_node[dim + 1] = eps_E;
+      // E_node = avgs[dim+1];
+      // internal::redistribute_to_maintain_global_average(u, node, level,
+      // dim+1, avgs[dim+1], app);
 
       // Write new state in the copied vector. TODO: does this need to happen
       // every time or only in the case that the above if(...) triggers?
