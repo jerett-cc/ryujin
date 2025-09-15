@@ -468,14 +468,14 @@ namespace mgrit
       }
     } else if (dir == down) {
       // Down means we decrement the level.
-      Assert((level_map[from_level] > level_map[to_level]),
+      Assert((level_map[from_level] >= level_map[to_level]),
              dealii::ExcMessage(
                  "When interpolating to a down to a finer mesh, the index in "
                  "the total "
                  "levels vector of the from_level=" +
-                 std::to_string(from_level) + " which maps to index" +
+                 std::to_string(from_level) + " which maps to index " +
                  std::to_string(level_map[from_level]) +
-                 " needs to be bigger than the to_level=" +
+                 " needs to be bigger or the same as the to_level=" +
                  std::to_string(to_level) + " which maps to index " +
                  std::to_string(level_map[to_level])));
 
