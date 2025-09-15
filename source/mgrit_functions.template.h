@@ -207,8 +207,7 @@ namespace mgrit_functions
   enforce_physicality_bounds(mgrit::MyVector<Number, Description, dim> &u,
                              const unsigned int level,
                              const mgrit::MyApp<Number, Description, dim> &app,
-                             [[maybe_unused]] const Number t,
-                             [[maybe_unused]] const braid_Int calling)
+                             [[maybe_unused]] const Number t)
   {
     // The incoming u.U should already respect the following equalities:
     // (1) u.U[0]     = rho
@@ -259,11 +258,6 @@ namespace mgrit_functions
     // Similarly, modifying E should entail modifying rho*e, and hence needs to
     // modify somehow rho, e, and m?
 
-    // Create Hyperbolic System View, where we can compute functions like
-    // pressure.
-    const auto view = app.levels[level]
-                          ->hyperbolic_system->get()
-                          .template view<dim, Number>();
     Assert(
         app.vector_size_match_level(u.U, level),
         dealii::ExcMessage(
@@ -295,22 +289,17 @@ namespace mgrit_functions
       auto state = std::get<0>(u.U).get_tensor(node);
       Number old_rho = state[0];
 
-      state[0] = std::max(old_rho, eps_rho);
+      // if the density here is too small, set the density to the average state.
+      // NOTE: if instead we did something like setting the density to the minimum density
+      //         rho = std::max(old_rho, eps_rho)
+      //       then multiple applications of this projection mean that the average changes
+      //       meaning that this really isn't a projection.
+      if(old_rho < eps_rho)
+	state[0] = avgs[0];
       std::get<0>(u.U).write_tensor(state, node);
     }
     // Communicate the changes.
     std::get<0>(u.U).update_ghost_values();
-
-    // Now that the densities are fixed, let's ensure that E is not too large
-    // by checking if it contributes greater than 90% of the total enegry of a
-    // local stencil. Then, if it does, we replace it with the largest
-    // (hopefully reasonable
-    // FIXME) of the surrounding connected nodes, in all solution components.
-    // This way, we are guranteed to satisfy (1), (2), (3), (4) since we assume
-    // that incoming data already satisfies this.
-
-    // First, set up some temporary data which we will store our modifications,
-    // if needed.
 
     // TAG: #2 loop over all nodes
     // Compute the local average in E and use this as a limit on E in the copy.
@@ -319,33 +308,14 @@ namespace mgrit_functions
       auto state_node = std::get<0>(u.U).get_tensor(node);
       auto E_node = state_node[dim + 1];
       // Prevent E from being small.
-      state_node[dim + 1] = std::max(E_node, eps_E);
-      // Next, we need to verify that the each node's state is admissible, if
-      // not, then it is likely that the internal energy is negative, so we
-      // calculate a delta E based on (Internal Energy).
-      if (!view.is_admissible(state_node)) {
-#ifdef DEBUG_MGRIT
-        std::cout << "calling=" << calling
-                  << " enforce_physicality() state after limiting density and "
-                     "E/Pressure "
-                  << "on level=" << level << " is not admissible node=" << node
-                  << " and state=" << state_node << std::endl;
-#endif
-        Number deltaE = -view.internal_energy(state_node) + eps_E;
-        state_node[dim + 1] += deltaE;
 
-#ifdef DEBUG_MGRIT
-        // Double check that now the state is admissible.
-        if (view.is_admissible(state_node)) {
-          std::cout << "calling=" << calling
-                    << " enforce_physicality() state after limiting density "
-                       "and E/Pressure "
-                    << "on level=" << level
-                    << " has been made admissible node=" << node
-                    << " and state=" << state_node << std::endl;
-        }
-#endif
-      }
+      // if the energy here is too small, set the density to the average state.
+      // NOTE: if instead we did something like setting the density to the minimum density
+      //         E = std::max(old_E, eps_E)
+      //       then multiple applications of this projection mean that the average changes
+      //       meaning that this really isn't a projection.
+      if(E_node < eps_E)
+	E_node = avgs[dim+1];
 
       // Write new state in the copied vector. TODO: does this need to happen
       // every time or only in the case that the above if(...) triggers?

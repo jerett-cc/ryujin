@@ -62,7 +62,7 @@ int main(int argc, char *argv[])
                                double time) {
     Assert(
         &U == &(U_data.U),
-        dealii::ExcMEssage("The data and the data being stepped need to be the "
+        dealii::ExcMessage("The data and the data being stepped need to be the "
                            "same for meaningful postprocessing."));
     if (dealii::Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       std::cout << "Postprocessing at t=" << time << std::endl;
@@ -72,14 +72,13 @@ int main(int argc, char *argv[])
     if (is_print_time(app, time)) {
 
       if (dealii::Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
-        std::cout << "Projecting and printing:" << time << std::endl;
+        std::cout << "Projecting and printing: " << time << std::endl;
       // as a first step of postprocessing, we want to imitate the MGRIT
       // algorithm and use a projection.
 
-      const int caller_id = 0;
       mgrit_functions::
           enforce_physicality_bounds<ryujin::Euler::Description, 2, NUMBER>(
-              U_data, app.finest_level, app, time, caller_id);
+              U_data, app.finest_level, app, time);
 
       dealii::Tensor<1, 2> forces = mgrit_functions::
           calculate_forces_on_object<NUMBER, ryujin::Euler::Description, 2>(

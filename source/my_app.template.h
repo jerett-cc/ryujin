@@ -803,7 +803,7 @@ namespace mgrit
       // Time this bit of code.
       ryujin::Scope scope(computing_timer, "projection_operator_step");
       mgrit_functions::enforce_physicality_bounds<Description, dim, Number>(
-          *u_, finest_level, *this, lvl_tstart, -3);
+          *u_, finest_level, *this, lvl_tstart);
     }
 
 #ifdef DEBUG_MGRIT
@@ -1132,14 +1132,6 @@ namespace mgrit
       pout << "[INFO] Access Called" << std::endl;
       pout << "Cycles done: " << mgCycle << std::endl;
 
-      {
-        // Time this bit of code.
-        ryujin::Scope scope(computing_timer, "projection_operator_endcycle");
-        // Is below needed?
-        mgrit_functions::enforce_physicality_bounds(
-            *u_, finest_level, *this, t, caller_id);
-      }
-
       std::cout << "Printing brick " << t_idx << " at t= " << t << " on cycle "
                 << mgCycle << std::endl;
       print_solution(
@@ -1162,10 +1154,11 @@ namespace mgrit
       break;
     }
     case braid_ASCaller_FInterp_Projection: {
-      // Time this bit of code.
-      ryujin::Scope scope(computing_timer, "projection_operator_FInterp");
-      mgrit_functions::enforce_physicality_bounds(
-          *u_, finest_level, *this, t, caller_id);
+      print_solution(
+		     u_->U, t, finest_level /*level that every u lives on*/, fname+"_tau"+std::to_string(caller_id), t_idx);
+      std::cout << "norm of the solution " << std::get<0>(u_->U).l2_norm() << std::endl;
+      break;
+    }
     }
     default: {
       // Do nothing in a default.
