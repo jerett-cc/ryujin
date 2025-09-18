@@ -357,71 +357,56 @@ namespace mgrit_functions
             " with a gamma law EOS."));
 
 
-    // Calculate global averages in density and total energy, for use in the eps
-    // terms which limit the sensity and internal energy, rather than a
-    // non-physical term like 1e-8. Here, we calculate an averaged density and
+    // Calculate minimum allowable values in density and internal energy.
+
+    // Here, we could calculate an averaged density and
     // set a minimum density to be one hundredth of the average density.
     // Likewise for the total energy.
     // const auto avgs =
     //     global_average_state<Description, dim, Number>(u, level, app);
     // Number eps_rho = avgs[0] * 1e-2;
     // Number eps_E = avgs[dim + 1] * 1e-2;
-    Number eps_rho = app.reference_rho * app.reference_scale;
-    Number eps_E = app.reference_E * app.reference_scale;
 
-    // First, we limit the density to be non-negative, and update all the
-    // relations with this new density. TAG: #1 projection: Loop over all nodes.
+    // Here, we could have the user define their own reference density and
+    // internal energy, then scale by user defined scale factor.
+    const Number eps_rho = app.reference_rho * app.reference_scale;
+    const Number eps_e = app.reference_e * app.reference_scale;
+    const auto view = app.levels[level]->hyperbolic_system->get().template view<dim,Number>();
+    
+    // First, we loop over all the local nodes and 
+    // TAG: #1 projection: Loop over all nodes.
     for (unsigned int node = 0; node < app.n_locally_owned_at_level(level);
          node++) {
-      auto state = std::get<0>(u.U).get_tensor(node);
-      Number old_rho = state[0];
+      const auto state = std::get<0>(u.U).get_tensor(node);
+      // if the current state is OK, move on.
+      if(view.is_admissible(state))
+	continue;
 
-      // if the density here is too small, set the density to the average state.
-      // NOTE: if instead we did something like setting the density to the
-      // minimum density
-      //         rho = std::max(old_rho, eps_rho)
-      //       then multiple applications of this projection mean that the
-      //       average changes meaning that this really isn't a projection.
-      if (old_rho < eps_rho)
-        state[0] = eps_rho;
-      // state[0] = avgs[0];
-      // internal::redistribute_to_maintain_global_average(u, node, level, 0,
-      // avgs[0], app);
+      // here, we are not admissible, so we first check the internal energy
+      // and then set the
+      auto primitive_state = view.to_primitive_state(state);
+      const Number old_e = primitive_state[dim + 1];
+      const Number old_rho = primitive_state[0];
 
-      std::get<0>(u.U).write_tensor(state, node);
+      // density needs to be set
+      primitive_state[0] = std::max(old_rho, eps_rho);
+      // internal energy needs to be set
+      primitive_state[dim+1] = std::max(old_e, eps_e);
+      // TODO: do we need to modify the velocities to conserve the total energy?
+
+      // set the new state from these primitive, fixed up ones.
+      const auto projected_state = view.from_primitive_state(primitive_state);
+      
+      // in debug mode, we check that the state is all good now.
+      // if its not ok at this point, we have an issue.
+      Assert(view.is_admissible(projected_state),
+	     dealii::ExcMessage("Projection did not work. The state "
+				"after projection limiting \rho e and \rho "
+				"is still not admissible."));
+      
+      std::get<0>(u.U).write_tensor(projected_state, node);
     }
     // Communicate the changes.
-    std::get<0>(u.U).update_ghost_values();
-
-    // TAG: #2 loop over all nodes
-    // Compute the local average in E and use this as a limit on E in the copy.
-    for (unsigned int node = 0; node < app.n_locally_owned_at_level(level);
-         node++) {
-      auto state_node = std::get<0>(u.U).get_tensor(node);
-      auto E_node = state_node[dim + 1];
-      // Prevent E from being small.
-
-      // if the energy here is too small, set the density to the average state.
-      // NOTE: if instead we did something like setting the density to the
-      // minimum density
-      //         E = std::max(old_E, eps_E)
-      //       then multiple applications of this projection mean that the
-      //       average changes meaning that this really isn't a projection.
-      if (E_node < eps_E)
-        state_node[dim + 1] = eps_E;
-      // E_node = avgs[dim+1];
-      // internal::redistribute_to_maintain_global_average(u, node, level,
-      // dim+1, avgs[dim+1], app);
-
-      // Write new state in the copied vector. TODO: does this need to happen
-      // every time or only in the case that the above if(...) triggers?
-      std::get<0>(u.U).write_tensor(state_node, node);
-    }
-
-    // TODO: the equations (1), (2), (3), (4) maybe not satisfied with these
-    //       arbitrary additions and limitations?
-
-    // Exchange projection changes in copy.
     std::get<0>(u.U).update_ghost_values();
   }
 

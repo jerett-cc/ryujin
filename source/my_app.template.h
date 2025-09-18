@@ -157,9 +157,9 @@ namespace mgrit
                   "make projections. "
                   "We scale this to set a minimum allowable density which "
                   "MGRIT must respect.");
-    reference_E = 1.4;
+    reference_e = 2.5;
     add_parameter("reference total energy",
-                  reference_E,
+                  reference_e,
                   "A reference total that controls the state to which we make "
                   "projections. "
                   "We scale this to set a minimum allowable total energy which "
