@@ -1179,7 +1179,6 @@ namespace mgrit
       std::cout << "norm of the solution " << std::get<0>(u_->U).l2_norm() << std::endl;
       break;
     }
-    }
     default: {
       // Do nothing in a default.
       break;
