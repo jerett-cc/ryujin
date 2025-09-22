@@ -1173,12 +1173,14 @@ namespace mgrit
       n_cycles = mgCycle;
       break;
     }
+#if DEBUG_MGRIT
     case braid_ASCaller_FInterp_Projection: {
       print_solution(
 		     u_->U, t, finest_level /*level that every u lives on*/, fname+"_tau"+std::to_string(caller_id), t_idx);
       std::cout << "norm of the solution " << std::get<0>(u_->U).l2_norm() << std::endl;
       break;
     }
+#endif
     default: {
       // Do nothing in a default.
       break;
