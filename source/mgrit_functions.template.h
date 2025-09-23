@@ -371,40 +371,79 @@ namespace mgrit_functions
     // internal energy, then scale by user defined scale factor.
     const Number eps_rho = app.reference_rho * app.reference_scale;
     const Number eps_e = app.reference_e * app.reference_scale;
-    const auto view = app.levels[level]->hyperbolic_system->get().template view<dim,Number>();
-    
-    // First, we loop over all the local nodes and 
+    const auto view = app.levels[level]
+                          ->hyperbolic_system->get()
+                          .template view<dim, Number>();
+
+    // First, we loop over all the local nodes and
     // TAG: #1 projection: Loop over all nodes.
     for (unsigned int node = 0; node < app.n_locally_owned_at_level(level);
          node++) {
-      const auto state = std::get<0>(u.U).get_tensor(node);
+      auto state = std::get<0>(u.U).get_tensor(node);
       // if the current state is OK, move on.
-      if(view.is_admissible(state))
-	continue;
+      if (view.is_admissible(state))
+        continue;
 
       // here, we are not admissible, so we first check the internal energy
       // and then set the
-      auto primitive_state = view.to_primitive_state(state);
-      const Number old_e = primitive_state[dim + 1];
-      const Number old_rho = primitive_state[0];
+      const Number old_e = view.internal_energy(state);
+      const Number old_rho = view.density(state);
 
-      // density needs to be set
-      primitive_state[0] = std::max(old_rho, eps_rho);
-      // internal energy needs to be set
-      primitive_state[dim+1] = std::max(old_e, eps_e);
+      // density needs to be set, we also need to update the total energy.
+      if (old_rho < eps_rho) {
+        state[0] = eps_rho;
+        state[dim + 1] =
+            old_e + 0.5 / eps_rho * (view.momentum(state).norm_square());
+      }
+
+      // If density was the only problem, then we skip checking the internal energy.
+      if (view.is_admissible(state)) {
+	std::get<0>(u.U).write_tensor(state, node);
+        continue;
+      }
+
+      // If we are still not on stable manifold, then internal energy needs to
+      // be set, wherein we modify the total energy. We do this via the
+      // relationship that TE = IE_new + KE.
+      if (old_e < eps_e) {
+        // No need to set the density, that's already done.
+        state[dim + 1] =
+            eps_e + 0.5 / state[0] * (view.momentum(state).norm_square());
+	// we could mimic how we write the state, but instead we assert we are good and
+      }
+
+      // If at this point the state is still not admissible, then we have a
+      // major issue and should crash after printing the state.
+      const auto rho_new = view.density(state);
+      const auto e_new = view.internal_energy(state);
+      const auto s_new = view.specific_entropy(state);
+
+      constexpr auto gt = dealii::SIMDComparison::greater_than;
+      using T = Number;
+      const auto test =
+          dealii::compare_and_apply_mask<gt>(rho_new, T(0.), T(0.), T(-1.)) + //
+          dealii::compare_and_apply_mask<gt>(e_new, T(0.), T(0.), T(-1.)) +   //
+          dealii::compare_and_apply_mask<gt>(s_new, T(0.), T(0.), T(-1.));
+
+      if (!(test == Number(0.))) {
+        std::cout << std::fixed << std::setprecision(16);
+        std::cout << "Bounds violation: Negative state [rho, e, s] detected!\n";
+        std::cout << "\t\trho: " << rho_new << "\n";
+        std::cout << "\t\tint: " << e_new << "\n";
+        std::cout << "\t\tent: " << s_new << "\n" << std::endl;
+	std::cout << "[WARNING]: Projection failed." << std::endl;
+	exit(EXIT_FAILURE);
+      }
       // TODO: do we need to modify the velocities to conserve the total energy?
 
-      // set the new state from these primitive, fixed up ones.
-      const auto projected_state = view.from_primitive_state(primitive_state);
-      
       // in debug mode, we check that the state is all good now.
       // if its not ok at this point, we have an issue.
-      Assert(view.is_admissible(projected_state),
-	     dealii::ExcMessage("Projection did not work. The state "
-				"after projection limiting \rho e and \rho "
-				"is still not admissible."));
-      
-      std::get<0>(u.U).write_tensor(projected_state, node);
+      Assert(view.is_admissible(state),
+             dealii::ExcMessage("Projection did not work. The state "
+                                "after projection limiting \rho e and \rho "
+                                "is still not admissible."));
+
+      std::get<0>(u.U).write_tensor(state, node);
     }
     // Communicate the changes.
     std::get<0>(u.U).update_ghost_values();
