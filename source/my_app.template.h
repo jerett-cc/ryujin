@@ -1151,7 +1151,14 @@ namespace mgrit
                  " level=" + std::to_string(finest_level)));
       pout << "[INFO] Access Called" << std::endl;
       pout << "Cycles done: " << mgCycle << std::endl;
-
+      // project the solution to avoid problems with data at the end of a cycle.
+      // Ensure this is a physical vector.
+      {
+        // Time this bit of code.
+        ryujin::Scope scope(computing_timer, "projection_operator_step");
+        mgrit_functions::enforce_physicality_bounds<Description, dim, Number>(
+            *u_, finest_level, *this, t);
+      }
       std::cout << "Printing brick " << t_idx << " at t= " << t << " on cycle "
                 << mgCycle << std::endl;
       print_solution(
@@ -1175,9 +1182,13 @@ namespace mgrit
     }
 #if DEBUG_MGRIT
     case braid_ASCaller_FInterp_Projection: {
-      print_solution(
-		     u_->U, t, finest_level /*level that every u lives on*/, fname+"_tau"+std::to_string(caller_id), t_idx);
-      std::cout << "norm of the solution " << std::get<0>(u_->U).l2_norm() << std::endl;
+      print_solution(u_->U,
+                     t,
+                     finest_level /*level that every u lives on*/,
+                     fname + "_tau" + std::to_string(caller_id),
+                     t_idx);
+      std::cout << "norm of the solution " << std::get<0>(u_->U).l2_norm()
+                << std::endl;
       break;
     }
 #endif
