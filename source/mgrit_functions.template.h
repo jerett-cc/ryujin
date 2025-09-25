@@ -391,7 +391,7 @@ namespace mgrit_functions
 
       // density needs to be set, we also need to update the total energy.
       if (old_rho < eps_rho) {
-        state[0] = eps_rho;
+        state[0] = app.reference_rho;
         state[dim + 1] =
             old_e + 0.5 / eps_rho * (view.momentum(state).norm_square());
       }
@@ -408,7 +408,7 @@ namespace mgrit_functions
       if (old_e < eps_e) {
         // No need to set the density, that's already done.
         state[dim + 1] =
-            eps_e + 0.5 / state[0] * (view.momentum(state).norm_square());
+            app.reference_e + 0.5 / state[0] * (view.momentum(state).norm_square());
 	// we could mimic how we write the state, but instead we assert we are good and
       }
 
