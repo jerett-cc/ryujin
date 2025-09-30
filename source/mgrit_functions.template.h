@@ -122,13 +122,13 @@ namespace mgrit_functions
               // look below for this
               output_forces += forces;
 
-              ostring << "Q point " << q << " is located at "
+              ostring << std::setprecision(16) << "Q point " << q << " is located at "
                       << fe_face_values.quadrature_point(q)
                       << " has a pressure P of " << pressure_values[q]
                       << " and has forces equal to ";
               for (int i = 0; i < dim; i++)
                 ostring << forces[i] << " ";
-              ostring << " at time " << t << std::endl;
+              ostring << "at time " << t << std::endl;
 
             } // loop over q points
           }   // if cell face is at boundary && on the object
