@@ -102,7 +102,7 @@ int main(int argc, char *argv[])
       U_data.U, *(app.levels[0]->offline_data));
   std::get<0>(U_data.U) =
       app.levels[0]->initial_values->get().interpolate_hyperbolic_vector(0.0);
-
+  app.base_name = restart_fname;
   app.time_loops[0]->change_base_name(restart_fname);
   app.time_loops[0]->set_timer_granularity(app.c_points()[1]);
   // postprocess t=0
