@@ -1167,7 +1167,7 @@ namespace mgrit
       // calculate drag (at end of cycle...)
       [[maybe_unused]] dealii::Tensor<1, dim> forces =
           mgrit_functions::calculate_forces_on_object<Number, Description, dim>(
-              this, *u_, t, mgCycle);
+              this, *u_, t, mgCycle, t_idx);
       std::cout << "[Cycle:" << mgCycle << "] forces[0]=" << forces[0]
                 << " on brick " << t_idx << std::endl;
       if (calculate_conserved_quantities) {

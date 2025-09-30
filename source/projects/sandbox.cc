@@ -79,10 +79,10 @@ int main(int argc, char *argv[])
       mgrit_functions::
           enforce_physicality_bounds<ryujin::Euler::Description, 2, NUMBER>(
               U_data, app.finest_level, app, time);
-
+      const int t_idx = static_cast<int>(time / tstop * app.num_bricks);
       dealii::Tensor<1, 2> forces = mgrit_functions::
           calculate_forces_on_object<NUMBER, ryujin::Euler::Description, 2>(
-              &app, U_data, time, cycle);
+              &app, U_data, time, cycle, t_idx);
       if (dealii::Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
         std::cout << "Forces[0]=" << forces[0] << " at t=" << time << std::endl;
 

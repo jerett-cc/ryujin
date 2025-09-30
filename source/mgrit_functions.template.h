@@ -11,7 +11,8 @@ namespace mgrit_functions
   calculate_forces_on_object(mgrit::MyApp<Number, Description, dim> *app,
                              const mgrit::MyVector<Number, Description, dim> &u,
                              const braid_Real t,
-                             const braid_Int cycle)
+                             const braid_Int cycle,
+                             const braid_Int t_idx)
   {
     using scalar_type = dealii::LinearAlgebra::distributed::Vector<Number>;
 
@@ -122,8 +123,8 @@ namespace mgrit_functions
               // look below for this
               output_forces += forces;
 
-              ostring << std::setprecision(16) << "Q point " << q << " is located at "
-                      << fe_face_values.quadrature_point(q)
+              ostring << std::setprecision(16) << "Q point " << q
+                      << " is located at " << fe_face_values.quadrature_point(q)
                       << " has a pressure P of " << pressure_values[q]
                       << " and has forces equal to ";
               for (int i = 0; i < dim; i++)
@@ -144,8 +145,8 @@ namespace mgrit_functions
         dealii::Utilities::MPI::gather(mpi_communicator, ostring.str());
     if (dealii::Utilities::MPI::this_mpi_process(mpi_communicator) == 0) {
       std::ofstream o;
-      o.open(app->base_name + "_cycle" + std::to_string(cycle) +
-             "_forces_quadrature_points.csv");
+      o.open(app->base_name + "_brick" + std::to_string(t_idx) + "_cycle" +
+             std::to_string(cycle) + "_forces_quadrature_points.csv");
       for (auto s : all_output)
         o << s;
     }
