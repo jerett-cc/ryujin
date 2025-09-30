@@ -397,9 +397,10 @@ namespace mgrit_functions
             old_e + 0.5 / eps_rho * (view.momentum(state).norm_square());
       }
 
-      // If density was the only problem, then we skip checking the internal energy.
+      // If density was the only problem, then we skip checking the internal
+      // energy.
       if (view.is_admissible(state)) {
-	std::get<0>(u.U).write_tensor(state, node);
+        std::get<0>(u.U).write_tensor(state, node);
         continue;
       }
 
@@ -408,9 +409,10 @@ namespace mgrit_functions
       // relationship that TE = IE_new + KE.
       if (old_e < eps_e) {
         // No need to set the density, that's already done.
-        state[dim + 1] =
-            app.reference_e + 0.5 / state[0] * (view.momentum(state).norm_square());
-	// we could mimic how we write the state, but instead we assert we are good and
+        state[dim + 1] = app.reference_e +
+                         0.5 / state[0] * (view.momentum(state).norm_square());
+        // we could mimic how we write the state, but instead we assert we are
+        // good and
       }
 
       // If at this point the state is still not admissible, then we have a
@@ -432,8 +434,8 @@ namespace mgrit_functions
         std::cout << "\t\trho: " << rho_new << "\n";
         std::cout << "\t\tint: " << e_new << "\n";
         std::cout << "\t\tent: " << s_new << "\n" << std::endl;
-	std::cout << "[WARNING]: Projection failed." << std::endl;
-	exit(EXIT_FAILURE);
+        std::cout << "[WARNING]: Projection failed." << std::endl;
+        exit(EXIT_FAILURE);
       }
       // TODO: do we need to modify the velocities to conserve the total energy?
 

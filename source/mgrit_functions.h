@@ -21,7 +21,7 @@ namespace mgrit_functions
   dealii::Tensor<1, 2>
   calculate_drag_and_lift(mgrit::MyApp<Number, Description, 2> *app,
                           const mgrit::MyVector<Number, Description, 2> &u,
-                          const braid_Real t);
+                          const braid_Real t); // FIXME: need these at all?
 
   /// @brief This function is the dim=1 version of the above. It is not
   /// implemented.
