@@ -1171,6 +1171,8 @@ namespace mgrit
         return 0;
       }
 
+      const braid_Int c_idx = static_cast<braid_Int>(t_idx / cfactor);
+
       // This function is called at the end of a cycle, if access_level >= 2,
       // and only on the finest level, per XBraid CHANGELOG:Version 2.0.0,
       // 05/25/2016 section.
@@ -1189,17 +1191,17 @@ namespace mgrit
         mgrit_functions::enforce_physicality_bounds<Description, dim, Number>(
             *u_, finest_level, *this, t);
       }
-      std::cout << "Printing brick " << t_idx << " at t= " << t << " on cycle "
+      std::cout << "Printing brick " << c_idx << " at t= " << t << " on cycle "
                 << mgCycle << std::endl;
       print_solution(
-          u_->U, t, finest_level /*level that every u lives on*/, fname, t_idx);
+          u_->U, t, finest_level /*level that every u lives on*/, fname, c_idx);
 
       // calculate drag (at end of cycle...)
       [[maybe_unused]] dealii::Tensor<1, dim> forces =
           mgrit_functions::calculate_forces_on_object<Number, Description, dim>(
               this, *u_, t, mgCycle, t_idx);
       std::cout << "[Cycle:" << mgCycle << "] forces[0]=" << forces[0]
-                << " on brick " << t_idx << std::endl;
+                << " on brick " << c_idx << std::endl;
       if (calculate_conserved_quantities) {
         // calculate the conserved quantities in the system, as well as entropy
         mgrit_functions::
