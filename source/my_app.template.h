@@ -284,9 +284,13 @@ namespace mgrit
                            " time points on the coarsest level needs to be >=1,"
                            " which is the default."));
     // Now that we know the total coarsening, we need to determine the ntime
-    // variable giving the correct number of coarse time points.
-    ntime = num_bricks * total_cfactor * minimal_tpoints_coarsest_level;
-    ntime = num_bricks; // TODO: remove me.
+    // variable giving the correct number of coarse time points on the first
+    // coarse.
+    const braid_Int probable_ntime = num_bricks * cfactor;
+    ntime = (probable_ntime / total_cfactor < minimal_tpoints_coarsest_level)
+                ? minimal_tpoints_coarsest_level * total_cfactor
+                : probable_ntime;
+
     Assert((print_factor >= 1 && print_factor < ntime),
            dealii::ExcMessage(
                "Print factor must be at least one, and less than the number of "
