@@ -170,6 +170,13 @@ namespace mgrit
                   "A parameter that scales reference states and sets minumum "
                   "allowable values "
                   "used for our projection operator.");
+    use_sequential_solution = false;
+    add_parameter(
+        "set initial guess from exact",
+        use_sequential_solution,
+        "When set to true, this parameter initializes "
+        "all C-Points from the exact solution. Used for debugging "
+        "since in this case the method should be exact in one iteration.");
   };
 
   template <typename Number, typename Description, int dim>

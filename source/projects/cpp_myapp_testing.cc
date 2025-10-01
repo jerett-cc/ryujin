@@ -126,7 +126,7 @@ int main(int argc, char* argv[])
   core.SetAccessLevel(app.access_level);
   core.SetNRelax(-1, app.n_relax);
   core.SetMaxIter(app.max_iter);
-  core.SetSeqSoln(0);
+  core.SetSeqSoln(app.use_sequential_solution);
 
   pout << "Before braid drive." << std::endl;
 

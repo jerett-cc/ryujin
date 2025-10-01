@@ -337,6 +337,7 @@ namespace mgrit
     std::string storage_name;
     bool calculate_conserved_quantities;
     braid_Real reference_rho, reference_e, reference_scale;
+    bool use_sequential_solution;
 
     unsigned int n_parabolic_state_vectors;
 
