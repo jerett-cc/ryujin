@@ -792,6 +792,15 @@ namespace mgrit
     pstatus.GetIter(&iter);
     pstatus.GetCallingFunction(&calling);
 
+    // if this is FACCESS, we don't want to care about F-Points since
+    // these require another re-generation to get. Instead, we will
+    // skip doing this. so we only see C-points on FACCESS.
+    // We have to skip F-Points there also.
+    if(calling = braid_ASCaller_FAccess)
+    {
+      // This only happens at F-points. So don't do any work.
+      return 0;
+    }
 
     // TODO: do I need this conditional at all? #F-relaxations differ on each
     // level, and
@@ -1148,6 +1157,14 @@ namespace mgrit
     switch (caller_id) // FIXME: need switch here?
     {
     case braid_ASCaller_FAccess: {
+      // if this t_point is F-point, we will not have generated it since we
+      // skip f-point re-generation during FAccess, so simply return as there
+      // is nothing to do.
+      if(_braid_IsFPoint(t_idx, cfactor))
+      {
+	return 0;
+      }
+
       // This function is called at the end of a cycle, if access_level >= 2,
       // and only on the finest level, per XBraid CHANGELOG:Version 2.0.0,
       // 05/25/2016 section.

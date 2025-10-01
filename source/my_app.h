@@ -304,8 +304,7 @@ namespace mgrit
     unsigned int n_fine_dofs;
     unsigned int n_locally_owned_dofs;
     bool print_solution_bool;
-    braid_Int cfactor; // FIXME: decide what types here? ryujin types or braid
-                       // types? what about doubles??
+    braid_Int cfactor;
     braid_Int max_iter;
     bool use_fmg;
     braid_Int n_relax;
