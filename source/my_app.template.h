@@ -796,8 +796,7 @@ namespace mgrit
     // these require another re-generation to get. Instead, we will
     // skip doing this. so we only see C-points on FACCESS.
     // We have to skip F-Points there also.
-    if(calling = braid_ASCaller_FAccess)
-    {
+    if (calling == braid_ASCaller_FAccess) {
       // This only happens at F-points. So don't do any work.
       return 0;
     }
@@ -1160,9 +1159,8 @@ namespace mgrit
       // if this t_point is F-point, we will not have generated it since we
       // skip f-point re-generation during FAccess, so simply return as there
       // is nothing to do.
-      if(_braid_IsFPoint(t_idx, cfactor))
-      {
-	return 0;
+      if (_braid_IsFPoint(t_idx, cfactor)) {
+        return 0;
       }
 
       // This function is called at the end of a cycle, if access_level >= 2,
