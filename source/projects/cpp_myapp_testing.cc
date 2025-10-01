@@ -140,6 +140,7 @@ int main(int argc, char *argv[])
   core.SetNRelax(-1, app.n_relax);
   core.SetMaxIter(app.max_iter);
   core.SetSeqSoln(app.use_sequential_solution);
+  core.SetSkip(app.skip_first_down_cycle);
 
   pout << "Before braid drive." << std::endl;
 

@@ -177,6 +177,10 @@ namespace mgrit
         "When set to true, this parameter initializes "
         "all C-Points from the exact solution. Used for debugging "
         "since in this case the method should be exact in one iteration.");
+    skip_first_down_cycle = true;
+    add_parameter("skip first down cycle",
+                  skip_first_down_cycle,
+                  "Set whether to skip all work on the first down cycle.");
   };
 
   template <typename Number, typename Description, int dim>
