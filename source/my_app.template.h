@@ -759,8 +759,19 @@ namespace mgrit
     // check that the requested directory for the storage exists,
     // if not, then make it.
     std::filesystem::path path(storage_name);
-    if (!std::filesystem::is_directory(path.parent_path()))
-      std::filesystem::create_directory(path.parent_path());
+    if (!std::filesystem::is_directory(path.parent_path())) {
+      if (dealii::Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0) {
+	std::filesystem::create_directory(path.parent_path());
+      } else {
+	// if directory exists, we delete it and create it clean.
+	if (dealii::Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0) {
+	  const int n_deleted = std::filesystem::remove_all(path.parent_path());
+	  std::cout << "Deleted " << n_deleted << " files from directory " << storage_name
+		    << ". Now makeing clean directory" << std::endl;
+	  std::filesystem::create_directory(path.parent_path());
+	}
+      }
+    }
 
     // with the time_loop, run on the coarsest level
     time_loops[0]->set_t_final(tstop);
