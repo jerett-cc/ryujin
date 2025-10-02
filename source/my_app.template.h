@@ -858,7 +858,10 @@ namespace mgrit
 #endif
 
     // Ensure this is a physical vector.
-    {
+    // If brick is exact, we toggle off the projection operation.
+    // Otherwise, we need to project.
+    const braid_Int c_idx = static_cast<braid_Int>(t_idx / cfactor);
+    if (!brick_converged(c_idx, iter, level)) {
       // Time this bit of code.
       ryujin::Scope scope(computing_timer, "projection_operator_step");
       mgrit_functions::enforce_physicality_bounds<Description, dim, Number>(
@@ -1200,8 +1203,8 @@ namespace mgrit
       pout << "[INFO] Access Called" << std::endl;
       pout << "Cycles done: " << mgCycle << std::endl;
       // project the solution to avoid problems with data at the end of a cycle.
-      // Ensure this is a physical vector.
-      {
+      // Ensure this is a physical vector. Only if this brick is not converged.
+      if (!brick_converged(c_idx, mgCycle, level)) {
         // Time this bit of code.
         ryujin::Scope scope(computing_timer, "projection_operator_step");
         mgrit_functions::enforce_physicality_bounds<Description, dim, Number>(
@@ -1215,7 +1218,7 @@ namespace mgrit
       // calculate drag (at end of cycle...)
       [[maybe_unused]] dealii::Tensor<1, dim> forces =
           mgrit_functions::calculate_forces_on_object<Number, Description, dim>(
-              this, *u_, t, mgCycle, t_idx);
+              this, *u_, t, mgCycle, c_idx);
       std::cout << "[Cycle:" << mgCycle << "] forces[0]=" << forces[0]
                 << " on brick " << c_idx << std::endl;
       if (calculate_conserved_quantities) {
