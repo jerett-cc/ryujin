@@ -276,7 +276,7 @@ namespace mgrit
     }
     pout << "Additional offline_data and discretization prepared" << std::endl;
     // Set the number of time points based on the number of bricks.
-    for (braid_Int l = 0; l < coarsest_level; l++)
+    for (braid_Int l = 0; l < coarsest_level-1; l++)
       total_cfactor *= cfactor;
     pout << "Cumulative coarsening by a factor of " << total_cfactor
          << std::endl;
