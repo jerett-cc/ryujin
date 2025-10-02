@@ -683,19 +683,12 @@ namespace mgrit
   }
 
   template <typename Number, typename Description, int dim>
-  bool MyApp<Number, Description, dim>::brick_converged(const braid_Int brick,
-                                                        const braid_Int iter,
-                                                        const braid_Int level)
+  bool MyApp<Number, Description, dim>::previous_cpoint_is_exact(const braid_Int t_idx,
+								 const braid_Int cycle)
   {
     Assert((n_relax == 1 || n_relax == 2),
            dealii::ExcMessage("brick_converged() only works if "
                               "n_relax is 1 or 2."));
-    // If the mgrit_level is greater than 0, we say that this brick is not
-    // converged, convergence is a question only at the finest level where we
-    // track the movement of the exact data each cycle. On higher levels, we'll
-    // always use projection, which is where this function is most used.
-    if (level > 0)
-      return false;
 
     // We base this test on what sort of relaxation we use. We posit that
     // if FC-relaxation is used, then one brick at each level should be exact,
@@ -703,20 +696,8 @@ namespace mgrit
     // bricks will be converged each iteration on each level. TODO: verify that
     // this is true.
 
-    // TODO: does this depend also on the cycle structure?
-
-    // In all other cases, we default to false, since we need to think more
-    // carefully about what bricks are converged.
-
-    if (n_relax == 1) {
-      // FC relaxation
-      return (brick <= iter) ? true : false;
-    } else if (n_relax == 2) {
-      // FC relaxation
-      return (brick <= 2 * iter) ? true : false;
-    }
-
-    return false;
+    return t_idx < n_relax * cycle * cycle; 
+    
   }
 
   template <typename Number, typename Description, int dim>
@@ -860,8 +841,7 @@ namespace mgrit
     // Ensure this is a physical vector.
     // If brick is exact, we toggle off the projection operation.
     // Otherwise, we need to project.
-    const braid_Int c_idx = static_cast<braid_Int>(t_idx / cfactor);
-    if (!brick_converged(c_idx, iter, level)) {
+    if (!previous_cpoint_is_exact(t_idx, iter)) {
       // Time this bit of code.
       ryujin::Scope scope(computing_timer, "projection_operator_step");
       mgrit_functions::enforce_physicality_bounds<Description, dim, Number>(
@@ -1204,7 +1184,7 @@ namespace mgrit
       pout << "Cycles done: " << mgCycle << std::endl;
       // project the solution to avoid problems with data at the end of a cycle.
       // Ensure this is a physical vector. Only if this brick is not converged.
-      if (!brick_converged(c_idx, mgCycle, level)) {
+      if (!previous_cpoint_is_exact(t_idx, mgCycle)) {
         // Time this bit of code.
         ryujin::Scope scope(computing_timer, "projection_operator_step");
         mgrit_functions::enforce_physicality_bounds<Description, dim, Number>(

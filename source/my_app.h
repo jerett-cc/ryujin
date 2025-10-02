@@ -191,15 +191,13 @@ namespace mgrit
     /// @return Number of dofs owned on this process, at this level.
     unsigned int n_locally_owned_at_level(const int level) const;
 
-    /// @brief Return whether a brick we wish to integrate is exact yet.
-    ///        If we are not on level 0, we assume that we need projection
-    ///        always.
-    /// @param brick The brick we are integrating on this level, typically
-    ///        specified with the c_idx the coarse point index
-    /// @param iter The MG iteration we are currently on.
-    bool brick_converged(const braid_Int brick,
-                         const braid_Int iter,
-                         const braid_Int level);
+    /// @brief Return whether a t-point we wish to integrate to is exact
+    ///        in the sense that the cpoint behind it is exact.
+    ///        a global enumeration of all t-points.
+    /// @param t_idx The global time point index.
+    /// @param cycle The MG iteration we are currently on.
+    bool previous_cpoint_is_exact(const braid_Int t_idx,
+				  const braid_Int cycle);
 
     /// @brief Returns a vector representing the c points that the app will use,
     /// according
