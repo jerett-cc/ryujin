@@ -688,6 +688,9 @@ namespace mgrit
       const braid_Int brick,
       const braid_Int iter)
   {
+    Assert((n_relax == 1 || n_relax == 2),
+            dealii::ExcMessage("brick_converged() only works if "
+			       "n_relax is 1 or 2."));
     // We base this test on what sort of relaxation we use. We posit that
     // if FC-relaxation is used, then one brick at each level should be exact,
     // as in Parareal. On the flipside, if FCF-relaxation is used, then two
@@ -695,19 +698,18 @@ namespace mgrit
     // this is true.
 
     // TODO: does this depend also on the cycle structure?
-
-
+    
     // In all other cases, we default to false, since we need to think more
     // carefully about what bricks are converged.
 
     switch (n_relax) {
     case 1: {
       // FC relaxation
-      return (brick < iter) ? true : false;
+      return (brick <= iter) ? true : false;
     }
     case 2: {
       // FCF relaxation
-      return (brick < 2 * iter) ? true : false;
+      return (brick <= 2 * iter) ? true : false;
     }
     default:
       return false;
