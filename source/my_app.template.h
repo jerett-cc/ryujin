@@ -706,7 +706,7 @@ namespace mgrit
     // The number of c-points is equal to the number of time points divided by
     // the cfactor.
 
-    braid_Int num_cpoints = ntime / total_cfactor;
+    braid_Int num_cpoints = ntime / cfactor;
     Assert(num_cpoints > 0, dealii::ExcInternalError());
     // #ifdef DEBUG
     //     // Verify these are the same on the finest level
