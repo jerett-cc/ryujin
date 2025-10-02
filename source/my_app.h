@@ -192,13 +192,14 @@ namespace mgrit
     unsigned int n_locally_owned_at_level(const int level) const;
 
     /// @brief Return whether a brick we wish to integrate is exact yet.
-    /// @param level the level of MGRIT we are stepping on.
-    /// @param brick the brick we are integrating on this level, typically
-    /// specified with the t_idx
-    /// @param iter the MG iteration we are currently on.
-    bool brick_converged(const braid_Int level,
-                         const braid_Int brick,
-                         const braid_Int iter);
+    ///        If we are not on level 0, we assume that we need projection
+    ///        always.
+    /// @param brick The brick we are integrating on this level, typically
+    ///        specified with the c_idx the coarse point index
+    /// @param iter The MG iteration we are currently on.
+    bool brick_converged(const braid_Int brick,
+                         const braid_Int iter,
+                         const braid_Int level);
 
     /// @brief Returns a vector representing the c points that the app will use,
     /// according
