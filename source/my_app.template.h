@@ -266,8 +266,8 @@ namespace mgrit
             "You defined a max_levels that is either negative or greater than "
             "the number of refinement levels you passed from command line."));
 
-        // all parameters defined, we can now call all objects prepare function.
-        prepare_mg_objects();
+    // all parameters defined, we can now call all objects prepare function.
+    prepare_mg_objects();
 
     // Prepare the additional offline_data and discretizations.
     pout << "[INFO] Preparing additional offline_data and "
@@ -693,8 +693,8 @@ namespace mgrit
   }
 
   template <typename Number, typename Description, int dim>
-  bool MyApp<Number, Description, dim>::previous_cpoint_is_exact(const braid_Int t_idx,
-								 const braid_Int cycle)
+  bool MyApp<Number, Description, dim>::previous_cpoint_is_exact(
+      const braid_Int t_idx, const braid_Int cycle)
   {
     Assert((n_relax == 1 || n_relax == 2),
            dealii::ExcMessage("brick_converged() only works if "
@@ -706,8 +706,7 @@ namespace mgrit
     // bricks will be converged each iteration on each level. TODO: verify that
     // this is true.
 
-    return t_idx < n_relax * cycle * cycle; 
-    
+    return t_idx < n_relax * cycle * cycle;
   }
 
   template <typename Number, typename Description, int dim>
@@ -755,15 +754,16 @@ namespace mgrit
     std::filesystem::path path(storage_name);
     if (!std::filesystem::is_directory(path.parent_path())) {
       if (dealii::Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0) {
-	std::filesystem::create_directory(path.parent_path());
+        std::filesystem::create_directory(path.parent_path());
       } else {
-	// if directory exists, we delete it and create it clean.
-	if (dealii::Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0) {
-	  const int n_deleted = std::filesystem::remove_all(path.parent_path());
-	  std::cout << "Deleted " << n_deleted << " files from directory " << storage_name
-		    << ". Now makeing clean directory" << std::endl;
-	  std::filesystem::create_directory(path.parent_path());
-	}
+        // if directory exists, we delete it and create it clean.
+        if (dealii::Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0) {
+          const int n_deleted = std::filesystem::remove_all(path.parent_path());
+          std::cout << "Deleted " << n_deleted << " files from directory "
+                    << storage_name << ". Now makeing clean directory"
+                    << std::endl;
+          std::filesystem::create_directory(path.parent_path());
+        }
       }
     }
 
@@ -851,6 +851,8 @@ namespace mgrit
     // Ensure this is a physical vector.
     // If brick is exact, we toggle off the projection operation.
     // Otherwise, we need to project.
+    // If not exact, we will integrate with F(P), otherwise we omit P and use
+    // only F.
     if (!previous_cpoint_is_exact(t_idx, iter)) {
       // Time this bit of code.
       ryujin::Scope scope(computing_timer, "projection_operator_step");
@@ -1192,6 +1194,7 @@ namespace mgrit
                  " level=" + std::to_string(finest_level)));
       pout << "[INFO] Access Called" << std::endl;
       pout << "Cycles done: " << mgCycle << std::endl;
+
       // project the solution to avoid problems with data at the end of a cycle.
       // Ensure this is a physical vector. Only if this brick is not converged.
       if (!previous_cpoint_is_exact(t_idx, mgCycle)) {

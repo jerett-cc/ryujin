@@ -196,8 +196,7 @@ namespace mgrit
     ///        a global enumeration of all t-points.
     /// @param t_idx The global time point index.
     /// @param cycle The MG iteration we are currently on.
-    bool previous_cpoint_is_exact(const braid_Int t_idx,
-				  const braid_Int cycle);
+    bool previous_cpoint_is_exact(const braid_Int t_idx, const braid_Int cycle);
 
     /// @brief Returns a vector representing the c points that the app will use,
     /// according
