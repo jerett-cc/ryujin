@@ -339,6 +339,8 @@ namespace mgrit
 
     unsigned int n_parabolic_state_vectors;
 
+    braid_Int max_levels;
+
     // Conditional output stream.
     // pout: output only on the 0th processor in the global communicator (0 in x
     // and 0 in t) gout: global output, all processors in space and time tout:

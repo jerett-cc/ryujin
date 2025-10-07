@@ -131,7 +131,7 @@ int main(int argc, char *argv[])
 
   pout << "ntime in app: " << app.ntime << std::endl;
   BraidCore core(MPI_COMM_WORLD, &app);
-  core.SetMaxLevels(app.refinement_levels.size());
+  core.SetMaxLevels(app.max_levels);
   core.SetPrintLevel(3);
   core.SetAbsTol(1.0e-2);
   core.SetCFactor(-1, app.cfactor);

@@ -100,9 +100,9 @@ namespace mgrit
                  // matches that of XBRAID.
     add_parameter(
         "cfactor", cfactor, "The coarsening factor between time levels.");
-    max_iter =
-        num_bricks; // In theory, mgrit should converge after the number of
+    // In theory, mgrit should converge after the number of
     // cycles equal to the number of time points it has.
+    max_iter = num_bricks;
     add_parameter(
         "max_iter", max_iter, "The maximum number of MGRIT iterations.");
     use_fmg = false;
@@ -181,6 +181,11 @@ namespace mgrit
     add_parameter("skip first down cycle",
                   skip_first_down_cycle,
                   "Set whether to skip all work on the first down cycle.");
+    max_levels = levels.size();
+    add_parameter("max levels",
+                  max_levels,
+                  "The maximum number of MGRIT levels, needs to be less than "
+                  "or equal to the number of refinements you specify.");
   };
 
   template <typename Number, typename Description, int dim>
@@ -254,9 +259,15 @@ namespace mgrit
     }
     // now that levels are all created, we parse the parameter file.
     dealii::ParameterAcceptor::initialize(prm_stream);
+    // Assert that some parameters are not contradictory
+    Assert(
+        (max_levels <= static_cast<braid_Int>(levels.size()) && max_levels > 0),
+        dealii::ExcMessage(
+            "You defined a max_levels that is either negative or greater than "
+            "the number of refinement levels you passed from command line."));
 
-    // all parameters defined, we can now call all objects prepare function.
-    prepare_mg_objects();
+        // all parameters defined, we can now call all objects prepare function.
+        prepare_mg_objects();
 
     // Prepare the additional offline_data and discretizations.
     pout << "[INFO] Preparing additional offline_data and "
