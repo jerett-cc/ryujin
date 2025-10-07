@@ -123,17 +123,11 @@ int main(int argc, char *argv[])
   mgrit::MyApp<NUMBER, Description, 2> app(comm_x, comm_t, refinement_levels);
   app.initialize(prm_name);
 
-  // std::vector<NUMBER>c_points =  app.c_points();
-  // // Print out the vector
-  // for (auto n : c_points)
-  //       pout << n << ' ';
-  //   pout << '\n';
-
   pout << "ntime in app: " << app.ntime << std::endl;
   BraidCore core(MPI_COMM_WORLD, &app);
   core.SetMaxLevels(app.max_levels);
-  core.SetPrintLevel(3);
-  core.SetAbsTol(1.0e-2);
+  core.SetPrintLevel(app.mgrit_print_level);
+  core.SetAbsTol(app.mgrit_abs_tol);
   core.SetCFactor(-1, app.cfactor);
   core.SetPrintFile("braid_debug.txt");
   core.SetAccessLevel(app.access_level);

@@ -186,6 +186,16 @@ namespace mgrit
                   max_levels,
                   "The maximum number of MGRIT levels, needs to be less than "
                   "or equal to the number of refinements you specify.");
+    mgrit_print_level = 0;
+    add_parameter(
+        "mgrit print level",
+        mgrit_print_level,
+        "The level of printing that MGRIT uses on the backend. 3 is debug.");
+    mgrit_abs_tol = 1e-2;
+    add_parameter(
+        "mgrit abs tolerance",
+        mgrit_abs_tol,
+        "The halting tolerance that MGRIT uses to stop their algorithm.");
   };
 
   template <typename Number, typename Description, int dim>
