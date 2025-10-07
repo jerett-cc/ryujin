@@ -60,10 +60,12 @@ int main(int argc, char *argv[])
   static int cycle = 0;
   const auto postprocess = [&]([[maybe_unused]] const StateVector U,
                                double time) {
-    Assert(
-        &U == &(U_data.U),
-        dealii::ExcMessage("The data and the data being stepped need to be the "
-                           "same for meaningful postprocessing."));
+    // Assert(
+    //     &U == &(U_data.U),
+    //     dealii::ExcMessage("The data and the data being stepped need to be the "
+    //                        "same for meaningful postprocessing."));
+    // FIXME: make an actually useful check that the data here is the same
+    // as the data in main().
     if (dealii::Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       std::cout << "Postprocessing at t=" << time << std::endl;
 
