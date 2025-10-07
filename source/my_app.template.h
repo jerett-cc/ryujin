@@ -216,7 +216,7 @@ namespace mgrit
             " and back()=" + std::to_string(refinement_levels.back())));
     // TODO: need to make a way to remove duplicates, or at least warn user
     // that duplicate refinement levels are inefficient.
-
+    n_coarsenings = refinement_levels.size() - 1;
     create_mg_levels();
 
     // Set up the offline_data_vec a vector of pointers to all the
@@ -287,8 +287,7 @@ namespace mgrit
     }
     pout << "Additional offline_data and discretization prepared" << std::endl;
     // Set the number of time points based on the number of bricks.
-    for (braid_Int l = 0; l < coarsest_level-1; l++)
-      total_cfactor *= cfactor;
+    total_cfactor = std::pow(cfactor, n_coarsenings);
     pout << "Cumulative coarsening by a factor of " << total_cfactor
          << std::endl;
 

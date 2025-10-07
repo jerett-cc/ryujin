@@ -338,6 +338,7 @@ namespace mgrit
     bool use_sequential_solution, skip_first_down_cycle;
 
     unsigned int n_parabolic_state_vectors;
+    braid_Int n_coarsenings;
 
     braid_Int max_levels;
 
