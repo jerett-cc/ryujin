@@ -69,18 +69,23 @@ int main(int argc, char* argv[])
   LSAN_ENABLE;
 
   LIKWID_INIT;
-  Assert(argc >= 1/*program*/ + 1/*parameter file*/ + 1/*minimum refinement*/,
+  Assert(argc >= 1/*program*/ + 1/*parameter file*/ + 1/*at least one refinement level*/,
          dealii::ExcMessage("You must provide the startup program with a parameter file and a"
 			    " mesh refinement. "
 			    "Here, the number of additional parameters needed is at least:"
 			    + std::to_string(3-argc)));
   const std::string prm_name(argv[1]);// prm file
-  const int refinement = std::stoi(argv[2]);
+  std::vector<int> refinement_levels(
+      argc - 2); // the vector of refinement levels are equal to the number of
+                 // remaining arguments, set to argc-3, where 3 is the number of
+                 // arguments needed before the mg_hierarchy
+  for (int i = 2; i < argc; i++)
+    refinement_levels[i - 2] = std::stoi(argv[i]);
 
-  std::cout << "prm: " << prm_name << " refinement: " << refinement << std::endl;
+  std::cout << "prm: " << prm_name << " refinement: " << refinement_levels.front() << std::endl;
   
   // First iteration of MGRIT, initializes the cpoints
-  mgrit::MyApp<NUMBER, Description, 2> app_0(comm_world, comm_world, {refinement});
+  mgrit::MyApp<NUMBER, Description, 2> app_0(comm_world, comm_world, refinement_levels);
   app_0.initialize(prm_name);
   app_0.write_coarse_points();
 

@@ -754,10 +754,10 @@ namespace mgrit
   {
     auto c_point = c_points();
     auto dt = c_point[1] - c_point[0];
-    // change some printing parameters
-    time_loops[0]->change_checkpoint_and_frequency_and_basename(
+    // change some printing parameters on coarsest level
+    time_loops.back()->change_checkpoint_and_frequency_and_basename(
         true, dt, storage_name);
-    time_loops[0]->set_use_cycle_in_name(true);
+    time_loops.back()->set_use_cycle_in_name(true);
 
     // check that the requested directory for the storage exists,
     // if not, then make it.
@@ -778,8 +778,8 @@ namespace mgrit
     }
 
     // with the time_loop, run on the coarsest level
-    time_loops[0]->set_t_final(tstop);
-    time_loops[0]->run(tstart);
+    time_loops.back()->set_t_final(tstop);
+    time_loops.back()->run(tstart);
   }
 
   template <typename Number, typename Description, int dim>

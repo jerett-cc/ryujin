@@ -24,7 +24,7 @@ echo "${nthreads}"
 echo ${s_refinements}
 echo ${refinements[0]}
 
-DEAL_II_NUM_THREADS="${nthreads}" mpirun -n "${nworld}" startup "${prm}" "${refinements[0]}"
+DEAL_II_NUM_THREADS="${nthreads}" mpirun -n "${nworld}" startup "${prm}" ${s_refinements}
 
 # once the setupfiles are written, we start the regular program.
 
