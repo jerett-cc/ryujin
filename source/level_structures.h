@@ -11,6 +11,7 @@
 
 // deal.II includes
 #include <deal.II/base/parameter_acceptor.h>
+#include <deal.II/grid/grid_tools.h>
 
 // ryujin includes
 #include "discretization.h"
@@ -212,6 +213,12 @@ namespace ryujin
     LevelStructures<Description, dim, Number>::prepare(std::string base_name)
     {
       discretization->prepare(base_name);
+      std::cout << "On level with refinement " << level_refinement
+		<< " the minimal cell diameter is "
+		<< dealii::GridTools::minimal_cell_diameter(discretization->triangulation())
+		<< " and the maximal cell diameter is "
+		<< dealii::GridTools::maximal_cell_diameter(discretization->triangulation())
+		<< std::endl;
       offline_data->prepare(
           problem_dimension,
           n_precomputed_values,
