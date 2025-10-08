@@ -366,6 +366,76 @@ namespace mgrit
   }
 
   template <typename Number, typename Description, int dim>
+  void MyApp<Number, Description, dim>::load_file_into_U(
+      const std::string filename_prefix, my_vector* U)
+  {
+    // TODO: add a pout to the app so we can use in place of complicated looking
+    //       if statements. This will clean up the I/O.
+    xout << "Reading file " + filename_prefix + ".mesh" << std::endl;
+
+    // Copy of the triangulation, which we load back in to the triangulation in
+    // a hacky way to work around serialization problems.
+    auto &unrefined_tria = unrefined_level->discretization->triangulation();
+    auto &unrefined_offline_data = *unrefined_level->offline_data;
+
+    // load the mesh onto the coarsest mesh. This is needed before the
+    // projection can happen below.
+    unrefined_tria.load(filename_prefix + ".mesh");
+
+    // Now that a new triangulation is loaded, we need to re-initialize data
+    // structures to ensure that we can properly assign data on this
+    // triangulation. Because unrefined_tria is always not refined, if the user
+    // wants to use my_app where coarsest_level refers to a level with
+    // refinement>0, we may cause a bug. This modifies the offline_data, so we
+    // need to reset it to the 'unrefined' state before Init() finishes.
+    unrefined_offline_data.prepare(
+        problem_dimension, n_precomputed_values, n_parabolic_state_vectors);
+
+    /*
+     * Read in and broadcast metadata for the coarse data:
+     */
+    // this is ultimately unused, just needs to be here to read in metadata file
+    braid_Int output_cycle = 0;
+
+    unsigned int transfer_handle;
+    braid_Real t_in_file = 0.0;
+    if (mpi_ensemble_x->world_rank() == 0) {
+      std::string meta = filename_prefix + ".metadata";
+
+      std::ifstream file(meta, std::ios::binary);
+      boost::archive::binary_iarchive ia(file);
+      ia >> t_in_file >> output_cycle >> transfer_handle;
+    }
+
+    int ierr;
+    ierr = MPI_Bcast(&transfer_handle,
+                     1,
+                     MPI_UNSIGNED,
+                     0,
+                     mpi_ensemble_x->ensemble_communicator());
+    AssertThrowMPI(ierr);
+
+    /* Now read in the state vector: */
+    unrefined_level->solution_transfer->set_handle(transfer_handle);
+    unrefined_level->solution_transfer->project(U->U);
+    unrefined_level->solution_transfer->reset_handle();
+
+    // Now that we are done, clear the coarse_tria and
+    // copy_triangulation from its exact copy. In other words, restore
+    // the *invariant* that we have a triangulation and matching
+    // DoFHandler that corresponding to the coarse mesh.
+    unrefined_tria.clear();
+    unrefined_tria.copy_triangulation(
+        unrefined_level->discretization->coarse_triangulation());
+
+    // Since we have clear()'d and copied the triangulation, we need to reset
+    // all the data structures in offline_data before we use unrefined_level
+    // to do any more work after this function returns.
+    unrefined_offline_data.prepare(
+        problem_dimension, n_precomputed_values, n_parabolic_state_vectors);
+  }
+
+  template <typename Number, typename Description, int dim>
   void MyApp<Number, Description, dim>::print_times()
   {
     // Sum across spatial processors, sum across temporal processors, and Print
@@ -984,13 +1054,6 @@ namespace mgrit
     const braid_Int num_cpoints = ntime / cfactor;
     pout << "Num_cpoints: " << num_cpoints << std::endl;
 
-    // this c_id indicates the number of the checkpoint file we will wish to
-    // read so we make a string of where we will find the file.
-    const braid_Int c_id =
-        static_cast<braid_Int>(num_cpoints * t / (tstop - tstart));
-    const std::string c_file_prefix =
-        storage_name + "-checkpoint" + std::to_string(c_id);
-
     // We next define a coarse vector at the coarsest level, which will be
     // stepped, then restricted down to the fine level and interpolate the fine
     // initial state into the coarse vector, then interpolates it up to the
@@ -1001,6 +1064,10 @@ namespace mgrit
     reinit_to_level(u.get(), finest_level);
     reinit_to_level(temp_coarse.get(), coarsest_level);
 
+    // this c_id indicates the number of the checkpoint file we will wish to
+    // read so we make a string of where we will find the file.
+    const braid_Int c_id =
+        static_cast<braid_Int>(num_cpoints * t / (tstop - tstart));
     // If this is the first brick, we use the initial state of the finest level,
     // not a coarse one. Hence, we skip the load() that happens below, and
     // return early.
@@ -1018,71 +1085,12 @@ namespace mgrit
       return 0;
     }
 
-    // TODO: add a pout to the app so we can use in place of complicated looking
-    //       if statements. This will clean up the I/O.
-    pout << "Reading file " + c_file_prefix + ".mesh" << std::endl;
-
-    // Copy of the triangulation, which we load back in to the triangulation in
-    // a hacky way to work around serialization problems.
-    auto &unrefined_tria = unrefined_level->discretization->triangulation();
-    auto &unrefined_offline_data = *unrefined_level->offline_data;
-
-    // load the mesh onto the coarsest mesh. This is needed before the
-    // projection can happen below.
-    unrefined_tria.load(c_file_prefix + ".mesh");
-
-    // Now that a new triangulation is loaded, we need to re-initialize data
-    // structures to ensure that we can properly assign data on this
-    // triangulation. Because unrefined_tria is always not refined, if the user
-    // wants to use my_app where coarsest_level refers to a level with
-    // refinement>0, we may cause a bug. This modifies the offline_data, so we
-    // need to reset it to the 'unrefined' state before Init() finishes.
-    unrefined_offline_data.prepare(
-        problem_dimension, n_precomputed_values, n_parabolic_state_vectors);
-
-    /*
-     * Read in and broadcast metadata for the coarse data:
-     */
-    // this is ultimately unused, just needs to be here to read in metadata file
-    braid_Int output_cycle = 0;
-
-    unsigned int transfer_handle;
-    braid_Real t_in_file = 0.0;
-    if (mpi_ensemble_x->world_rank() == 0) {
-      std::string meta = c_file_prefix + ".metadata";
-
-      std::ifstream file(meta, std::ios::binary);
-      boost::archive::binary_iarchive ia(file);
-      ia >> t_in_file >> output_cycle >> transfer_handle;
+      const std::string c_file_prefix =
+          storage_name + "-checkpoint" + std::to_string(c_id);
+      load_file_into_U(c_file_prefix, temp_coarse.get());
+      // TODO: replace with a pout.
+      xout << "Done with file " << c_file_prefix << std::endl;
     }
-
-    int ierr;
-    ierr = MPI_Bcast(&transfer_handle,
-                     1,
-                     MPI_UNSIGNED,
-                     0,
-                     mpi_ensemble_x->ensemble_communicator());
-    AssertThrowMPI(ierr);
-
-    /* Now read in the state vector: */
-    unrefined_level->solution_transfer->set_handle(transfer_handle);
-    unrefined_level->solution_transfer->project(temp_coarse->U);
-    unrefined_level->solution_transfer->reset_handle();
-
-    // Now that we are done, clear the coarse_tria and
-    // copy_triangulation from its exact copy. In other words, restore
-    // the *invariant* that we have a triangulation and matching
-    // DoFHandler that corresponding to the coarse mesh.
-    unrefined_tria.clear();
-    unrefined_tria.copy_triangulation(
-        unrefined_level->discretization->coarse_triangulation());
-
-    // Since we have clear()'d and copied the triangulation, we need to reset
-    // all the data structures in offline_data before we use unrefined_level
-    // to do any more work after this function returns.
-    unrefined_offline_data.prepare(
-        problem_dimension, n_precomputed_values, n_parabolic_state_vectors);
-
     // Now interpolate the data we loaded on the coarsest level to the finest
     // level, using the levels data structure, as unrefined_level has done it's
     // work:
@@ -1095,9 +1103,6 @@ namespace mgrit
     // reassign pointer XBraid will use by turning ownership of the
     // vector 'u' points to over to 'u_ptr':
     *u_ptr = (braid_Vector)u.release();
-
-    // TODO: replace with a pout.
-    pout << "Done with file " << c_file_prefix << std::endl;
 
     return 0;
   }
