@@ -887,12 +887,19 @@ namespace mgrit
     pstatus.GetIter(&iter);
     pstatus.GetCallingFunction(&calling);
 
+    xout << "[INFO] Stepping on level: " + std::to_string(level) +
+                "\non interval: [" + std::to_string(lvl_tstart) + ", " +
+                std::to_string(lvl_tstop) + "]\n" + "total step call number " +
+                std::to_string(num_step_calls)
+         << std::endl;
+
     // if this is FACCESS, we don't want to care about F-Points since
     // these require another re-generation to get. Instead, we will
     // skip doing this. so we only see C-points on FACCESS.
     // We have to skip F-Points there also.
     if (calling == braid_ASCaller_FAccess) {
       // This only happens at F-points. So don't do any work.
+      xout << "[INFO]: Access F-point stepping skipped." << std::endl;
       return 0;
     }
 
@@ -952,11 +959,6 @@ namespace mgrit
               "level_" + std::to_string(level),
           t_idx);
 #endif
-    xout << "[INFO] Stepping on level: " + std::to_string(level) +
-                "\non interval: [" + std::to_string(lvl_tstart) + ", " +
-                std::to_string(lvl_tstop) + "]\n" + "total step call number " +
-                std::to_string(num_step_calls)
-         << std::endl;
 
     // use a macro to get rid of some unused variables to avoid -Wall messages
     // TODO: make use of the [[maybe_unused]] tag instead.
