@@ -213,12 +213,17 @@ namespace ryujin
     LevelStructures<Description, dim, Number>::prepare(std::string base_name)
     {
       discretization->prepare(base_name);
-      std::cout << "On level with refinement " << level_refinement
-		<< " the minimal cell diameter is "
-		<< dealii::GridTools::minimal_cell_diameter(discretization->triangulation())
-		<< " and the maximal cell diameter is "
-		<< dealii::GridTools::maximal_cell_diameter(discretization->triangulation())
-		<< std::endl;
+      const Number minimal_diameter = dealii::GridTools::minimal_cell_diameter(
+          discretization->triangulation());
+      const Number maximal_diameter = dealii::GridTools::maximal_cell_diameter(
+          discretization->triangulation());
+
+      if (dealii::Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0) {
+        std::cout << "On level with refinement " << level_refinement
+                  << " the minimal cell diameter is " << minimal_diameter
+                  << " and the maximal cell diameter is " << maximal_diameter
+                  << std::endl;
+      }
       offline_data->prepare(
           problem_dimension,
           n_precomputed_values,
