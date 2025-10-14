@@ -997,9 +997,14 @@ namespace mgrit
         [](const StateVector &, double) {},
         print_every_step); // print every step of the integration
 
+    // Apply the boundary conditions to the new state before interpolation.
+    levels[level]->hyperbolic_module->prepare_state_vector(u_to_step->U,
+                                                           lvl_tstop);
+
     // Interpolate the updated state back to the fine level.
     interpolate_between_levels(*u_, 0, *u_to_step, level);
 
+    // TODO: make sure BCs are set after interpolation back to fine level?
     num_step_calls++;
     delete u_to_step;
 
