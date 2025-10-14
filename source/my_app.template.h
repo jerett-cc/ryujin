@@ -324,8 +324,10 @@ namespace mgrit
 
     n_parabolic_state_vectors =
         unrefined_level->parabolic_system->get().n_parabolic_state_vectors();
-    //   initialized = true; // now the user can access data in app. TODO:
-    //   implement a check for getter functions.
+
+    cycle_io_width = (max_iter == 0) ? 1 : (int)log10(max_iter) + 1;
+    pout << "Width of IO string for cycle names: " << cycle_io_width
+         << std::endl;
   }
 
   template <typename Number, typename Description, int dim>
@@ -1186,8 +1188,10 @@ namespace mgrit
     astatus.GetLevel(&level);
 
     ryujin::Scope scope(computing_timer, "access::" + std::to_string(level));
-
-    std::string fname = "./" + base_name + "_cycle" + std::to_string(mgCycle);
+    std::ostringstream cycle_stream;
+    cycle_stream << std::setw(cycle_io_width) << std::setfill('0')
+                 << std::to_string(mgCycle);
+    std::string fname = "./" + base_name + "_cycle" + cycle_stream.str();
 
     switch (caller_id) // FIXME: need switch here?
     {

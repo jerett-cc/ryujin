@@ -144,9 +144,12 @@ namespace mgrit_functions
     std::vector<std::string> all_output =
         dealii::Utilities::MPI::gather(mpi_communicator, ostring.str());
     if (dealii::Utilities::MPI::this_mpi_process(mpi_communicator) == 0) {
+      std::ostringstream cycle_stream;
+      cycle_stream << std::setw(app->cycle_io_width) << std::setfill('0')
+                   << std::to_string(cycle);
       std::ofstream o;
       o.open(app->base_name + "_brick" + std::to_string(t_idx) + "_cycle" +
-             std::to_string(cycle) + "_forces_quadrature_points.csv");
+             cycle_stream.str() + "_forces_quadrature_points.csv");
       for (auto s : all_output)
         o << s;
     }
