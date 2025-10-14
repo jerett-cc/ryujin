@@ -216,8 +216,7 @@ namespace mgrit
     /// Calls prepare on all objects ryujin needs to run.
     void prepare_mg_objects();
     /// If a checkpoint file exists, we load this into U.
-    void load_file_into_U(const std::string filename,
-                          my_vector* temp_coarse);
+    void load_file_into_U(const std::string filename, my_vector *temp_coarse);
 
   public: // Braid Required Routines
     /// Tests whether the n_dofs from the vector matches that on the supposed

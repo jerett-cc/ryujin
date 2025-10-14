@@ -369,7 +369,7 @@ namespace mgrit
 
   template <typename Number, typename Description, int dim>
   void MyApp<Number, Description, dim>::load_file_into_U(
-      const std::string filename_prefix, my_vector* U)
+      const std::string filename_prefix, my_vector *U)
   {
     // TODO: add a pout to the app so we can use in place of complicated looking
     //       if statements. This will clean up the I/O.

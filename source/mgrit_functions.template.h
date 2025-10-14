@@ -412,8 +412,8 @@ namespace mgrit_functions
       // relationship that TE = IE_new + KE.
       if (old_e < eps_e) {
         // No need to set the density, that's already done.
-        state[dim + 1] = eps_e +
-                         0.5 / state[0] * (view.momentum(state).norm_square());
+        state[dim + 1] =
+            eps_e + 0.5 / state[0] * (view.momentum(state).norm_square());
         // we could mimic how we write the state, but instead we assert we are
         // good and
       }
