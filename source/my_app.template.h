@@ -788,7 +788,7 @@ namespace mgrit
     // bricks will be converged each iteration on each level. TODO: verify that
     // this is true.
 
-    return t_idx < n_relax * cycle * cycle;
+    return t_idx < n_relax * cycle;
   }
 
   template <typename Number, typename Description, int dim>
