@@ -95,7 +95,7 @@ int main(int argc, char *argv[]){
   std::get<0>(coarseU.U) -= std::get<0>(coarseCopy.U);
   double diff = std::get<0>(coarseU.U).l2_norm();
 
-  if (diff < 1e-10)
+  if (diff < 1e-15)
   {
     std::cout << "Interpolation fine->coarse consistent." << std::endl;
   }
