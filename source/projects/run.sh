@@ -17,15 +17,17 @@ nthreads="$4"
 s_refinements="${@:5:($#)}"
 refinements=(${s_refinements})
 
-echo "${prm}"
-echo "${nworld}"
-echo "${nx}"
-echo "${nthreads}"
-echo ${s_refinements}
-echo ${refinements[0]}
+echo "PRM:${prm}"
+echo "NWORLD:${nworld}"
+echo "NX:${nx}"
+echo "NTHREADS:${nthreads}"
+echo "refinements:"${s_refinements}
 
-DEAL_II_NUM_THREADS="${nthreads}" mpirun -n "${nworld}" startup "${prm}" ${s_refinements}
-
+if [ ${refinements[0]} -lt 4 ]; then
+    DEAL_II_NUM_THREADS="${nthreads}" mpirun -n 1 startup "${prm}" ${s_refinements}
+else
+    DEAL_II_NUM_THREADS="${nthreads}" mpirun -n "${nworld}" startup "${prm}" ${s_refinements}
+fi
 # once the setupfiles are written, we start the regular program.
 
 time DEAL_II_NUM_THREADS="${nthreads}" mpirun -n "${nworld}" cpp_myapp_testing "${prm}" "${nx}" ${s_refinements} | tee CURRENT.log
