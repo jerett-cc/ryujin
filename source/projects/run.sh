@@ -14,7 +14,8 @@ prm="$1"
 nworld="$2"
 nx="$3"
 nthreads="$4"
-s_refinements="${@:5:($#)}"
+LOGNAME="$5"
+s_refinements="${@:6:($#)}"
 refinements=(${s_refinements})
 
 echo "PRM:${prm}"
@@ -30,4 +31,4 @@ else
 fi
 # once the setupfiles are written, we start the regular program.
 
-time DEAL_II_NUM_THREADS="${nthreads}" mpirun -n "${nworld}" cpp_myapp_testing "${prm}" "${nx}" ${s_refinements} | tee CURRENT.log
+time DEAL_II_NUM_THREADS="${nthreads}" mpirun -n "${nworld}" cpp_myapp_testing "${prm}" "${nx}" ${s_refinements} | tee "${LOGNAME}"
