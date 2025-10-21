@@ -17,7 +17,6 @@ namespace mgrit_functions
     using scalar_type = dealii::LinearAlgebra::distributed::Vector<Number>;
 
     const auto offline_data = app->levels[app->finest_level]->offline_data;
-    const auto mpi_communicator = app->comm_x;
     const auto hyperbolic_system_view = app->levels[app->finest_level]
                                             ->hyperbolic_system->get()
                                             .template view<dim, Number>();
@@ -32,11 +31,10 @@ namespace mgrit_functions
     std::vector<scalar_type> momentum(dim);
 
     // initialize partitions
-    density.reinit(offline_data->scalar_partitioner(), mpi_communicator);
-    pressure.reinit(offline_data->scalar_partitioner(), mpi_communicator);
+    density.reinit(offline_data->scalar_partitioner(), app->comm_x);
+    pressure.reinit(offline_data->scalar_partitioner(), app->comm_x);
     for (int c = 0; c < dim; c++)
-      momentum.at(c).reinit(offline_data->scalar_partitioner(),
-                            mpi_communicator);
+      momentum.at(c).reinit(offline_data->scalar_partitioner(), app->comm_x);
 
     dealii::Tensor<1, dim> normal_vector;
     dealii::SymmetricTensor<2, dim> fluid_stress;
@@ -138,17 +136,19 @@ namespace mgrit_functions
     }         // cell loop
 
     // now, sum the values across all processes.
-    dealii::Utilities::MPI::sum(output_forces, mpi_communicator);
+    dealii::Utilities::MPI::sum(output_forces, app->comm_x);
     // collect the output strings so we know forces at quadrature points on
     // object.
     std::vector<std::string> all_output =
-        dealii::Utilities::MPI::gather(mpi_communicator, ostring.str());
-    if (dealii::Utilities::MPI::this_mpi_process(mpi_communicator) == 0) {
-      std::ostringstream cycle_stream;
+        dealii::Utilities::MPI::gather(app->comm_x, ostring.str());
+    if (dealii::Utilities::MPI::this_mpi_process(app->comm_x) == 0) {
+      std::ostringstream cycle_stream, brick_stream;
       cycle_stream << std::setw(app->cycle_io_width) << std::setfill('0')
                    << std::to_string(cycle);
+      brick_stream << std::setw(app->cycle_io_width) << std::setfill('0')
+                   << std::to_string(t_idx);
       std::ofstream o;
-      o.open(app->base_name + "_brick" + std::to_string(t_idx) + "_cycle" +
+      o.open(app->base_name + "_brick" + brick_stream.str() + "_cycle" +
              cycle_stream.str() + "_forces_quadrature_points.csv");
       for (auto s : all_output)
         o << s;
