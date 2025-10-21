@@ -507,6 +507,7 @@ namespace mgrit
       // TODO: does this do what I think, leaving the from_v alone? Is it better
       // to have the else case wrapped in an else statement? Ask Wolfgang.
       to_v = from_v;
+      to_v.update_ghost_values();
       return;
     }
 
@@ -745,12 +746,13 @@ namespace mgrit
                               std::to_string(level) +
                               " is does not have the right number of" +
                               " dofs for the level."));
-    pout << "printing solution" << std::endl;
-    // const auto time_loop = time_loops[level];
-    //  time_loop->output_wrapper(v, fname, t /*current time*/, t_idx
-    //  /*brick*/);
-    levels[level]->vtu_output->schedule_output(
-        v, fname, t, t_idx, true /*output_full*/, false /*output_cutplanes*/);
+    if (print_solution_bool) {
+      pout << "printing solution" << std::endl;
+      levels[level]->vtu_output->schedule_output(
+          v, fname, t, t_idx, true /*output_full*/, false /*output_cutplanes*/);
+    } else {
+      pout << "printing turned off" << std::endl;
+    }
   }
 
   template <typename Number, typename Description, int dim>
@@ -911,14 +913,6 @@ namespace mgrit
       return 0;
     }
 
-    // TODO: do I need this conditional at all? #F-relaxations differ on each
-    // level, and
-    //       based on relaxation strategy (FC or FCF, etc.)
-    if (level == finest_level) {
-      std::pair<int, int> tidx_iter(t_idx, iter);
-      f_brick_relaxation_count[tidx_iter] += 1;
-    }
-
     std::string fname = "step" + std::to_string(num_step_calls) + "_cycle" +
                         std::to_string(n_cycles) + "_level_" +
                         std::to_string(level) + "_interval_[" +
@@ -928,45 +922,18 @@ namespace mgrit
     // Start a timer for step::level
     ryujin::Scope scope(computing_timer, "step::" + std::to_string(level));
 
-    bool fails = false;
-
-#ifdef DEBUG_MGRIT
-    fails = fails || !mgrit_functions::state_admissible_everywhere(
-                         *u_, finest_level, *this, lvl_tstart, calling);
-    if (fails)
-      print_solution(
-          u_->U,
-          lvl_tstart,
-          finest_level,
-          fname + "not_admissible_before_enforce_physicality_before_step_" +
-              "level_" + std::to_string(level),
-          t_idx);
-#endif
-
     // Ensure this is a physical vector.
     // If brick is exact, we toggle off the projection operation.
     // Otherwise, we need to project.
     // If not exact, we will integrate with F(P), otherwise we omit P and use
     // only F.
-    if (!previous_cpoint_is_exact(t_idx, iter)) {
+    // if (!previous_cpoint_is_exact(t_idx, iter))
+    {
       // Time this bit of code.
       ryujin::Scope scope(computing_timer, "projection_operator_step");
       mgrit_functions::enforce_physicality_bounds<Description, dim, Number>(
           *u_, finest_level, *this, lvl_tstart);
     }
-
-#ifdef DEBUG_MGRIT
-    fails = fails || !mgrit_functions::state_admissible_everywhere(
-                         *u_, finest_level, *this, lvl_tstart, calling);
-    if (fails)
-      print_solution(
-          u_->U,
-          lvl_tstart,
-          finest_level,
-          fname + "not_admissible_after_enforce_physicality_before_step_" +
-              "level_" + std::to_string(level),
-          t_idx);
-#endif
 
     // use a macro to get rid of some unused variables to avoid -Wall messages
     // TODO: make use of the [[maybe_unused]] tag instead.
@@ -989,8 +956,6 @@ namespace mgrit
 
     interpolate_between_levels(*u_to_step, level, *u_, 0);
 
-    bool print_every_step = fails;
-
     // step the function on this level
     // TODO: make sure that the last parameter is set properly, hardcoded
     // is not the best course here.
@@ -999,18 +964,17 @@ namespace mgrit
         u_to_step->U,
         lvl_tstop,
         lvl_tstart,
-        print_every_step,
+        false,
         [](const StateVector &, double) {},
-        print_every_step); // print every step of the integration
-
-    // Apply the boundary conditions to the new state before interpolation.
-    levels[level]->hyperbolic_module->prepare_state_vector(u_to_step->U,
-                                                           lvl_tstop);
+        false); // print every step of the integration
 
     // Interpolate the updated state back to the fine level.
-    interpolate_between_levels(*u_, 0, *u_to_step, level);
+    interpolate_between_levels(*u_, finest_level, *u_to_step, level);
 
-    // TODO: make sure BCs are set after interpolation back to fine level?
+    // Apply the boundary conditions to the new state after interpolation.
+    levels[finest_level]->hyperbolic_module->prepare_state_vector(u_->U,
+                                                                  lvl_tstop);
+
     num_step_calls++;
     delete u_to_step;
 
@@ -1100,12 +1064,11 @@ namespace mgrit
       return 0;
     }
 
-      const std::string c_file_prefix =
-          storage_name + "-checkpoint" + std::to_string(c_id);
-      load_file_into_U(c_file_prefix, temp_coarse.get());
-      // TODO: replace with a pout.
-      xout << "Done with file " << c_file_prefix << std::endl;
-    }
+    const std::string c_file_prefix =
+        storage_name + "-checkpoint" + std::to_string(c_id);
+    load_file_into_U(c_file_prefix, temp_coarse.get());
+    // TODO: replace with a pout.
+    xout << "Done with file " << c_file_prefix << std::endl;
     // Now interpolate the data we loaded on the coarsest level to the finest
     // level, using the levels data structure, as unrefined_level has done it's
     // work:
@@ -1229,7 +1192,8 @@ namespace mgrit
 
       // project the solution to avoid problems with data at the end of a cycle.
       // Ensure this is a physical vector. Only if this brick is not converged.
-      if (!previous_cpoint_is_exact(t_idx, mgCycle)) {
+      // if (!previous_cpoint_is_exact(t_idx, mgCycle))
+      {
         // Time this bit of code.
         ryujin::Scope scope(computing_timer, "projection_operator_step");
         mgrit_functions::enforce_physicality_bounds<Description, dim, Number>(
@@ -1244,8 +1208,8 @@ namespace mgrit
       [[maybe_unused]] dealii::Tensor<1, dim> forces =
           mgrit_functions::calculate_forces_on_object<Number, Description, dim>(
               this, *u_, t, mgCycle, c_idx);
-      std::cout << "[Cycle:" << mgCycle << "] forces[0]=" << forces[0]
-                << " on brick " << c_idx << std::endl;
+      xout << "[Cycle:" << mgCycle << "] forces[0]=" << forces[0]
+           << " on brick " << c_idx << std::endl;
       if (calculate_conserved_quantities) {
         // calculate the conserved quantities in the system, as well as entropy
         mgrit_functions::
@@ -1256,18 +1220,6 @@ namespace mgrit
       n_cycles = mgCycle;
       break;
     }
-#if DEBUG_MGRIT
-    case braid_ASCaller_FInterp_Projection: {
-      print_solution(u_->U,
-                     t,
-                     finest_level /*level that every u lives on*/,
-                     fname + "_tau" + std::to_string(caller_id),
-                     t_idx);
-      std::cout << "norm of the solution " << std::get<0>(u_->U).l2_norm()
-                << std::endl;
-      break;
-    }
-#endif
     default: {
       // Do nothing in a default.
       break;
@@ -1385,6 +1337,7 @@ namespace mgrit
                    std::to_string(problem_dimension * node + component + 1)));
       }
     }
+    std::get<0>(u->U).update_ghost_values();
 
     *(u_ptr) =
         (braid_Vector)u; // modify the u_ptr does this create a memory leak as
