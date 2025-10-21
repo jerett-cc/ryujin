@@ -395,9 +395,15 @@ namespace mgrit_functions
 
       // density needs to be set, we also need to update the total energy.
       if (old_rho < eps_rho) {
-        state[0] = eps_rho;
+        Number new_rho = 0;
+        if (app.use_reference_for_projection) {
+          new_rho = app.reference_rho;
+        } else {
+          new_rho = eps_rho;
+        }
+        state[0] = new_rho;
         state[dim + 1] =
-            old_e + 0.5 / eps_rho * (view.momentum(state).norm_square());
+            old_e + 0.5 / new_rho * (view.momentum(state).norm_square());
       }
 
       // If density was the only problem, then we skip checking the internal
@@ -411,9 +417,15 @@ namespace mgrit_functions
       // be set, wherein we modify the total energy. We do this via the
       // relationship that TE = IE_new + KE.
       if (old_e < eps_e) {
+        Number new_e = 0;
+        if (app.use_reference_for_projection) {
+          new_e = app.reference_e;
+        } else {
+          new_e = eps_e;
+        }
         // No need to set the density, that's already done.
         state[dim + 1] =
-            eps_e + 0.5 / state[0] * (view.momentum(state).norm_square());
+            new_e + 0.5 / state[0] * (view.momentum(state).norm_square());
         // we could mimic how we write the state, but instead we assert we are
         // good and
       }

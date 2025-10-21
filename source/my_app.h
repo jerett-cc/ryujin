@@ -344,6 +344,7 @@ namespace mgrit
     braid_Int max_levels, mgrit_print_level;
     braid_Real mgrit_abs_tol;
     int cycle_io_width;
+    bool use_reference_for_projection;
 
     // Conditional output stream.
     // pout: output only on the 0th processor in the global communicator (0 in x

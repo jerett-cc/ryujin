@@ -196,6 +196,12 @@ namespace mgrit
         "mgrit abs tolerance",
         mgrit_abs_tol,
         "The halting tolerance that MGRIT uses to stop their algorithm.");
+    use_reference_for_projection = true;
+    add_parameter(
+        "use reference for projection",
+        use_reference_for_projection,
+        "If true, the projection will set small values to the reference, "
+        "otherwise it will set small values to eps_{value}.");
   };
 
   template <typename Number, typename Description, int dim>
