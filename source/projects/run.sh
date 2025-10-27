@@ -24,9 +24,9 @@ echo "NX:${nx}"
 echo "NTHREADS:${nthreads}"
 echo "refinements:"${s_refinements}
 
-if [ ${refinements[0]} -lt 4 ]; then
-    echo "Using 1 process for startup since the # refinements on coarsest level is small."
-    DEAL_II_NUM_THREADS="${nthreads}" mpirun -n 1 startup "${prm}" ${s_refinements}
+if [ ${refinements[0]} -lt 6 ]; then
+    echo "Using 2 process for startup since the # refinements on coarsest level is small."
+    DEAL_II_NUM_THREADS="${nthreads}" mpirun -n 2 startup "${prm}" ${s_refinements}
 else
     DEAL_II_NUM_THREADS="${nthreads}" mpirun -n "${nworld}" startup "${prm}" ${s_refinements}
 fi
