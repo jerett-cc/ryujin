@@ -161,3 +161,14 @@ file(CREATE_LINK
 )
 
 MESSAGE(STATUS "Result of run.sh symbolic link: ${symres}")
+
+file(CREATE_LINK
+  "${CMAKE_CURRENT_SOURCE_DIR}/projects/run_same_mesh.sh"
+  "${CMAKE_BINARY_DIR}/run/run_same_mesh.sh"
+  RESULT symres1
+  SYMBOLIC
+)
+
+MESSAGE(STATUS "Result of run_same_mesh.sh symbolic link: ${symres1}")
+
+

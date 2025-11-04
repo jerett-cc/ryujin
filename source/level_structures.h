@@ -60,8 +60,14 @@ namespace ryujin
     {
 
     public:
+      // Only specify levels of spatial refinement, time integration
+      // is set in the input file.
       LevelStructures(const std::shared_ptr<ryujin::MPIEnsemble> mpi_ensemble_x,
                       const int refinement = 0);
+      // Specify the refinement and time integrator for this level.
+      LevelStructures(const std::shared_ptr<ryujin::MPIEnsemble> mpi_ensemble_x,
+                      const int refinement,
+                      const std::string time_integrator_name);
 
       void prepare(std::string base_name);
 
@@ -114,6 +120,8 @@ namespace ryujin
       std::shared_ptr<Postprocessor> postprocessor;
       std::shared_ptr<VTUOutput> vtu_output;
       std::shared_ptr<Quantities> quantities;
+      bool using_specific_integrator = false;
+      std::string which_integrator = "N/A";
     };
 
     // Constructor that takes a @p MPI_Comm to be used by all objects, and
@@ -202,6 +210,17 @@ namespace ryujin
     {
     }
 
+    template <typename Description, int dim, typename Number>
+    LevelStructures<Description, dim, Number>::LevelStructures(
+        const std::shared_ptr<ryujin::MPIEnsemble> mpi_ensemble_x,
+        const int refinement,
+        const std::string time_scheme)
+        : LevelStructures(mpi_ensemble_x, refinement)
+    {
+      using_specific_integrator = true;
+      which_integrator = time_scheme;
+    }
+
     /**
      * This function prepares all the data structure pointers.
      *
@@ -233,6 +252,11 @@ namespace ryujin
       hyperbolic_module->prepare();
       parabolic_module->prepare();
       time_integrator->prepare();
+      if (using_specific_integrator) {
+        // Now set the time integrator on this level to be
+        // the one specified in this constructor.
+        time_integrator->select_time_stepping_scheme(which_integrator);
+      }
       postprocessor->prepare();
       vtu_output->prepare();
       quantities->prepare(base_name);

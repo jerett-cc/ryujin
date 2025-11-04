@@ -1,15 +1,15 @@
 #include "discretization.h"
-#include "level_structures.h"//for all the objects that are needed for a run.
-#include "time_loop.h"
-#include <deal.II/base/mpi.h>
 #include "euler/description.h"
 #include "euler/hyperbolic_system.h"
+#include "level_structures.h" //for all the objects that are needed for a run.
+#include "mgrit_functions.template.h"
 #include "my_app.h"
 #include "state_vector.h"
-#include "mgrit_functions.template.h"
+#include "time_loop.h"
+#include <deal.II/base/mpi.h>
 
-#include "braid.hpp"//For braidstatus struct.
-#include "braid.h"//For braid_BufferStatus
+#include "braid.h"   //For braid_BufferStatus
+#include "braid.hpp" //For braidstatus struct.
 
 
 /**
@@ -17,21 +17,26 @@
  * Create a vector, pack it into a buffer, then unpack it into another vector,
  * then compare the vectors. They should be the same.
  */
-using StateVector = mgrit::MyApp<double, ryujin::Euler::Description, 2>::StateVector;
+using StateVector =
+    mgrit::MyApp<double, ryujin::Euler::Description, 2>::StateVector;
 using App = mgrit::MyApp<double, ryujin::Euler::Description, 2>;
 
 constexpr int dim = 2;
 
-int main(int argc, char *argv[]){
+int main(int argc, char *argv[])
+{
 
-  const std::string prm_name = argv[1];//Decide on how to make parameter set in test format.
+  const std::string prm_name =
+      argv[1]; // Decide on how to make parameter set in test format.
   const std::vector<int> refinement_levels = {0};
 
-  dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv);  //create objects
+  dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(
+      argc, argv); // create objects
   const MPI_Comm comm_world = MPI_COMM_WORLD;
 
   // Overarching structure.
-  mgrit::MyApp<double, ryujin::Euler::Description, 2> app(comm_world, comm_world, refinement_levels);
+  mgrit::MyApp<double, ryujin::Euler::Description, 2> app(
+      comm_world, comm_world, refinement_levels);
   // app.initialize(prm_name);
 
   // // Set up data in the one to pack.
@@ -39,7 +44,8 @@ int main(int argc, char *argv[]){
   // // Initialize data needs to be at t = 0 on the fine level.
   // ryujin::Vectors::reinit_state_vector<ryujin::Euler::Description>(packU.U,
   // 								   *(app.levels[0]->offline_data));
-  // std::get<0>(packU.U) = app.levels[0]->initial_values->get().interpolate_hyperbolic_vector(0.0);
+  // std::get<0>(packU.U) =
+  // app.levels[0]->initial_values->get().interpolate_hyperbolic_vector(0.0);
 
   // void* buffer;// Seems wrong.
 
@@ -50,8 +56,8 @@ int main(int argc, char *argv[]){
 
   // // app.BufPack((_braid_Vector_struct*)packU, buffer, bstatus);
   // // app.BufUnpack(buffer, (_braid_Vector_struct*)unpackU, bstatus);
-  
-  
+
+
   // std::get<0>(packU.U) -= std::get<0>(unpackU.U);
   // double diff = std::get<0>(packU.U).l2_norm();
 

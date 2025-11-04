@@ -212,6 +212,9 @@ namespace ryujin
                   << std::endl;
     };
 
+    // Access to time_integrator.
+    ACCESSOR_READ_ONLY(time_integrator);
+
   private:
     /**
      * @name Run time options

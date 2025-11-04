@@ -24,6 +24,15 @@ namespace ryujin
     dst_V.sadd(s, b, src_V);
   }
 
+  template <typename StateVector, typename Number>
+  void set_all_entries(StateVector &dst, const Number s)
+  {
+    auto &dst_U = std::get<0>(dst);
+    for (auto &entry : dst_U)
+      entry = s;
+    dst_U.update_ghost_values();
+  }
+
 
   template <typename Description, int dim, typename Number>
   TimeIntegrator<Description, dim, Number>::TimeIntegrator(

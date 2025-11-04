@@ -223,14 +223,12 @@ namespace mgrit_functions
     {
       const auto &sparsity_level =
           app.levels[level]->offline_data->sparsity_pattern();
-#ifdef DEBUG
       const auto &view = app.levels[level]
                              ->hyperbolic_system->get()
                              .template view<dim, Number>();
       // Pre-compute global averages.
       const auto avgs =
           global_average_state<Description, dim, Number>(U, level, app);
-#endif
       // Loop over the sparsity on this node, and set the value to the global
       // average, subtracting off equal parts from the surrounding nodes to
       // ensure that the global average stays the same.
@@ -296,7 +294,7 @@ namespace mgrit_functions
   enforce_physicality_bounds(mgrit::MyVector<Number, Description, dim> &u,
                              const unsigned int level,
                              const mgrit::MyApp<Number, Description, dim> &app,
-                             [[maybe_unused]] const Number t)
+                             const braid_Int c_idx)
   {
     // The incoming u.U should already respect the following equalities:
     // (1) u.U[0]     = rho
@@ -379,6 +377,11 @@ namespace mgrit_functions
                           ->hyperbolic_system->get()
                           .template view<dim, Number>();
 
+    // Track things about the projection.
+    bool projection_needed = false;
+    Number max_truncation_size_rho = 0.0;
+    Number max_truncation_size_e = 0.0;
+
     // First, we loop over all the local nodes and
     // TAG: #1 projection: Loop over all nodes.
     for (unsigned int node = 0; node < app.n_locally_owned_at_level(level);
@@ -388,8 +391,10 @@ namespace mgrit_functions
       if (view.is_admissible(state))
         continue;
 
-      // here, we are not admissible, so we first check the internal energy
-      // and then set the
+      // here, we are not admissible, so we first check density then internal
+      // energy We'll need projection in this case, so we set that variable to
+      // true.
+      projection_needed = true;
       const Number old_e = view.internal_energy(state);
       const Number old_rho = view.density(state);
 
@@ -398,8 +403,12 @@ namespace mgrit_functions
         Number new_rho = 0;
         if (app.use_reference_for_projection) {
           new_rho = app.reference_rho;
+          max_truncation_size_rho =
+              std::max(max_truncation_size_rho, std::abs(new_rho - old_rho));
         } else {
           new_rho = eps_rho;
+          max_truncation_size_rho =
+              std::max(max_truncation_size_rho, std::abs(new_rho - old_rho));
         }
         state[0] = new_rho;
         state[dim + 1] =
@@ -420,18 +429,23 @@ namespace mgrit_functions
         Number new_e = 0;
         if (app.use_reference_for_projection) {
           new_e = app.reference_e;
+          max_truncation_size_e =
+              std::max(max_truncation_size_e, std::abs(new_e - old_e));
         } else {
           new_e = eps_e;
+          max_truncation_size_e =
+              std::max(max_truncation_size_e, std::abs(new_e - old_e));
         }
         // No need to set the density, that's already done.
         state[dim + 1] =
             new_e + 0.5 / state[0] * (view.momentum(state).norm_square());
         // we could mimic how we write the state, but instead we assert we are
-        // good and
+        // good and then write the state.
       }
 
       // If at this point the state is still not admissible, then we have a
       // major issue and should crash after printing the state.
+      // TODO: remove these?
       const auto rho_new = view.density(state);
       const auto e_new = view.internal_energy(state);
       const auto s_new = view.specific_entropy(state);
@@ -463,6 +477,15 @@ namespace mgrit_functions
 
       std::get<0>(u.U).write_tensor(state, node);
     }
+
+    // write out information about this application of projection
+    app.xout << std::setprecision(16) << "[Projection Info]: "
+             << "At brick " << c_idx << "\n"
+             << "  Projection:" << (projection_needed ? "T\n" : "F\n")
+             << "    max_rho_truncation: " << max_truncation_size_rho << "\n"
+             << "    max_e_truncation  : " << max_truncation_size_e
+             << std::endl;
+
     // Communicate the changes.
     std::get<0>(u.U).update_ghost_values();
   }

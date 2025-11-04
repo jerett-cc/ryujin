@@ -44,7 +44,7 @@ int main(int argc, char *argv[])
   dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(
       argc, argv, 1); // create objects
   mgrit::MyApp<NUMBER, ryujin::Euler::Description, 2> app(
-      MPI_COMM_WORLD, MPI_COMM_WORLD, {(int)refinement});
+      MPI_COMM_WORLD, MPI_COMM_WORLD, std::vector({(int)refinement}));
   std::cout << "Initializing with prm = " + prm_name << std::endl;
 
   app.initialize(prm_name);
@@ -62,7 +62,8 @@ int main(int argc, char *argv[])
                                double time) {
     // Assert(
     //     &U == &(U_data.U),
-    //     dealii::ExcMessage("The data and the data being stepped need to be the "
+    //     dealii::ExcMessage("The data and the data being stepped need to be
+    //     the "
     //                        "same for meaningful postprocessing."));
     // FIXME: make an actually useful check that the data here is the same
     // as the data in main().
