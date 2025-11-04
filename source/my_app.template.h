@@ -57,33 +57,9 @@
 
 namespace mgrit
 {
-
   template <typename Number, typename Description, int dim>
-  MyApp<Number, Description, dim>::MyApp(
-      const MPI_Comm comm_x,
-      const MPI_Comm comm_t,
-      const std::vector<int> a_refinement_levels)
-      : BraidApp(comm_t)
-      , ParameterAcceptor("/App")
-      , comm_x(comm_x)
-      , mpi_ensemble_x(std::make_shared<ryujin::MPIEnsemble>(
-            comm_x,
-            /*n_ensembles=*/1,
-            /*global_synchronization=*/false))
-      , levels(a_refinement_levels.size())
-      , refinement_levels(a_refinement_levels)
-      , time_loops(a_refinement_levels.size())
-      , finest_level(0) // for XBRAID, the finest level is always 0.
-      , discretization_vec(1)
-      , offline_data_vec(
-            1) // initialize this with only one level, will resize later.
-      , pout(std::cout,
-             dealii::Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
-      , gout(std::cout, true)
-      , tout(std::cout, dealii::Utilities::MPI::this_mpi_process(comm_t) == 0)
-      , xout(std::cout, dealii::Utilities::MPI::this_mpi_process(comm_x) == 0)
+  void MyApp<Number, Description, dim>::add_all_parameters()
   {
-    coarsest_level = refinement_levels.size() - 1;
     print_solution_bool = false;
     add_parameter("print_solution_bool",
                   print_solution_bool,
@@ -202,7 +178,91 @@ namespace mgrit
         use_reference_for_projection,
         "If true, the projection will set small values to the reference, "
         "otherwise it will set small values to eps_{value}.");
-  };
+    fine_coarse_min_cfl[0] = 0.45;
+    fine_coarse_min_cfl[1] = 0.45;
+    add_parameter(
+        "fine min cfl, all coarse min cfl",
+        fine_coarse_min_cfl,
+        "The first entry here is the min cfl to use on the finest level, "
+        "and the second is the min cfl to use on ALL of the coarse levels.");
+    fine_coarse_max_cfl[0] = 0.9;
+    fine_coarse_max_cfl[1] = 0.9;
+    add_parameter(
+        "fine max cfl, all coarse max cfl",
+        fine_coarse_max_cfl,
+        "The first entry here is the max cfl to use on the finest level, "
+        "and the second is the max cfl to use on ALL of the coarse levels.");
+    always_use_projection = true;
+    add_parameter("always use projection",
+                  always_use_projection,
+                  "This parameter, when false, will enable MGRIT to skip using "
+                  "projection "
+                  "on a brick if the brick is exact, only useful if the same "
+                  "mesh is used "
+                  "on every level, since different meshes break exactness. "
+                  "True will always"
+                  " use projection, even when a brick is exact.");
+  }
+
+  template <typename Number, typename Description, int dim>
+  MyApp<Number, Description, dim>::MyApp(
+      const MPI_Comm comm_x,
+      const MPI_Comm comm_t,
+      const std::vector<int> a_refinement_levels)
+      : BraidApp(comm_t)
+      , ParameterAcceptor("/App")
+      , comm_x(comm_x)
+      , mpi_ensemble_x(std::make_shared<ryujin::MPIEnsemble>(
+            comm_x,
+            /*n_ensembles=*/1,
+            /*global_synchronization=*/false))
+      , levels(a_refinement_levels.size())
+      , refinement_levels(a_refinement_levels)
+      , time_loops(a_refinement_levels.size())
+      , finest_level(0) // for XBRAID, the finest level is always 0.
+      , discretization_vec(1)
+      , offline_data_vec(
+            1) // initialize this with only one level, will resize later.
+      , pout(std::cout,
+             dealii::Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+      , gout(std::cout, true)
+      , tout(std::cout, dealii::Utilities::MPI::this_mpi_process(comm_t) == 0)
+      , xout(std::cout, dealii::Utilities::MPI::this_mpi_process(comm_x) == 0)
+  {
+    coarsest_level = refinement_levels.size() - 1;
+    add_all_parameters();
+  }
+
+  /// @brief Constructor which uses mgrit levels defined by the same spatial
+  ///        mesh, with different choices for the order of time integrator
+  ///        available from ryujin.
+  /// @param comm_x Spatial communicator to be used by ryujin.
+  /// @param comm_t Temporal communicator to be used by braid.
+  /// @param a_integrator_levels A vector of strings that defines which
+  /// integrator
+  ///                            to use on each level.
+  template <typename Number, typename Description, int dim>
+  MyApp<Number, Description, dim>::MyApp(
+      const MPI_Comm comm_x,
+      const MPI_Comm comm_t,
+      const std::vector<std::string> a_integrator_levels,
+      const int refinement_level)
+      : MyApp(comm_x, comm_t, std::vector({refinement_level}))
+  {
+    integrator_levels = a_integrator_levels;
+    // Levels should actually be resized to match the integrator levels.
+    levels.resize(integrator_levels.size());
+    // TimeLoops also needs to match.
+    time_loops.resize(integrator_levels.size());
+    // We also need to reset the coarsest level.
+    coarsest_level = integrator_levels.size() - 1;
+    // In this constructor, the user specifies that we are only changing the
+    // time integrator between levels.
+    max_levels = levels.size();
+
+    using_same_mesh_every_level = true;
+  }
+
 
   template <typename Number, typename Description, int dim>
   MyApp<Number, Description, dim>::~MyApp(){};
@@ -232,8 +292,17 @@ namespace mgrit
             " and back()=" + std::to_string(refinement_levels.back())));
     // TODO: need to make a way to remove duplicates, or at least warn user
     // that duplicate refinement levels are inefficient.
-    n_coarsenings = refinement_levels.size() - 1;
-    create_mg_levels();
+
+    if (!using_same_mesh_every_level) {
+      n_coarsenings = refinement_levels.size() - 1;
+      create_mg_levels();
+    } else {
+      // reorder time schemes, the most accurate needs to use the highest erk
+      std::sort(integrator_levels.rbegin(), integrator_levels.rend());
+      n_coarsenings = integrator_levels.size() - 1;
+      create_mg_levels_same_spatial_mesh();
+    }
+
 
     // Set up the offline_data_vec a vector of pointers to all the
     // offline_data's for all levels between the finest and coarsest levels we
@@ -345,7 +414,7 @@ namespace mgrit
         ryujin::mgrit::LevelStructures<Description, dim, Number>>(
         mpi_ensemble_x, 0 /*no refinement*/);
     pout << "[INFO] Creating Required Level Structures" << std::endl;
-    for (unsigned int i = 0; i < refinement_levels.size(); i++) {
+    for (unsigned int i = 0; i < levels.size(); i++) {
       levels[i] = std::make_shared<
           ryujin::mgrit::LevelStructures<Description, dim, Number>>(
           mpi_ensemble_x, refinement_levels[i]);
@@ -353,7 +422,33 @@ namespace mgrit
           std::make_shared<ryujin::TimeLoop<Description, dim, Number>>(
               *(levels[i]));
     }
-    pout << "All MG levels created" << std::endl;
+    pout << "  All MG levels created" << std::endl;
+  }
+
+  template <typename Number, typename Description, int dim>
+  void MyApp<Number, Description, dim>::create_mg_levels_same_spatial_mesh()
+  {
+    Assert(
+        refinement_levels.size() == 1,
+        dealii::ExcMessage("Using the same mesh, we need that refinement_levels"
+                           "only has one entry."));
+    // Make the unrefined levels, so that we can use it in the Init()
+    // function.
+    unrefined_level = std::make_shared<
+        ryujin::mgrit::LevelStructures<Description, dim, Number>>(
+        mpi_ensemble_x, 0 /*no refinement*/);
+    pout << "[INFO] Creating Required Level Structures using"
+            " the same mesh on each level."
+         << std::endl;
+    for (unsigned int i = 0; i < levels.size(); i++) {
+      levels[i] = std::make_shared<
+          ryujin::mgrit::LevelStructures<Description, dim, Number>>(
+          mpi_ensemble_x, refinement_levels[0], integrator_levels[i]);
+      time_loops[i] =
+          std::make_shared<ryujin::TimeLoop<Description, dim, Number>>(
+              *(levels[i]));
+    }
+    pout << "  All MG levels created" << std::endl;
   }
 
   template <typename Number, typename Description, int dim>
@@ -362,12 +457,26 @@ namespace mgrit
     unrefined_level->prepare(base_name);
 
     pout << "[INFO] Preparing Required Level Structures" << std::endl;
-    for (unsigned int lvl = 0; lvl < refinement_levels.size(); lvl++) {
+    for (unsigned int lvl = 0; lvl < levels.size(); lvl++) {
       levels[lvl]->prepare(base_name);
 
+      if (using_same_mesh_every_level) {
+        // Set user defined CFL for each level, overwrites the default.
+        if (static_cast<braid_Int>(lvl) == finest_level) {
+          levels[lvl]->time_integrator->cfl_min() =
+              fine_coarse_min_cfl[0]; // set fine level cfl
+          levels[lvl]->time_integrator->cfl_max() =
+              fine_coarse_max_cfl[0]; // set fine level cfl
+        } else {
+          levels[lvl]->time_integrator->cfl_min() =
+              fine_coarse_min_cfl[1]; // set coarse level cfl
+          levels[lvl]->time_integrator->cfl_max() =
+              fine_coarse_max_cfl[1]; // set coarse level cfl
+        }
+      }
       MPI_Barrier(MPI_COMM_WORLD); // TODO: need this?
     }
-    pout << "All MG levels prepared " << std::endl;
+    pout << "  All MG levels prepared " << std::endl;
     // set the last variables in app.
     n_fine_dofs = levels[0]->offline_data->dof_handler().n_dofs();
     n_locally_owned_dofs = levels[0]->offline_data->n_locally_owned();
@@ -784,7 +893,7 @@ namespace mgrit
 
   template <typename Number, typename Description, int dim>
   bool MyApp<Number, Description, dim>::previous_cpoint_is_exact(
-      const braid_Int t_idx, const braid_Int cycle)
+      const braid_Int prev_cidx, const braid_Int cycle)
   {
     Assert((n_relax == 1 || n_relax == 2),
            dealii::ExcMessage("brick_converged() only works if "
@@ -796,7 +905,7 @@ namespace mgrit
     // bricks will be converged each iteration on each level. TODO: verify that
     // this is true.
 
-    return t_idx < n_relax * cycle;
+    return prev_cidx < n_relax * cycle;
   }
 
   template <typename Number, typename Description, int dim>
@@ -832,6 +941,15 @@ namespace mgrit
   template <typename Number, typename Description, int dim>
   void MyApp<Number, Description, dim>::write_coarse_points()
   {
+    auto &convert_to_string =
+        dealii::Patterns::Tools::Convert<ryujin::TimeSteppingScheme>::to_string;
+    auto &to_pattern = dealii::Patterns::Tools::Convert<
+        ryujin::TimeSteppingScheme>::to_pattern;
+    pout << "[INFO]: Using integrator "
+         << convert_to_string(
+                time_loops.back()->time_integrator().time_stepping_scheme(),
+                *to_pattern())
+         << " to initialize bricks." << std::endl;
     auto c_point = c_points();
     auto dt = c_point[1] - c_point[0];
     // change some printing parameters on coarsest level
@@ -857,9 +975,12 @@ namespace mgrit
       }
     }
 
-    // with the time_loop, run on the coarsest level
-    time_loops.back()->set_t_final(tstop);
-    time_loops.back()->run(tstart);
+    // with the time_loop, run on the coarsest level, but ensuring we use the
+    // coarse CFL.
+    levels[coarsest_level]->time_integrator->cfl_max() = fine_coarse_max_cfl[1];
+    levels[coarsest_level]->time_integrator->cfl_min() = fine_coarse_min_cfl[1];
+    time_loops[coarsest_level]->set_t_final(tstop);
+    time_loops[coarsest_level]->run(tstart);
   }
 
   template <typename Number, typename Description, int dim>
@@ -891,11 +1012,13 @@ namespace mgrit
     pstatus.GetTstartTstop(&lvl_tstart, &lvl_tstop);
 
     // grab the MG level for this step
-    int level, t_idx, iter, calling;
+    int level, t_idx, c_idx, iter, calling;
     pstatus.GetLevel(&level);
     pstatus.GetTIndex(&t_idx);
     pstatus.GetIter(&iter);
     pstatus.GetCallingFunction(&calling);
+
+    c_idx = static_cast<braid_Int>(t_idx / cfactor);
 
     xout << "[INFO] Stepping on level: " + std::to_string(level) +
                 "\non interval: [" + std::to_string(lvl_tstart) + ", " +
@@ -927,12 +1050,11 @@ namespace mgrit
     // Otherwise, we need to project.
     // If not exact, we will integrate with F(P), otherwise we omit P and use
     // only F.
-    // if (!previous_cpoint_is_exact(t_idx, iter))
-    {
+    if (always_use_projection || !previous_cpoint_is_exact(c_idx, iter)) {
       // Time this bit of code.
       ryujin::Scope scope(computing_timer, "projection_operator_step");
       mgrit_functions::enforce_physicality_bounds<Description, dim, Number>(
-          *u_, finest_level, *this, lvl_tstart);
+          *u_, finest_level, *this, c_idx);
     }
 
     // use a macro to get rid of some unused variables to avoid -Wall messages
@@ -953,8 +1075,13 @@ namespace mgrit
     // the vectors are assumed to be at the finest level spatially.) This allows
     // computations which are naturally faster on the coarser levels, due to a
     // larger mesh size.
-
-    interpolate_between_levels(*u_to_step, level, *u_, 0);
+    if (!using_same_mesh_every_level) {
+      interpolate_between_levels(*u_to_step, level, *u_, 0);
+    } else {
+      pout << "Before step." << std::endl;
+      // else the meshes are the same.
+      interpolate_between_levels(*u_to_step, finest_level, *u_, finest_level);
+    }
 
     // step the function on this level
     // TODO: make sure that the last parameter is set properly, hardcoded
@@ -969,7 +1096,13 @@ namespace mgrit
         false); // print every step of the integration
 
     // Interpolate the updated state back to the fine level.
-    interpolate_between_levels(*u_, finest_level, *u_to_step, level);
+    if (!using_same_mesh_every_level) {
+      interpolate_between_levels(*u_, finest_level, *u_to_step, level);
+    } else {
+      pout << "After step." << std::endl;
+      // else the meshes are the same.
+      interpolate_between_levels(*u_, finest_level, *u_to_step, finest_level);
+    }
 
     // Apply the boundary conditions to the new state after interpolation.
     levels[finest_level]->hyperbolic_module->prepare_state_vector(u_->U,
@@ -1076,8 +1209,20 @@ namespace mgrit
     // TODO: now the logic of this file goes between the unrefined_level and the
     // finest_level with the caveat that unrefined_level might not be equal to
     // coarsest_level. REFACTOR BELOW FUNCTION.
-    interpolate_between_levels(*u, finest_level, *temp_coarse, coarsest_level);
+    // only do this if the meshe's on each level are different.
+    if (!using_same_mesh_every_level) {
+      interpolate_between_levels(
+          *u, finest_level, *temp_coarse, coarsest_level);
+    } else {
+      // else the meshes are the same.
+      interpolate_between_levels(*u, finest_level, *temp_coarse, finest_level);
+    }
 
+    print_solution(u->U,
+                   t,
+                   finest_level /*level that every u lives on*/,
+                   storage_name,
+                   c_id);
     // reassign pointer XBraid will use by turning ownership of the
     // vector 'u' points to over to 'u_ptr':
     *u_ptr = (braid_Vector)u.release();
@@ -1192,12 +1337,11 @@ namespace mgrit
 
       // project the solution to avoid problems with data at the end of a cycle.
       // Ensure this is a physical vector. Only if this brick is not converged.
-      // if (!previous_cpoint_is_exact(t_idx, mgCycle))
-      {
+      if (always_use_projection && !previous_cpoint_is_exact(c_idx, mgCycle)) {
         // Time this bit of code.
         ryujin::Scope scope(computing_timer, "projection_operator_step");
         mgrit_functions::enforce_physicality_bounds<Description, dim, Number>(
-            *u_, finest_level, *this, t);
+            *u_, finest_level, *this, c_idx);
       }
       std::cout << "Printing brick " << c_idx << " at t= " << t << " on cycle "
                 << mgCycle << std::endl;

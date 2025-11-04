@@ -121,6 +121,19 @@ namespace mgrit
           const MPI_Comm comm_t,
           const std::vector<int> a_refinement_levels);
 
+    /// @brief Constructor which uses mgrit levels defined by the same spatial
+    ///        mesh, with different choices for the order of time integrator
+    ///        available from ryujin.
+    /// @param comm_x Spatial communicator to be used by ryujin.
+    /// @param comm_t Temporal communicator to be used by braid.
+    /// @param a_integrator_levels A vector of strings that defines which
+    /// integrator
+    ///                            to use on each level.
+    MyApp(const MPI_Comm comm_x,
+          const MPI_Comm comm_t,
+          const std::vector<std::string> a_integrator_levels,
+          const int refinement_level);
+
     /// @brief Destructor.
     virtual ~MyApp();
 
@@ -213,10 +226,13 @@ namespace mgrit
   private:
     /// Creates all objects ryujin needs to run.
     void create_mg_levels();
+    void create_mg_levels_same_spatial_mesh();
     /// Calls prepare on all objects ryujin needs to run.
     void prepare_mg_objects();
     /// If a checkpoint file exists, we load this into U.
     void load_file_into_U(const std::string filename, my_vector *temp_coarse);
+    /// Declare all parameters
+    void add_all_parameters();
 
   public: // Braid Required Routines
     /// Tests whether the n_dofs from the vector matches that on the supposed
@@ -299,6 +315,7 @@ namespace mgrit
     std::vector<LevelType> levels; // instantiation
     LevelType unrefined_level;
     std::vector<int> refinement_levels;
+    std::vector<std::string> integrator_levels;
     std::vector<TimeLoopType> time_loops;
     braid_Int finest_level, coarsest_level;
     unsigned int n_fine_dofs;
@@ -345,6 +362,10 @@ namespace mgrit
     braid_Real mgrit_abs_tol;
     int cycle_io_width;
     bool use_reference_for_projection;
+    bool using_same_mesh_every_level = false;
+    bool always_use_projection;
+
+    dealii::Tensor<1, 2, Number> fine_coarse_min_cfl, fine_coarse_max_cfl;
 
     // Conditional output stream.
     // pout: output only on the 0th processor in the global communicator (0 in x

@@ -137,11 +137,12 @@ namespace ryujin
           }
 
           /*
-           * Boundary::object is equivalent to Boundary::slip, but allows us to do 
-           * computations on objects in the flow, such as drag.
+           * Boundary::object is equivalent to Boundary::slip, but allows us to
+           * do computations on objects in the flow, such as drag.
            */
 
-          if( std::fabs(center[0]) < cylinder_position/2 + 1.e-6 && std::fabs(center[1]) < height/4 + 1.e-6) {
+          if (std::fabs(center[0]) < cylinder_position / 2 + 1.e-6 &&
+              std::fabs(center[1]) < height / 4 + 1.e-6) {
             face->set_boundary_id(Boundary::object);
             continue;
           }

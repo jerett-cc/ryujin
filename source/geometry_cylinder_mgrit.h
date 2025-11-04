@@ -27,11 +27,11 @@ namespace ryujin
      */
     template <int dim, int spacedim, template <int, int> class Triangulation>
     void cylinder_mgrit(Triangulation<dim, spacedim> &,
-                  const double /*length*/,
-                  const double /*height*/,
-                  const double /*cylinder_position*/,
-                  const double /*cylinder_height*/,
-                  const double /*second_cylinder_diameter*/)
+                        const double /*length*/,
+                        const double /*height*/,
+                        const double /*cylinder_position*/,
+                        const double /*cylinder_height*/,
+                        const double /*second_cylinder_diameter*/)
     {
       AssertThrow(false, dealii::ExcNotImplemented());
       __builtin_trap();
@@ -41,11 +41,11 @@ namespace ryujin
 #ifndef DOXYGEN
     template <template <int, int> class Triangulation>
     void cylinder_mgrit(Triangulation<2, 2> &triangulation,
-                  const double length,
-                  const double height,
-                  const double cylinder_position,
-                  const double cylinder_diameter,
-                  const double second_cylinder_diameter)
+                        const double length,
+                        const double height,
+                        const double cylinder_position,
+                        const double cylinder_diameter,
+                        const double second_cylinder_diameter)
     {
       constexpr int dim = 2;
 
@@ -71,80 +71,95 @@ namespace ryujin
 
       GridGenerator::subdivided_hyper_rectangle(
           tria4,
-          {2,2},
+          {2, 2},
           Point<2>(cylinder_diameter, -cylinder_diameter),
-          Point<2>(cylinder_diameter + length/4., cylinder_diameter));
+          Point<2>(cylinder_diameter + length / 4., cylinder_diameter));
 
       GridGenerator::subdivided_hyper_rectangle(
           tria5,
           {2, 1},
           Point<2>(cylinder_diameter, cylinder_diameter),
-          Point<2>(cylinder_diameter + length / 4.,  height / 2.));
+          Point<2>(cylinder_diameter + length / 4., height / 2.));
 
       GridGenerator::subdivided_hyper_rectangle(
           tria6,
           {2, 1},
           Point<2>(cylinder_diameter, -height / 2.),
-          Point<2>(cylinder_diameter + length/4., -cylinder_diameter));
+          Point<2>(cylinder_diameter + length / 4., -cylinder_diameter));
 
       // secondary cylinder
-      GridGenerator::hyper_cube_with_cylindrical_hole(
-          tria7, second_cylinder_diameter / 2., cylinder_diameter, 0.5, 1, false);
-      Tensor<1,dim> shift({cylinder_diameter * 2. + length/4., 0.});//shift center of the second cylinder to correct part of the domain.
+      GridGenerator::hyper_cube_with_cylindrical_hole(tria7,
+                                                      second_cylinder_diameter /
+                                                          2.,
+                                                      cylinder_diameter,
+                                                      0.5,
+                                                      1,
+                                                      false);
+      Tensor<1, dim> shift({cylinder_diameter * 2. + length / 4.,
+                            0.}); // shift center of the second cylinder to
+                                  // correct part of the domain.
       GridTools::shift(shift, tria7);
 
       GridGenerator::subdivided_hyper_rectangle(
           tria8,
           {2, 1},
-          Point<2>(cylinder_diameter + length/4., -cylinder_diameter),
-          Point<2>(cylinder_diameter + length/4. + cylinder_diameter * 2., -height / 2.));
+          Point<2>(cylinder_diameter + length / 4., -cylinder_diameter),
+          Point<2>(cylinder_diameter + length / 4. + cylinder_diameter * 2.,
+                   -height / 2.));
 
       GridGenerator::subdivided_hyper_rectangle(
           tria9,
           {2, 1},
-          Point<2>(cylinder_diameter + length/4., cylinder_diameter),
-          Point<2>(cylinder_diameter + length/4. + cylinder_diameter * 2., height / 2.));
+          Point<2>(cylinder_diameter + length / 4., cylinder_diameter),
+          Point<2>(cylinder_diameter + length / 4. + cylinder_diameter * 2.,
+                   height / 2.));
 
 
       tria10.set_mesh_smoothing(triangulation.get_mesh_smoothing());
-      GridGenerator::merge_triangulations(
-          {&tria1, &tria2, &tria3, &tria4, &tria5, &tria6, 
-           &tria7, &tria8, &tria9},
-          tria10,
-          1.e-12,
-          true);
+      GridGenerator::merge_triangulations({&tria1,
+                                           &tria2,
+                                           &tria3,
+                                           &tria4,
+                                           &tria5,
+                                           &tria6,
+                                           &tria7,
+                                           &tria8,
+                                           &tria9},
+                                          tria10,
+                                          1.e-12,
+                                          true);
 
-      //clear some triangulations for the last part of the domain.
+      // clear some triangulations for the last part of the domain.
       tria1.clear();
       tria2.clear();
       tria3.clear();
-      tria4.clear();//we will store the final triangulation in this.
+      tria4.clear(); // we will store the final triangulation in this.
 
       GridGenerator::subdivided_hyper_rectangle(
           tria1,
-          {2,2},
-          Point<2>(cylinder_diameter + length/4. + cylinder_diameter * 2., -cylinder_diameter),
+          {2, 2},
+          Point<2>(cylinder_diameter + length / 4. + cylinder_diameter * 2.,
+                   -cylinder_diameter),
           Point<2>(length - cylinder_position, cylinder_diameter));
 
       GridGenerator::subdivided_hyper_rectangle(
           tria2,
           {2, 1},
-          Point<2>(cylinder_diameter + length/4. + cylinder_diameter * 2., cylinder_diameter),
-          Point<2>(length - cylinder_position,  height / 2.));
+          Point<2>(cylinder_diameter + length / 4. + cylinder_diameter * 2.,
+                   cylinder_diameter),
+          Point<2>(length - cylinder_position, height / 2.));
 
       GridGenerator::subdivided_hyper_rectangle(
           tria3,
           {2, 1},
-          Point<2>(cylinder_diameter + length/4. + cylinder_diameter * 2., -height / 2.),
+          Point<2>(cylinder_diameter + length / 4. + cylinder_diameter * 2.,
+                   -height / 2.),
           Point<2>(length - cylinder_position, -cylinder_diameter));
 
       tria4.set_mesh_smoothing(triangulation.get_mesh_smoothing());
       GridGenerator::merge_triangulations(
-          {&tria1, &tria2, &tria3, &tria10},
-          tria4,
-          1.e-12,
-          true);
-      
+          {&tria1, &tria2, &tria3, &tria10}, tria4, 1.e-12, true);
+
       triangulation.copy_triangulation(tria4);
 
       /* Fix up position of left boundary: */
@@ -188,17 +203,18 @@ namespace ryujin
           }
 
           /*
-           * Boundary::object is equivalent to Boundary::slip, but allows us to do 
-           * computations on objects in the flow, such as drag.
-           * 
+           * Boundary::object is equivalent to Boundary::slip, but allows us to
+           * do computations on objects in the flow, such as drag.
+           *
            * Set the second cylinder as the object.
            */
 
-          if (std::fabs(center[0] - (cylinder_diameter * 2. + length/4)) < cylinder_diameter + 1.e-6 &&
-              std::fabs(center[1]) < height/4. - 1.e-6) {
-             face->set_boundary_id(Boundary::object);
-             continue;
-            }
+          if (std::fabs(center[0] - (cylinder_diameter * 2. + length / 4)) <
+                  cylinder_diameter + 1.e-6 &&
+              std::fabs(center[1]) < height / 4. - 1.e-6) {
+            face->set_boundary_id(Boundary::object);
+            continue;
+          }
 
           // the rest:
           face->set_boundary_id(Boundary::slip);
@@ -206,30 +222,38 @@ namespace ryujin
       }
       /* Set manifold ID on the second cylinder to 1.*/
 
-      triangulation.set_all_manifold_ids_on_boundary(Boundary::object,1/*new manifold id*/);
+      triangulation.set_all_manifold_ids_on_boundary(Boundary::object,
+                                                     1 /*new manifold id*/);
 
       /* Restore polar manifold for discs: */
 
-      //first cylinder
+      // first cylinder
       triangulation.set_manifold(0, PolarManifold<2>(Point<2>()));
-      //second cylinder, centered at x=cylinder_diameter * 2. + length/4., y=0
-      triangulation.set_manifold(1, PolarManifold<2>(Point<2>(cylinder_diameter * 2. + length/4., 0.)));
+      // second cylinder, centered at x=cylinder_diameter * 2. + length/4., y=0
+      triangulation.set_manifold(
+          1,
+          PolarManifold<2>(Point<2>(cylinder_diameter * 2. + length / 4., 0.)));
     }
 
 
     template <template <int, int> class Triangulation>
     void cylinder_mgrit(Triangulation<3, 3> &triangulation,
-                  const double length,
-                  const double height,
-                  const double cylinder_position,
-                  const double cylinder_diameter,
-                  const double second_cylinder_diameter)
+                        const double length,
+                        const double height,
+                        const double cylinder_position,
+                        const double cylinder_diameter,
+                        const double second_cylinder_diameter)
     {
       using namespace dealii;
 
       dealii::Triangulation<2, 2> tria1;
 
-      cylinder_mgrit(tria1, length, height, cylinder_position, cylinder_diameter, second_cylinder_diameter);
+      cylinder_mgrit(tria1,
+                     length,
+                     height,
+                     cylinder_position,
+                     cylinder_diameter,
+                     second_cylinder_diameter);
 
       dealii::Triangulation<3, 3> tria2;
       tria2.set_mesh_smoothing(triangulation.get_mesh_smoothing());
@@ -251,7 +275,10 @@ namespace ryujin
           0, CylindricalManifold<3>(Tensor<1, 3>{{0., 0., 1.}}, Point<3>()));
 
       triangulation.set_manifold(
-          1, CylindricalManifold<3>(Tensor<1, 3>{{0., 0., 1.}}, Point<3>(cylinder_diameter * 2. + length/4, 0., 0.)));
+          1,
+          CylindricalManifold<3>(
+              Tensor<1, 3>{{0., 0., 1.}},
+              Point<3>(cylinder_diameter * 2. + length / 4, 0., 0.)));
 
       /*
        * Set boundary ids:
@@ -283,7 +310,7 @@ namespace ryujin
             continue;
           }
 
-          //todo: add Boundary::object id section.
+          // todo: add Boundary::object id section.
 
           // the rest:
           face->set_boundary_id(Boundary::slip);
@@ -335,12 +362,12 @@ namespace ryujin
       void create_triangulation(
           typename Geometry<dim>::Triangulation &triangulation) final
       {
-	GridGenerator::cylinder_mgrit(triangulation,
-				      length_,
-				      height_,
-				      object_position_,
-				      object_diameter_,
-				      second_object_diameter_);
+        GridGenerator::cylinder_mgrit(triangulation,
+                                      length_,
+                                      height_,
+                                      object_position_,
+                                      object_diameter_,
+                                      second_object_diameter_);
       }
 
     private:

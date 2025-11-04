@@ -107,7 +107,7 @@ namespace mgrit_functions
   enforce_physicality_bounds(mgrit::MyVector<Number, Description, dim> &u,
                              const unsigned int level,
                              const mgrit::MyApp<Number, Description, dim> &app,
-                             const Number t);
+                             const braid_Int c_idx);
 
   /// @brief This function measures the conserved quantities and entropy in the
   /// system,

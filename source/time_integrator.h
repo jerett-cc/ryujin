@@ -315,6 +315,29 @@ namespace ryujin
      */
     ACCESSOR_READ_ONLY(efficiency);
 
+    /**
+     * Access to modify the cfl conditions.
+     */
+    ACCESSOR(cfl_min);
+    ACCESSOR(cfl_max);
+
+    void select_time_stepping_scheme(const std::string &new_scheme)
+    {
+      // TODO: add assert that checks that new_scheme is a
+      //       valid scheme.
+      time_stepping_scheme_ = dealii::Patterns::Tools::Convert<
+          ryujin::TimeSteppingScheme>::to_value(new_scheme);
+
+      Assert((ParabolicSystem::is_identity &&
+              scheme_is_only_explicit(time_stepping_scheme_)),
+             dealii::ExcMessage(
+                 "You are asking the integrator module "
+                 "to use an integrator that will not solve the "
+                 "parabolic part of the PDE correctly, use one "
+                 "of the IMEX schemes instead. You specified the scheme " +
+                 new_scheme + "."));
+    };
+
   protected:
     /**
      * Given a reference to a previous state vector U performs an explicit
@@ -433,6 +456,24 @@ namespace ryujin
     Number step_imex_33(StateVector &state_vector, Number t, Number tau_max);
 
   private:
+    bool scheme_is_only_explicit(const TimeSteppingScheme &scheme)
+    {
+      bool is = false;
+      switch (scheme) {
+      case ryujin::TimeSteppingScheme::erk_11:
+        is = true;
+        break;
+      case ryujin::TimeSteppingScheme::erk_22:
+        is = true;
+        break;
+      case ryujin::TimeSteppingScheme::erk_33:
+        is = true;
+        break;
+      default:
+        break;
+      }
+      return is;
+    };
     //@}
     /**
      * @name Run time options
