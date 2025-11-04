@@ -18,10 +18,10 @@
 // ryujin includes
 #include "convenience_macros.h"
 #include "discretization.h"
-#include "euler/description.h"
-#include "geometry_cylinder.h"
-#include "hyperbolic_module.h"
 #include "hyperbolic_system.h"
+#include "time_loop.h"
+#include "time_integrator.template.h"
+#include "navier_stokes/description.h"
 #include "initial_values.h"
 #include "local_index_handling.h"
 #include "mpi_ensemble.h"

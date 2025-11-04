@@ -1,5 +1,8 @@
 #include "discretization.h"
-#include "euler/description.h"
+#include "level_structures.h"//for all the objects that are needed for a run.
+#include "time_loop.h"
+#include <deal.II/base/mpi.h>
+#include "navier_stokes/description.h"
 #include "euler/hyperbolic_system.h"
 #include "level_structures.h" //for all the objects that are needed for a run.
 #include "my_app.h"
@@ -30,14 +33,12 @@ int main(int argc, char *argv[])
                        nx /*the number of spatial processors per time brick*/,
                        &comm_x,
                        &comm_t);
-
-  mgrit::MyApp<NUMBER, ryujin::Euler::Description, 2> app(
-      comm_x, comm_t, refinement_levels);
-
+  
+  mgrit::MyApp<NUMBER, ryujin::NavierStokes::Description, 2> app(comm_x, comm_t, refinement_levels);
+  
   app.initialize(prm_name);
 
-  using StateVector =
-      mgrit::MyApp<NUMBER, ryujin::Euler::Description, 2>::StateVector;
+  using StateVector = mgrit::MyApp<NUMBER, ryujin::NavierStokes::Description, 2>::StateVector;
 
   braid_Vector U, V;
   braid_Real normU, normV;

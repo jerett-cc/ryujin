@@ -1,7 +1,10 @@
 #include <cmath>
 
 #include "discretization.h"
-#include "euler/description.h"
+#include "level_structures.h"//for all the objects that are needed for a run.
+#include "time_loop.h"
+#include <deal.II/base/mpi.h>
+#include "navier_stokes/description.h"
 #include "euler/hyperbolic_system.h"
 #include "level_structures.h" //for all the objects that are needed for a run.
 #include "mgrit_functions.template.h"
@@ -54,10 +57,9 @@ const std::string parameters =
  * Test that a solution remains in the invariant domain (density, entropy, and
  * energy all positive) after interpolation to a coarser level.
  */
-using StateVector =
-    mgrit::MyApp<double, ryujin::Euler::Description, 2>::StateVector;
-using Vector = mgrit::MyVector<double, ryujin::Euler::Description, 2>;
-using App = mgrit::MyApp<double, ryujin::Euler::Description, 2>;
+using StateVector = mgrit::MyApp<double, ryujin::NavierStokes::Description, 2>::StateVector;
+using Vector = mgrit::MyVector<double, ryujin::NavierStokes::Description, 2>;
+using App = mgrit::MyApp<double, ryujin::NavierStokes::Description, 2>;
 
 constexpr int dim = 2;
 
@@ -69,15 +71,14 @@ int main(int argc, char *argv[])
   dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(
       argc, argv); // create objects
   const MPI_Comm comm_world = MPI_COMM_WORLD;
-
-  mgrit::MyApp<double, ryujin::Euler::Description, 2> app(
-      comm_world, comm_world, refinement_levels);
+  
+  mgrit::MyApp<double, ryujin::NavierStokes::Description, 2> app(comm_world, comm_world, refinement_levels);
 
   std::istringstream prm_stream(parameters);
   app.initialize(prm_stream);
 
   // Set up data.
-  mgrit::MyVector<double, ryujin::Euler::Description, 2> fineU, coarseU;
+  mgrit::MyVector<double, ryujin::NavierStokes::Description, 2> fineU, coarseU;
 
   // now, we need to initialize each vector to the appropriate level.
   app.reinit_to_level(&fineU, 0);

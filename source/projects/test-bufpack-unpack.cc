@@ -1,5 +1,8 @@
 #include "discretization.h"
-#include "euler/description.h"
+#include "level_structures.h"//for all the objects that are needed for a run.
+#include "time_loop.h"
+#include <deal.II/base/mpi.h>
+#include "navier_stokes/description.h"
 #include "euler/hyperbolic_system.h"
 #include "level_structures.h" //for all the objects that are needed for a run.
 #include "mgrit_functions.template.h"
@@ -17,9 +20,8 @@
  * Create a vector, pack it into a buffer, then unpack it into another vector,
  * then compare the vectors. They should be the same.
  */
-using StateVector =
-    mgrit::MyApp<double, ryujin::Euler::Description, 2>::StateVector;
-using App = mgrit::MyApp<double, ryujin::Euler::Description, 2>;
+using StateVector = mgrit::MyApp<double, ryujin::NavierStokes::Description, 2>::StateVector;
+using App = mgrit::MyApp<double, ryujin::NavierStokes::Description, 2>;
 
 constexpr int dim = 2;
 
@@ -35,14 +37,13 @@ int main(int argc, char *argv[])
   const MPI_Comm comm_world = MPI_COMM_WORLD;
 
   // Overarching structure.
-  mgrit::MyApp<double, ryujin::Euler::Description, 2> app(
-      comm_world, comm_world, refinement_levels);
+  mgrit::MyApp<double, ryujin::NavierStokes::Description, 2> app(comm_world, comm_world, refinement_levels);
   // app.initialize(prm_name);
 
   // // Set up data in the one to pack.
-  // mgrit::MyVector<double, ryujin::Euler::Description, 2> packU, unpackU;
+  // mgrit::MyVector<double, ryujin::NavierStokes::Description, 2> packU, unpackU;
   // // Initialize data needs to be at t = 0 on the fine level.
-  // ryujin::Vectors::reinit_state_vector<ryujin::Euler::Description>(packU.U,
+  // ryujin::Vectors::reinit_state_vector<ryujin::NavierStokes::Description>(packU.U,
   // 								   *(app.levels[0]->offline_data));
   // std::get<0>(packU.U) =
   // app.levels[0]->initial_values->get().interpolate_hyperbolic_vector(0.0);

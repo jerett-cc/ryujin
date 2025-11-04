@@ -1,5 +1,8 @@
 #include "discretization.h"
-#include "euler/description.h"
+#include "level_structures.h"//for all the objects that are needed for a run.
+#include "time_loop.h"
+#include <deal.II/base/mpi.h>
+#include "navier_stokes/description.h"
 #include "euler/hyperbolic_system.h"
 #include "level_structures.h" //for all the objects that are needed for a run.
 #include "my_app.h"
@@ -40,19 +43,22 @@ int main(int argc, char *argv[])
   std::cout << "Restarting computation with file " << restart_fname
             << "\nending at time t in [" << tstart << ", " << tstop << "]."
             << std::endl;
-
+  
   dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(
       argc, argv, 1); // create objects
   mgrit::MyApp<NUMBER, ryujin::Euler::Description, 2> app(
       MPI_COMM_WORLD, MPI_COMM_WORLD, std::vector({(int)refinement}));
+
+  dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);  //create objects
+  mgrit::MyApp<NUMBER, ryujin::NavierStokes::Description, 2> app(MPI_COMM_WORLD, MPI_COMM_WORLD, {(int)refinement});
+
   std::cout << "Initializing with prm = " + prm_name << std::endl;
 
   app.initialize(prm_name);
 
-  using StateVector =
-      mgrit::MyApp<NUMBER, ryujin::Euler::Description, 2>::StateVector;
+  using StateVector = mgrit::MyApp<NUMBER, ryujin::NavierStokes::Description, 2>::StateVector;
   // Set up data.
-  mgrit::MyVector<NUMBER, ryujin::Euler::Description, 2> U_data;
+  mgrit::MyVector<NUMBER, ryujin::NavierStokes::Description, 2> U_data;
 
   /**
    * Define the postprocess lambdas
@@ -60,13 +66,7 @@ int main(int argc, char *argv[])
   static int cycle = 0;
   const auto postprocess = [&]([[maybe_unused]] const StateVector U,
                                double time) {
-    // Assert(
-    //     &U == &(U_data.U),
-    //     dealii::ExcMessage("The data and the data being stepped need to be
-    //     the "
-    //                        "same for meaningful postprocessing."));
-    // FIXME: make an actually useful check that the data here is the same
-    // as the data in main().
+
     if (dealii::Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
       std::cout << "Postprocessing at t=" << time << std::endl;
 
@@ -80,11 +80,11 @@ int main(int argc, char *argv[])
       // algorithm and use a projection.
 
       mgrit_functions::
-          enforce_physicality_bounds<ryujin::Euler::Description, 2, NUMBER>(
+          enforce_physicality_bounds<ryujin::NavierStokes::Description, 2, NUMBER>(
               U_data, app.finest_level, app, time);
       const int t_idx = static_cast<int>(time / tstop * app.num_bricks);
       dealii::Tensor<1, 2> forces = mgrit_functions::
-          calculate_forces_on_object<NUMBER, ryujin::Euler::Description, 2>(
+          calculate_forces_on_object<NUMBER, ryujin::NavierStokes::Description, 2>(
               &app, U_data, time, cycle, t_idx);
       if (dealii::Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
         std::cout << "Forces[0]=" << forces[0] << " at t=" << time << std::endl;
@@ -95,17 +95,12 @@ int main(int argc, char *argv[])
 
   // Initialize data needs to be at t = 0.
   Assert(std::fabs(tstart) < 1.e-6,
-         dealii::StandardExceptions::ExcMessage(
-             "tstart needs to be zero for this executble."
-             "Here, tstart=" +
-             std::to_string(tstart)));
-  // calls update_ghost_values() and reinits U and precomputed from the
-  // state_vector.
-  ryujin::Vectors::reinit_state_vector<ryujin::Euler::Description>(
-      U_data.U, *(app.levels[0]->offline_data));
-  std::get<0>(U_data.U) =
-      app.levels[0]->initial_values->get().interpolate_hyperbolic_vector(0.0);
-  app.base_name = restart_fname;
+    dealii::StandardExceptions::ExcMessage("tstart needs to be zero for this executble."
+      "Here, tstart=" + std::to_string(tstart)));
+  // calls update_ghost_values() and reinits U and precomputed from the state_vector.
+  ryujin::Vectors::reinit_state_vector<ryujin::NavierStokes::Description>(U, *(app.levels[0]->offline_data));
+  std::get<0>(U) = app.levels[0]->initial_values->get().interpolate_hyperbolic_vector(0.0);
+
   app.time_loops[0]->change_base_name(restart_fname);
   app.time_loops[0]->set_timer_granularity(app.c_points()[1]);
   // postprocess t=0

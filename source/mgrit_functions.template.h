@@ -1,6 +1,8 @@
 #include "level_structures.h"
 #include "mgrit_functions.h"
 
+#include <deal.II/fe/fe_values_extractors.h>
+
 #include <type_traits>
 
 namespace mgrit_functions
@@ -24,18 +26,36 @@ namespace mgrit_functions
                                ->offline_data->discretization()
                                .face_quadrature()
                                .size();
+    const auto mu =
+        app->levels[app->finest_level]->parabolic_system->get().mu();
+    // first, set up the finite element, the data, and the facevalues
+    // const dealii::FiniteElement<2,2> fe =
+    // app->levels[app->finest_level]->offline_data->discretization().finite_element();
+    // // the finite element const int degree =
+    // app->levels[app->finest_level]->offline_data->discretization().finite_element().degree;
+    // dealii::QGauss<1> face_quadrature_formula =
+    // app->levels[app->finest_level]->offline_data->discretization().quadrature_1d();
+    const int n_q_points = app->levels[app->finest_level]
+                               ->offline_data->discretization()
+                               .quadrature_1d()
+                               .size();
 
     std::vector<Number> pressure_values(n_q_points);
+    std::vector<std::vector<Number>> velocity_values(
+        dim, std::vector<Number>(n_q_points));
 
     scalar_type density, pressure;
-    std::vector<scalar_type> momentum(dim);
+    std::vector<scalar_type> momentum(dim), velocity(dim);
+    std::vector<std::vector<dealii::Tensor<1, dim>>> velocity_gradients(
+        dim, std::vector<dealii::Tensor<1, dim>>(n_q_points));
 
     // initialize partitions
     density.reinit(offline_data->scalar_partitioner(), app->comm_x);
     pressure.reinit(offline_data->scalar_partitioner(), app->comm_x);
-    for (int c = 0; c < dim; c++)
+    for (int c = 0; c < dim; c++) {
       momentum.at(c).reinit(offline_data->scalar_partitioner(), app->comm_x);
-
+      velocity.at(c).reinit(offline_data->scalar_partitioner(), app->comm_x);
+    }
     dealii::Tensor<1, dim> normal_vector;
     dealii::SymmetricTensor<2, dim> fluid_stress;
     dealii::SymmetricTensor<2, dim> fluid_pressure;
@@ -54,17 +74,14 @@ namespace mgrit_functions
 
     // Create vectors that store the locally owned parts on every process
     std::get<0>(u.U).extract_component(density, 0);        // extract density
-    std::get<0>(u.U).extract_component(pressure, dim + 1); // extract density
+    std::get<0>(u.U).extract_component(pressure, dim + 1); // extract E
 
-    // extract momentum, and convert to velocity
+    // extract momentum
     for (int c = 0; c < dim; c++) {
       int comp =
           c + 1; // momentum is stored in positions [1,...,dim], so add one to c
       std::get<0>(u.U).extract_component(momentum.at(c), comp);
     }
-
-    // extract energy
-    std::get<0>(u.U).extract_component(pressure, dim + 1);
 
     // convert E to pressure
     for (unsigned int k = 0; k < offline_data->n_locally_owned(); k++) {
@@ -73,8 +90,11 @@ namespace mgrit_functions
       const double &E = pressure.local_element(k);
       const double &rho = density.local_element(k);
       double m_square = 0;
-      for (int d = 0; d < dim; d++)
+      for (int d = 0; d < dim; d++) {
         m_square += std::pow(momentum.at(d).local_element(k), 2);
+        // now, we get the velocities and store them in velocities
+        velocity.at(d).local_element(k) = momentum.at(d).local_element(k) / rho;
+      }
 
       // pressure = (gamma-1)*internal_energy
       pressure.local_element(k) =
@@ -83,8 +103,10 @@ namespace mgrit_functions
 
     density.update_ghost_values();
     pressure.update_ghost_values();
-    for (auto mom : momentum)
-      mom.update_ghost_values();
+    // for (auto mom : momentum)
+    //   mom.update_ghost_values();
+    for (auto v : velocity)
+      v.update_ghost_values();
 
     dealii::Tensor<1, dim> output_forces;
     std::ostringstream ostring;
@@ -102,6 +124,16 @@ namespace mgrit_functions
 
             // pressure values
             fe_face_values.get_function_values(pressure, pressure_values);
+            // velocity values
+            for (int c = 0; c < dim; c++) {
+              fe_face_values.get_function_values(velocity[c],
+                                                 velocity_values[c]);
+            }
+
+            // velocity_gradients
+            for (int c = 0; c < dim; c++)
+              fe_face_values.get_function_gradients(velocity[c],
+                                                    velocity_gradients[c]);
 
             // now, loop over quadrature points calculating their contribution
             // to the forces acting on the face
@@ -109,12 +141,18 @@ namespace mgrit_functions
               normal_vector = -fe_face_values.normal_vector(q);
 
               // form the contributions from pressure
-              for (int d = 0; d < dim; ++d)
+              for (int d = 0; d < dim; ++d) {
                 fluid_pressure[d][d] = pressure_values[q];
+                for (unsigned int k = 0; k < dim; ++k)
+                  fluid_stress[d][k] = mu * 0.5 *
+                                       (velocity_gradients[d][q][k] +
+                                        velocity_gradients[k][q][d]);
+              }
 
-              fluid_stress = -fluid_pressure; // for the euler equations, the
-              // only contribution to stresses
-              // comes from pressure
+              fluid_stress =
+                  fluid_stress - fluid_pressure; // for the NS equations, the
+                                                 // stresses come from pressure
+                                                 // and the shear stresses.
               forces = fluid_stress * normal_vector * fe_face_values.JxW(q);
               // the drag is in the x direction, the lift is in the y
               // direction but FIXME: does this hold true in higher dimension?

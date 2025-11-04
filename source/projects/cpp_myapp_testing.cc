@@ -3,7 +3,7 @@
 
 #include <cfenv> // for floating point exceptions
 
-#include "euler/description.h"
+#include "navier_stokes/description.h"
 #include "introspection.h"
 
 #include <string>
@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
   flush_denormals_to_zero();
 
   // TODO: make this a parameter file option or a cmd line option.
-  using Description = ryujin::Euler::Description;
+  using Description = ryujin::NavierStokes::Description;
   LSAN_DISABLE;
   // scoped MPI object, no need to call finalize at the end.
   dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(

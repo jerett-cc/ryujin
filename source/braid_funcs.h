@@ -20,9 +20,9 @@
 #include "geometry_cylinder.h"
 #include "discretization.h"
 #include "hyperbolic_system.h"
-#include "euler/parabolic_system.h"
+#include "navier_stokes/parabolic_system.h"
 #include "time_loop.h"
-#include "euler/description.h"
+#include "navier_stokes/description.h"
 #include "initial_values.h"
 #include "offline_data.h"
 #include "parabolic_module.h"
@@ -99,7 +99,7 @@ void print_partition(const dealii::Utilities::MPI::Partitioner & partition, cons
  */
 typedef struct _braid_Vector_struct
 {
-  ryujin::TimeLoop<ryujin::Euler::Description, 2, NUMBER>::vector_type U;
+  ryujin::TimeLoop<ryujin::NavierStokes::Description, 2, NUMBER>::vector_type U;
 } my_Vector;
 
 
@@ -110,7 +110,7 @@ typedef struct _braid_Vector_struct
  */
 typedef struct _braid_App_struct : public dealii::ParameterAcceptor
 {
-    using Description = ryujin::Euler::Description;
+    using Description = ryujin::NavierStokes::Description;
     using Number = NUMBER;
     using LevelType
         = std::shared_ptr<ryujin::mgrit::LevelStructures<Description, 2, Number>>;
@@ -717,7 +717,7 @@ int my_Step(braid_App        app,
       + "total step call number " +std::to_string(num_step_calls) << std::endl;
   }
 
-  enforce_physicality_bounds<ryujin::Euler::Description, 2, NUMBER>(
+  enforce_physicality_bounds<ryujin::NavierStokes::Description, 2, NUMBER>(
       *u, app->finest_level, *app, tstart);
 
   std::string fname = "step" + std::to_string(num_step_calls)+ "_cycle" + std::to_string(app->n_cycles)+ "_level_" + std::to_string(level)
@@ -1020,7 +1020,7 @@ my_Access(braid_App          app,
                 << " enforcing physicality bounds after summing in FInterp."
                 << std::endl;
       // Call the stability projection function.
-      enforce_physicality_bounds<ryujin::Euler::Description, 2, NUMBER>(
+      enforce_physicality_bounds<ryujin::NavierStokes::Description, 2, NUMBER>(
           *u, app->finest_level, *app, t);
 #ifdef CHECK_BOUNDS
       test_physicality<braid_Vector, 2>(
