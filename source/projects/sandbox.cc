@@ -1,16 +1,16 @@
 #include "discretization.h"
-#include "euler/description.h"
-#include "euler/hyperbolic_system.h"
 #include "level_structures.h" //for all the objects that are needed for a run.
 #include "my_app.h"
 #include "state_vector.h"
 #include "time_loop.h"
 #include <deal.II/base/mpi.h>
 
+#include "mgrit_description.h"
+
 // Postprocessing
 #include "mgrit_functions.template.h"
 
-bool is_print_time(mgrit::MyApp<NUMBER, ryujin::Euler::Description, 2> &app,
+bool is_print_time(mgrit::MyApp<NUMBER, mgrit::Description, 2> &app,
                    const NUMBER time)
 {
   // get print frequency from app
@@ -43,16 +43,16 @@ int main(int argc, char *argv[])
 
   dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(
       argc, argv, 1); // create objects
-  mgrit::MyApp<NUMBER, ryujin::Euler::Description, 2> app(
+  mgrit::MyApp<NUMBER, mgrit::Description, 2> app(
       MPI_COMM_WORLD, MPI_COMM_WORLD, std::vector({(int)refinement}));
   std::cout << "Initializing with prm = " + prm_name << std::endl;
 
   app.initialize(prm_name);
 
   using StateVector =
-      mgrit::MyApp<NUMBER, ryujin::Euler::Description, 2>::StateVector;
+      mgrit::MyApp<NUMBER, mgrit::Description, 2>::StateVector;
   // Set up data.
-  mgrit::MyVector<NUMBER, ryujin::Euler::Description, 2> U_data;
+  mgrit::MyVector<NUMBER, mgrit::Description, 2> U_data;
 
   /**
    * Define the postprocess lambdas
@@ -80,11 +80,11 @@ int main(int argc, char *argv[])
       // algorithm and use a projection.
 
       mgrit_functions::
-          enforce_physicality_bounds<ryujin::Euler::Description, 2, NUMBER>(
+          enforce_physicality_bounds<mgrit::Description, 2, NUMBER>(
               U_data, app.finest_level, app, time);
       const int t_idx = static_cast<int>(time / tstop * app.num_bricks);
       dealii::Tensor<1, 2> forces = mgrit_functions::
-          calculate_forces_on_object<NUMBER, ryujin::Euler::Description, 2>(
+          calculate_forces_on_object<NUMBER, mgrit::Description, 2>(
               &app, U_data, time, cycle, t_idx);
       if (dealii::Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
         std::cout << "Forces[0]=" << forces[0] << " at t=" << time << std::endl;
@@ -101,7 +101,7 @@ int main(int argc, char *argv[])
              std::to_string(tstart)));
   // calls update_ghost_values() and reinits U and precomputed from the
   // state_vector.
-  ryujin::Vectors::reinit_state_vector<ryujin::Euler::Description>(
+  ryujin::Vectors::reinit_state_vector<mgrit::Description>(
       U_data.U, *(app.levels[0]->offline_data));
   std::get<0>(U_data.U) =
       app.levels[0]->initial_values->get().interpolate_hyperbolic_vector(0.0);
