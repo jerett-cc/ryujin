@@ -1050,7 +1050,12 @@ namespace mgrit
     // Otherwise, we need to project.
     // If not exact, we will integrate with F(P), otherwise we omit P and use
     // only F.
-    if (always_use_projection || !previous_cpoint_is_exact(c_idx, iter)) {
+    // We always project on coarser levels.
+    const bool previous_cpoint_is_not_exact_and_we_are_on_finest_level =
+      !previous_cpoint_is_exact(c_idx, iter) && level == finest_level;
+    
+    if (always_use_projection ||
+	previous_cpoint_is_not_exact_and_we_are_on_finest_level) {
       // Time this bit of code.
       ryujin::Scope scope(computing_timer, "projection_operator_step");
       mgrit_functions::enforce_physicality_bounds<Description, dim, Number>(
@@ -1337,7 +1342,12 @@ namespace mgrit
 
       // project the solution to avoid problems with data at the end of a cycle.
       // Ensure this is a physical vector. Only if this brick is not converged.
-      if (always_use_projection && !previous_cpoint_is_exact(c_idx, mgCycle)) {
+      const bool previous_cpoint_is_not_exact_and_we_are_on_finest_level =
+	!previous_cpoint_is_exact(c_idx, mgCycle) &&
+	level == finest_level;
+      
+      if (always_use_projection &&
+	  previous_cpoint_is_not_exact_and_we_are_on_finest_level) {
         // Time this bit of code.
         ryujin::Scope scope(computing_timer, "projection_operator_step");
         mgrit_functions::enforce_physicality_bounds<Description, dim, Number>(
