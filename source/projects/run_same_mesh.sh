@@ -35,9 +35,9 @@ if [ ${n_coarse_refinement} -lt 6 ]; then
 else
     DEAL_II_NUM_THREADS="${nthreads}" mpirun -n "${nworld}" startup_same_mesh "${prm}" "${n_coarse_refinement}" "${@:8}"
 fi
-exit
+
 #once the setupfiles are written, we start the regular program.
-time DEAL_II_NUM_THREADS="${nthreads}" mpirun -n "${nworld}" mgrit_same_mesh "${prm}""${nx}" ${refinement} "${@:8}" | tee "${LOGNAME}"
+time DEAL_II_NUM_THREADS="${nthreads}" mpirun -n "${nworld}" mgrit_same_mesh "${prm}" "${nx}" ${refinement} "${@:8}" | tee "${LOGNAME}"
 
 #now that we are done, concatenate the PRM to the LOG.
 echo "____________________PRM____________________" >> ${LOGNAME}
