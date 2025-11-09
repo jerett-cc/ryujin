@@ -1346,13 +1346,19 @@ namespace mgrit
 	!previous_cpoint_is_exact(c_idx, mgCycle) &&
 	level == finest_level;
       
-      if (always_use_projection &&
+      if (always_use_projection ||
 	  previous_cpoint_is_not_exact_and_we_are_on_finest_level) {
         // Time this bit of code.
         ryujin::Scope scope(computing_timer, "projection_operator_step");
         mgrit_functions::enforce_physicality_bounds<Description, dim, Number>(
             *u_, finest_level, *this, c_idx);
       }
+
+      // Before any postprocessing, we need to ensure that we have set the correct boundary
+      // conditions that ryujin wants.
+      levels[finest_level]->hyperbolic_module->prepare_state_vector(u_->U,
+								    t);
+      
       std::cout << "Printing brick " << c_idx << " at t= " << t << " on cycle "
                 << mgCycle << std::endl;
       print_solution(
