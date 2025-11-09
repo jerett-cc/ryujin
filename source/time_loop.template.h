@@ -579,10 +579,19 @@ namespace ryujin
       }
     }
 
+    // we always have to perform a prepare_state_vector before every call to any postprocessing
+    // stage, or the step() function.
+    // so whenever we call run_with_initial_data(), we need to ensure that we bundle
+    // the prepare_state_vector with the actual step() call.
+    // if(!ParabolicSystem::is_identity)
+    //   parabolic_module_->prepare_state_vector(U, t);
+    hyperbolic_module_->prepare_state_vector(U, t);
+    
     /* Loop: */
-    // std::vector<Number> print_times({0.0,
-    // 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0}); auto next_t =
-    // print_times[timer_cycle];
+
+    // Do optional postprocessing at initial time.
+    pp_step(U, t);
+
     for (;; ++cycle) {
 
       /* Accumulate quantities of interest: */
@@ -617,8 +626,17 @@ namespace ryujin
       const auto tau = time_integrator_->step(U, t, next_time);
       t += tau;
 
+      // before postprocessing or next step, we need to prepare state vector
+      // in this state of the code, we have an inconsistent state after step
+      // This issue is fixed in more recent versions of ryujin, so if we ever update the
+      // branch we will need to change this/remove it in favor of how ryujin does things
+      // as of NOV 9 2025
+      // if(!ParabolicSystem::is_identity)
+      // 	parabolic_module_->prepare_state_vector(U, t);
+      hyperbolic_module_->prepare_state_vector(U, t);
+
       /*Optional Postprocess Step*/
-      pp_step(U, t); // FIXME: where should this be called?
+      pp_step(U, t);
 
     } /* end of loop */
     /* We have actually performed one cycle less. */

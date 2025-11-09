@@ -108,8 +108,6 @@ int main(int argc, char *argv[])
   app.base_name = restart_fname;
   app.time_loops[0]->change_base_name(restart_fname);
   app.time_loops[0]->set_timer_granularity(app.c_points()[1]);
-  // postprocess t=0
-  postprocess(U_data.U, tstart);
   // now that we have the data, we call the run function
   app.time_loops[0]->run_with_initial_data(
       U_data.U,
