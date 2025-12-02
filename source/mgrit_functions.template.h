@@ -136,7 +136,7 @@ namespace mgrit_functions
     }         // cell loop
 
     // now, sum the values across all processes.
-    dealii::Utilities::MPI::sum(output_forces, app->comm_x);
+    output_forces = dealii::Utilities::MPI::sum(output_forces, app->comm_x);
     // collect the output strings so we know forces at quadrature points on
     // object.
     std::vector<std::string> all_output =
