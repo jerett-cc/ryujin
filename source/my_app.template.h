@@ -1317,6 +1317,13 @@ namespace mgrit
                  << std::to_string(mgCycle);
     std::string fname = "./" + base_name + "_cycle" + cycle_stream.str();
 
+    const braid_Int c_idx = static_cast<braid_Int>(t_idx / cfactor);
+
+    const bool is_tau = caller_id == braid_ASCaller_FInterp_BeforeCorrectSum_e_FPoints ||
+      caller_id == braid_ASCaller_FInterp_BeforeFineCorrectSum_e_FPoints ||
+      caller_id == braid_ASCaller_FInterp_CoarsePoint_BeforeCorrectSum_e ||
+      caller_id == braid_ASCaller_FInterp_CoarsePoint_onfine_BeforeCorrectSum_e;
+    
     switch (caller_id) // FIXME: need switch here?
     {
     case braid_ASCaller_FAccess: {
@@ -1326,8 +1333,6 @@ namespace mgrit
       if (_braid_IsFPoint(t_idx, cfactor)) {
         return 0;
       }
-
-      const braid_Int c_idx = static_cast<braid_Int>(t_idx / cfactor);
 
       // This function is called at the end of a cycle, if access_level >= 2,
       // and only on the finest level, per XBraid CHANGELOG:Version 2.0.0,
@@ -1381,7 +1386,11 @@ namespace mgrit
       break;
     }
     default: {
-      // Do nothing in a default.
+      if (is_tau)
+	print_solution(u_->U, t, finest_level /*level that every u lives on*/, fname+"_tau"+std::to_string(caller_id), c_idx);
+      if (caller_id == braid_ASCaller_FRestrict_r_beforefrelax)
+	print_solution(u_->U, t, finest_level /*level that every u lives on*/, fname+"_residual"+std::to_string(caller_id), c_idx);
+      // Do nothing else in a default.
       break;
     }
     }
