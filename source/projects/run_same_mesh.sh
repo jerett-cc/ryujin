@@ -26,18 +26,17 @@ echo "NWORLD:${nworld}"
 echo "NX:${nx}"
 echo "NTHREADS:${nthreads}"
 echo "n_refinements:${refinement}"
-echo "n_refinements_coarse:${n_coarse_refinement}"
-echo "integrators:${@:8}"
+echo "integrators:${@:7}"
 
-if [ ${n_coarse_refinement} -lt 6 ]; then
+if [ ${refinement} -lt 6 ]; then
     echo "Using 5 process for startup since the # refinements is small."
-    DEAL_II_NUM_THREADS="${nthreads}" mpirun -n 5 startup_same_mesh "${prm}" "${n_coarse_refinement}" "${@:8}"
+    DEAL_II_NUM_THREADS="${nthreads}" mpirun -n 5 startup_same_mesh "${prm}" "${refinement}" "${@:7}"
 else
-    DEAL_II_NUM_THREADS="${nthreads}" mpirun -n "${nworld}" startup_same_mesh "${prm}" "${n_coarse_refinement}" "${@:8}"
+    DEAL_II_NUM_THREADS="${nthreads}" mpirun -n "${nworld}" startup_same_mesh "${prm}" "${refinement}" "${@:7}"
 fi
 
 #once the setupfiles are written, we start the regular program.
-time DEAL_II_NUM_THREADS="${nthreads}" mpirun -n "${nworld}" mgrit_same_mesh "${prm}" "${nx}" ${refinement} "${@:8}" | tee "${LOGNAME}"
+time DEAL_II_NUM_THREADS="${nthreads}" mpirun -n "${nworld}" mgrit_same_mesh "${prm}" "${nx}" ${refinement} "${@:7}" | tee "${LOGNAME}"
 
 #now that we are done, concatenate the PRM to the LOG.
 echo "____________________PRM____________________" >> ${LOGNAME}
