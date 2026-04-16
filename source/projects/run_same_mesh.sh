@@ -19,7 +19,6 @@ nx="$3"
 nthreads="$4"
 LOGNAME="$5"
 refinement="$6"
-n_coarse_refinement="$7"
 
 echo "PRM:${prm}"
 echo "NWORLD:${nworld}"
