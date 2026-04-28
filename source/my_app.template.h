@@ -823,23 +823,23 @@ namespace mgrit
              << "State: " << u.template get_tensor(i) << std::endl;
       }
 #endif
-      const bool pressure_no_nans =
-          (hs_view_level.pressure(u.template get_tensor(i)) ==
-           hs_view_level.pressure(u.template get_tensor(i)));
-#ifdef DEBUG
-      if (!pressure_no_nans) {
-        pout << "Pressure is: "
-             << hs_view_level.pressure(u.template get_tensor(i)) << std::endl;
-      }
-#endif
-      Assert(
-          pressure_no_nans,
-          dealii::ExcMessage("Pressure has a nan in one of the `lanes' at i= " +
-                             std::to_string(i)));
+//       const bool pressure_no_nans =
+//           (hs_view_level.pressure(u.template get_tensor(i)) ==
+//            hs_view_level.pressure(u.template get_tensor(i)));
+// #ifdef DEBUG
+//       if (!pressure_no_nans) {
+//         pout << "Pressure is: "
+//              << hs_view_level.pressure(u.template get_tensor(i)) << std::endl;
+//       }
+// #endif
+//       Assert(
+//           pressure_no_nans,
+//           dealii::ExcMessage("Pressure has a nan in one of the `lanes' at i= " +
+//                              std::to_string(i)));
 
-      if (!pressure_no_nans || !is_admissible) {
-        exit(EXIT_FAILURE); // FIXME: this is bad
-      }
+//       if (!pressure_no_nans || !is_admissible) {
+//         exit(EXIT_FAILURE); // FIXME: this is bad
+//       }
     }
   }
 
@@ -1054,13 +1054,13 @@ namespace mgrit
     const bool previous_cpoint_is_not_exact_and_we_are_on_finest_level =
       !previous_cpoint_is_exact(c_idx, iter) && level == finest_level;
     
-    if (always_use_projection ||
-	previous_cpoint_is_not_exact_and_we_are_on_finest_level) {
-      // Time this bit of code.
-      ryujin::Scope scope(computing_timer, "projection_operator_step");
-      mgrit_functions::enforce_physicality_bounds<Description, dim, Number>(
-          *u_, finest_level, *this, c_idx);
-    }
+    // if (always_use_projection ||
+    // 	previous_cpoint_is_not_exact_and_we_are_on_finest_level) {
+    //   // Time this bit of code.
+    //   ryujin::Scope scope(computing_timer, "projection_operator_step");
+    //   mgrit_functions::enforce_physicality_bounds<Description, dim, Number>(
+    //       *u_, finest_level, *this, c_idx);
+    // }ADDBACK!
 
     // use a macro to get rid of some unused variables to avoid -Wall messages
     // TODO: make use of the [[maybe_unused]] tag instead.
@@ -1202,11 +1202,26 @@ namespace mgrit
       return 0;
     }
 
-    const std::string c_file_prefix =
+    if(!use_sequential_solution){
+      const std::string c_file_prefix =
         storage_name + "-checkpoint" + std::to_string(c_id);
-    load_file_into_U(c_file_prefix, temp_coarse.get());
-    // TODO: replace with a pout.
-    xout << "Done with file " << c_file_prefix << std::endl;
+      load_file_into_U(c_file_prefix, temp_coarse.get());
+      // TODO: replace with a pout.
+      xout << "Done with file " << c_file_prefix << std::endl;
+    } else {
+      // Interpolate t=0 condition.
+      std::get<0>(temp_coarse->U) = levels[coarsest_level]
+                              ->initial_values->get()
+                              .interpolate_hyperbolic_vector(t /*=0.0*/);
+      //integrate to time
+      time_loops[coarsest_level]->run_with_initial_data(
+        temp_coarse->U,
+        0.0,
+        t,
+        false,
+        [](const StateVector &, double) {},
+        false);
+    }
     // Now interpolate the data we loaded on the coarsest level to the finest
     // level, using the levels data structure, as unrefined_level has done it's
     // work:
@@ -1351,13 +1366,13 @@ namespace mgrit
 	!previous_cpoint_is_exact(c_idx, mgCycle) &&
 	level == finest_level;
       
-      if (always_use_projection ||
-	  previous_cpoint_is_not_exact_and_we_are_on_finest_level) {
-        // Time this bit of code.
-        ryujin::Scope scope(computing_timer, "projection_operator_step");
-        mgrit_functions::enforce_physicality_bounds<Description, dim, Number>(
-            *u_, finest_level, *this, c_idx);
-      }
+      // if (always_use_projection ||
+      // 	  previous_cpoint_is_not_exact_and_we_are_on_finest_level) {
+      //   // Time this bit of code.
+      //   ryujin::Scope scope(computing_timer, "projection_operator_step");
+      //   mgrit_functions::enforce_physicality_bounds<Description, dim, Number>(
+      //       *u_, finest_level, *this, c_idx);
+      // }ADDBACK!
 
       // Before any postprocessing, we need to ensure that we have set the correct boundary
       // conditions that ryujin wants.
@@ -1370,17 +1385,17 @@ namespace mgrit
           u_->U, t, finest_level /*level that every u lives on*/, fname, c_idx);
 
       // calculate drag (at end of cycle...)
-      [[maybe_unused]] dealii::Tensor<1, dim> forces =
-          mgrit_functions::calculate_forces_on_object<Number, Description, dim>(
-              this, *u_, t, mgCycle, c_idx);
-      xout << "[Cycle:" << mgCycle << "] forces[0]=" << forces[0]
-           << " on brick " << c_idx << std::endl;
-      if (calculate_conserved_quantities) {
-        // calculate the conserved quantities in the system, as well as entropy
-        mgrit_functions::
-            conserved_and_entropy_in_system<Description, dim, Number>(
-                *u_, this, finest_level, t);
-      }
+      // [[maybe_unused]] dealii::Tensor<1, dim> forces =
+      //     mgrit_functions::calculate_forces_on_object<Number, Description, dim>(
+      //         this, *u_, t, mgCycle, c_idx);
+      // xout << "[Cycle:" << mgCycle << "] forces[0]=" << forces[0]
+      //      << " on brick " << c_idx << std::endl;
+      // if (calculate_conserved_quantities) {
+      //   // calculate the conserved quantities in the system, as well as entropy
+      //   mgrit_functions::
+      //       conserved_and_entropy_in_system<Description, dim, Number>(
+      //           *u_, this, finest_level, t);
+      // }ADDBACK!
 
       n_cycles = mgCycle;
       break;

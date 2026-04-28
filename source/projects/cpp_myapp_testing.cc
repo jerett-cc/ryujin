@@ -120,7 +120,7 @@ int main(int argc, char *argv[])
                        &comm_x,
                        &comm_t);
 
-  mgrit::MyApp<NUMBER, Description, 2> app(comm_x, comm_t, refinement_levels);
+  mgrit::MyApp<NUMBER, Description, 1> app(comm_x, comm_t, refinement_levels);//ADDBACK! DIM = 2
   app.initialize(prm_name);
 
   pout << "ntime in app: " << app.ntime << std::endl;
@@ -133,7 +133,7 @@ int main(int argc, char *argv[])
   core.SetAccessLevel(app.access_level);
   core.SetNRelax(-1, app.n_relax);
   core.SetMaxIter(app.max_iter);
-  core.SetSeqSoln(app.use_sequential_solution);
+  core.SetSeqSoln(false);
   core.SetSkip(app.skip_first_down_cycle);
 
   pout << "Before braid drive." << std::endl;

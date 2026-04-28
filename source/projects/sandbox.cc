@@ -79,15 +79,15 @@ int main(int argc, char *argv[])
       // as a first step of postprocessing, we want to imitate the MGRIT
       // algorithm and use a projection.
 
-      mgrit_functions::
-          enforce_physicality_bounds<mgrit::Description, 2, NUMBER>(
-              U_data, app.finest_level, app, time);
+      // mgrit_functions::
+      //     enforce_physicality_bounds<mgrit::Description, 2, NUMBER>(
+      //         U_data, app.finest_level, app, time);ADDBACK!
       const int t_idx = static_cast<int>(time / tstop * app.num_bricks);
-      dealii::Tensor<1, 2> forces = mgrit_functions::
-          calculate_forces_on_object<NUMBER, mgrit::Description, 2>(
-              &app, U_data, time, cycle, t_idx);
-      if (dealii::Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
-        std::cout << "Forces[0]=" << forces[0] << " at t=" << time << std::endl;
+      // dealii::Tensor<1, 2> forces = mgrit_functions::
+      //     calculate_forces_on_object<NUMBER, mgrit::Description, 2>(
+      //         &app, U_data, time, cycle, t_idx);
+      // if (dealii::Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
+      //   std::cout << "Forces[0]=" << forces[0] << " at t=" << time << std::endl;ADDBACK!
 
       app.print_solution(U_data.U, time, 0, restart_fname, cycle++);
     }

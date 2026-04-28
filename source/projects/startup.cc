@@ -90,8 +90,8 @@ int main(int argc, char *argv[])
             << " refinement: " << refinement_levels.front() << std::endl;
 
   // First iteration of MGRIT, initializes the cpoints
-  mgrit::MyApp<NUMBER, Description, 2> app_0(
-      comm_world, comm_world, refinement_levels);
+  mgrit::MyApp<NUMBER, Description, 1> app_0(
+					     comm_world, comm_world, refinement_levels);//ADDBACK! DIM = 2
   app_0.initialize(prm_name);
   app_0.write_coarse_points();
 
